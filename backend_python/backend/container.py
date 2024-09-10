@@ -19,6 +19,10 @@ def init_rentcast_client(api_key: str):
 
 
 class Container(containers.DeclarativeContainer):
+    """
+    The container is a dependency injection container that provides the dependencies for the application.
+    """
+
     config = providers.Configuration()
 
     wiring_config = containers.WiringConfiguration(

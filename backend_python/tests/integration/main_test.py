@@ -68,8 +68,7 @@ class TestApp:
     @pytest.fixture
     def subject(self):
         root_path = Path(__file__).parent.parent.parent
-        print(root_path)
-        print(load_dotenv(root_path / ".env"))
+        load_dotenv(root_path / ".env")
 
         from backend.main import app
 

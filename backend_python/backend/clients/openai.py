@@ -12,6 +12,17 @@ class OpenAIClient:
     async def generate_completion(
         self, system_prompt: str, user_prompt: str, max_tokens: int
     ) -> str:
+        """
+        Generate a completion using OpenAI.
+
+        Args:
+            system_prompt (str): The system prompt.
+            user_prompt (str): The user prompt.
+            max_tokens (int): The maximum number of tokens to generate.
+
+        Returns:
+            str: The generated completion.
+        """
         response = await self._client.chat.completions.create(
             model=self._model,
             messages=[

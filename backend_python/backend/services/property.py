@@ -14,13 +14,11 @@ class PropertyService:
         """
         Get the property for the given address.
 
-        This method searches for a property using the provided address and returns the first matching result.
-
         Args:
             address (str): The address of the property to search for.
 
         Returns:
-            dict: A dictionary containing the property details.
+            PropertyInfo: The property details.
 
         Raises:
             PropertyNotFoundError: If no properties are found for the given address.
@@ -29,7 +27,6 @@ class PropertyService:
             If multiple properties are found for the given address, a warning is logged and the first property is returned.
         """
 
-        print(self._client)
         properties = await self._client.property_records(address)
 
         if not properties:

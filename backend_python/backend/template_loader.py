@@ -3,7 +3,6 @@ from backend.models import AgentInfo, PropertyInfo
 import jinja2
 
 TEMPLATE_DIR = "backend/templates"
-print(TEMPLATE_DIR)
 
 
 class TemplateLoader:
@@ -18,6 +17,17 @@ class TemplateLoader:
         agent_info: AgentInfo,
         custom_template: Optional[str] = None,
     ) -> Optional[str]:
+        """
+        Render the user prompt for a property.
+
+        Args:
+            property_info (PropertyInfo): The property info.
+            agent_info (AgentInfo): The agent info.
+            custom_template (Optional[str]): The custom template.
+
+        Returns:
+            Optional[str]: The rendered user prompt.
+        """
         template = None
         if custom_template is not None:
             template = jinja2.Environment().from_string(custom_template)
@@ -26,4 +36,10 @@ class TemplateLoader:
         return template.render(**property_info.model_dump(), **agent_info.model_dump())
 
     def render_system_prompt(self) -> str:
+        """
+        Render the system prompt.
+
+        Returns:
+            str: The rendered system prompt.
+        """
         return self._default_jinja_env.get_template("system_prompt.txt").render()
