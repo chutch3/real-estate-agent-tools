@@ -1,5 +1,9 @@
+from http import HTTPStatus
+from pathlib import Path
+
 import pytest
-from backend.main import app
+from backend.models import AgentInfo, PostGenerationRequest
+from dotenv import load_dotenv
 from fastapi.testclient import TestClient
 
 
@@ -12,14 +16,22 @@ class TestApp:
     def test_generate_post(self, subject):
         response = subject.post(
             "/api/generate-post",
-            json={
-                "address": "123 Main St, Anytown, USA",
-                "agentInfo": {"name": "John Doe", "email": "john.doe@example.com"},
-                "customTemplate": "This is a test post",
-            },
+            json=PostGenerationRequest(
+                address="1600 Amphitheatre Parkway Mountain View, CA 94043, USA",
+                agent_info=AgentInfo(
+                    agent_name="John Doe",
+                    agent_company="John Doe Real Estate",
+                    agent_contact="john.doe@example.com",
+                ),
+            ).model_dump(),
         )
-        assert response.status_code == 200
-        assert response.json() == {"post": "This is a test post"}
+        assert response.status_code == HTTPStatus.CREATED
+        response_json = response.json()
+        assert "post" in response_json
+        assert "John Doe" in response_json["post"]
+        assert "John Doe Real Estate" in response_json["post"]
+        assert "john.doe@example.com" in response_json["post"]
+        assert "Mountain View, CA" in response_json["post"]
 
     # @pytest.mark.parametrize(
     #     "origin,expected_allow_origin,expected_status_code",
@@ -55,4 +67,10 @@ class TestApp:
 
     @pytest.fixture
     def subject(self):
+        root_path = Path(__file__).parent.parent.parent
+        print(root_path)
+        print(load_dotenv(root_path / ".env"))
+
+        from backend.main import app
+
         return TestClient(app)

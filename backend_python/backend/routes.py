@@ -16,8 +16,10 @@ async def generate_post(
     request: PostGenerationRequest,
     coordinator: PostCoordinator = Depends(Provide[Container.post_coordinator]),
 ):
-    return await coordinator.generate_post(
-        address=request.address,
-        agent_info=request.agentInfo,
-        custom_template=request.customTemplate,
-    )
+    return {
+        "post": await coordinator.generate_post(
+            address=request.address,
+            agent_info=request.agent_info,
+            custom_template=request.custom_template,
+        )
+    }

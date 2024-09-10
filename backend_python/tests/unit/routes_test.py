@@ -2,6 +2,7 @@ from http import HTTPStatus
 from typing import Container
 from unittest.mock import AsyncMock, Mock
 
+from backend.models import PostGenerationRequest, AgentInfo
 import pytest
 from backend.post_coordinator import PostCoordinator
 from backend.routes import router
@@ -14,18 +15,25 @@ class TestRoutes:
         "actual_request, expected_response",
         [
             (
-                {
-                    "address": "123 Main St, Anytown, USA",
-                    "agentInfo": {"name": "John Doe", "email": "john.doe@example.com"},
-                    "customTemplate": "This is a test post",
-                },
+                PostGenerationRequest(
+                    address="123 Main St, Anytown, USA",
+                    agent_info=AgentInfo(
+                        agent_name="John Doe",
+                        agent_company="John Doe Real Estate",
+                        agent_contact="john.doe@example.com",
+                    ),
+                ),
                 {"post": "This is a test post"},
             ),
             (
-                {
-                    "address": "456 Main St, Anytown, USA",
-                    "agentInfo": {"name": "Jane Doe", "email": "jane.doe@example.com"},
-                },
+                PostGenerationRequest(
+                    address="456 Main St, Anytown, USA",
+                    agent_info=AgentInfo(
+                        agent_name="Jane Doe",
+                        agent_company="Jane Doe Real Estate",
+                        agent_contact="jane.doe@example.com",
+                    ),
+                ),
                 {"post": "this is another test post"},
             ),
         ],
@@ -33,10 +41,8 @@ class TestRoutes:
     def test_generate_post(
         self, subject, mock_coordinator, actual_request, expected_response
     ):
-
-        mock_coordinator.generate_post.return_value = expected_response
-
-        response = subject.post("/generate-post", json=actual_request)
+        mock_coordinator.generate_post.return_value = expected_response["post"]
+        response = subject.post("/generate-post", json=actual_request.model_dump())
         assert response.status_code == HTTPStatus.CREATED
         assert response.json() == expected_response
 

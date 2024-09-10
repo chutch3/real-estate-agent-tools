@@ -1,0 +1,45 @@
+Generate an Instagram post for a real estate agent about a property with the following details:
+Address: "{{ formatted_address }}"
+Property Type: "{{ property_type }}"
+Bedrooms: "{{ bedrooms }}"
+Bathrooms: "{{ bathrooms }}"
+Square Footage: "{{ square_footage }}"
+Lot Size: "{{ lot_size }}"
+Year Built: "{{ year_built }}"
+City: "{{ city }}"
+State: "{{ state }}"
+Zip Code: "{{ zip_code }}"
+County: "{{ county }}"
+Features: "{{ features }}"
+Agent Name: "{{ agent_name }}"
+Agent Company: "{{ agent_company }}"
+Agent Contact: "{{ agent_contact }}"
+
+The post should:
+1. Start with an attention-grabbing headline about the property
+2. List key features of the home, including bedrooms, bathrooms, and square footage
+3. Highlight any special features or amenities (e.g., pool, basement, garage)
+4. Use appropriate emojis for each feature
+5. Sound enthusiastic and professional like a real estate agent
+6. Include a call to action (e.g., "Reach out if you have any questions")
+7. End with the agent's name and contact information
+8. Be within 150 words
+9. Ignore any details that are not provided
+
+Format the post similar to this example but exclude missing data points:
+```
+Don't miss out on this stunning home in [City], [State] 🏡
+
+This home truly has it all:
+
+🛏️ [Number] Bedrooms
+🛁 [Number] Bathrooms
+📏 [Number] Sq. Ft.
+✨ [List special features]
+
+[Call to Action]
+
+[Agent Name] | Realtor
+[Agent Company]
+[Agent Contact]
+```
