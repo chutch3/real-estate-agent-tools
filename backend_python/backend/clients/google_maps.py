@@ -18,8 +18,6 @@ class GoogleMapsClient:
                 data = await response.json()
                 if data["results"]:
                     location = data["results"][0]["geometry"]["location"]
-                    return GeocodeLocation(
-                        latitude=location["lat"], longitude=location["lng"]
-                    )
+                    return GeocodeLocation(lat=location["lat"], lng=location["lng"])
                 else:
                     raise AddressNotFoundError()

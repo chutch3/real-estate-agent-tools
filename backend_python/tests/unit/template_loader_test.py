@@ -59,6 +59,14 @@ class TestTemplateLoader:
             **actual_agent_info.model_dump(),
         )
 
+    def test_read_user_prompt(
+        self,
+        subject: TemplateLoader,
+    ):
+        actual = subject.read_user_prompt()
+        with open(f"{TEMPLATE_DIR}/post_prompt.txt", "r") as file:
+            assert actual == file.read()
+
     @pytest.fixture
     def jinja_env(self):
         yield jinja2.Environment(loader=jinja2.FileSystemLoader("backend/templates"))

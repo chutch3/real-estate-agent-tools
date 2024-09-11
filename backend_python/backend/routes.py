@@ -2,12 +2,18 @@ from http import HTTPStatus
 from http.client import HTTPException
 
 from backend.clients.google_maps import GoogleMapsClient
+from backend.template_loader import TemplateLoader
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, HTTPException
 
 from .container import Container
 from .exceptions import AddressNotFoundError, PropertyNotFoundError
-from .models import GeocodeRequest, GeocodeResponse, PostGenerationRequest
+from .models import (
+    GeocodeRequest,
+    GeocodeResponse,
+    PostGenerationRequest,
+    TemplateResponse,
+)
 from .post_coordinator import PostCoordinator
 
 router = APIRouter()
@@ -76,3 +82,21 @@ async def geocode(
             status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
             detail="Unable to geocode address",
         )
+
+
+@router.get("/default-template", status_code=HTTPStatus.OK)
+@inject
+async def get_default_template(
+    template_loader: TemplateLoader = Depends(Provide[Container.template_loader]),
+):
+    """
+    Get the default template.
+
+    Args:
+        template_loader (TemplateLoader): The template loader.
+
+    Returns:
+        TemplateResponse: The response object.
+    """
+    template = template_loader.read_user_prompt()
+    return TemplateResponse(template=template)

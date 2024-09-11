@@ -43,3 +43,13 @@ class TemplateLoader:
             str: The rendered system prompt.
         """
         return self._default_jinja_env.get_template("system_prompt.txt").render()
+
+    def read_user_prompt(self) -> str:
+        """
+        Read the user template.
+
+        Returns:
+            str: The user template.
+        """
+        with open(f"{TEMPLATE_DIR}/post_prompt.txt", "r") as file:
+            return file.read()

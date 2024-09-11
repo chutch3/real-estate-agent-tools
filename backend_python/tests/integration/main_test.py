@@ -1,6 +1,8 @@
 from http import HTTPStatus
 from pathlib import Path
 
+from backend.main import create_app
+from backend.template_loader import TEMPLATE_DIR
 import pytest
 from backend.models import (
     AgentInfo,
@@ -8,6 +10,7 @@ from backend.models import (
     GeocodeRequest,
     GeocodeResponse,
     PostGenerationRequest,
+    TemplateResponse,
 )
 from dotenv import load_dotenv
 from fastapi.testclient import TestClient
@@ -50,47 +53,54 @@ class TestApp:
         assert (
             response.json()
             == GeocodeResponse(
-                location=GeocodeLocation(latitude=37.4225103, longitude=-122.0847089)
+                location=GeocodeLocation(lat=37.4225103, lng=-122.0847089)
             ).model_dump()
         )
 
-    # @pytest.mark.parametrize(
-    #     "origin,expected_allow_origin,expected_status_code",
-    #     [
-    #         ("http://localhost:8080", "http://localhost:8080", 200, '{"status": "ok"}'),
-    #         ("http://localhost", "http://localhost", 200, '{"status": "ok"}'),
-    #         ("http://localhost.tiangolo.com", None, 400, "Disallowed CORS origin"),
-    #     ],
-    # )
-    # def test_cors(
-    #     self,
-    #     subject,
-    #     origin,
-    #     expected_allow_origin,
-    #     expected_status_code,
-    #     expected_response,
-    # ):
-    #     response = subject.options(
-    #         "/health",
-    #         headers={
-    #             "Origin": origin,
-    #             "Access-Control-Request-Method": "GET",
-    #         },
-    #     )
+    def test_get_default_template(self, subject):
+        response = subject.get("/api/default-template")
+        assert response.status_code == HTTPStatus.OK
+        with open(f"{TEMPLATE_DIR}/post_prompt.txt", "r") as file:
+            assert (
+                response.json() == TemplateResponse(template=file.read()).model_dump()
+            )
 
-    #     assert response.status_code == expected_status_code
-    #     assert response.headers["Access-Control-Allow-Origin"] == expected_allow_origin
-    #     assert all(
-    #         method in response.headers["Access-Control-Allow-Methods"]
-    #         for method in ["DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT"]
-    #     )
-    #     assert response.text == expected_response
+    @pytest.mark.parametrize(
+        "origin,expected_allow_origin,expected_status_code,expected_response",
+        [
+            ("http://localhost:3001", "http://localhost:3001", 200, "OK"),
+            ("http://localhost", "http://localhost", 200, "OK"),
+            ("http://localhost.tiangolo.com", None, 400, "Disallowed CORS origin"),
+        ],
+    )
+    def test_cors(
+        self,
+        subject,
+        origin,
+        expected_allow_origin,
+        expected_status_code,
+        expected_response,
+    ):
+        response = subject.options(
+            "/health",
+            headers={
+                "Origin": origin,
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+
+        assert response.status_code == expected_status_code
+        assert (
+            response.headers.get("Access-Control-Allow-Origin") == expected_allow_origin
+        )
+        assert all(
+            method in response.headers["Access-Control-Allow-Methods"]
+            for method in ["DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT"]
+        )
+        assert response.text == expected_response
 
     @pytest.fixture
     def subject(self):
         root_path = Path(__file__).parent.parent.parent
         load_dotenv(root_path / ".env")
-
-        from backend.main import app
-
-        return TestClient(app)
+        return TestClient(create_app())

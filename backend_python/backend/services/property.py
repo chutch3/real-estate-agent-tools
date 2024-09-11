@@ -58,6 +58,10 @@ class PropertyService:
             zoning=properties[0].zoning,
             last_sale_date=properties[0].last_sale_date,
             last_sale_price=properties[0].last_sale_price,
-            features=PropertyFeatures(**properties[0].features.model_dump()),
+            features=(
+                PropertyFeatures(**properties[0].features.model_dump())
+                if properties[0].features
+                else None
+            ),
             owner_occupied=properties[0].owner_occupied,
         )

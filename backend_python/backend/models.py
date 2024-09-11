@@ -19,12 +19,16 @@ class GeocodeRequest(BaseModel):
 
 
 class GeocodeLocation(BaseModel):
-    latitude: float
-    longitude: float
+    lat: float
+    lng: float
 
 
 class GeocodeResponse(BaseModel):
     location: GeocodeLocation
+
+
+class TemplateResponse(BaseModel):
+    template: str
 
 
 class PropertyFeatures(BaseModel):

@@ -3,6 +3,7 @@ from typing import Container
 from unittest.mock import AsyncMock, Mock
 
 from backend.clients.google_maps import GoogleMapsClient
+from backend.template_loader import TemplateLoader
 import pytest
 from backend.exceptions import AddressNotFoundError, PropertyNotFoundError
 from backend.models import (
@@ -11,6 +12,7 @@ from backend.models import (
     GeocodeRequest,
     GeocodeResponse,
     PostGenerationRequest,
+    TemplateResponse,
 )
 from backend.post_coordinator import PostCoordinator
 from backend.routes import router
@@ -70,7 +72,7 @@ class TestRoutes:
         assert response.json() == {"detail": "Property not found"}
 
     def test_geocode(self, subject, mock_google_maps_client):
-        expected = GeocodeLocation(latitude=40.7128, longitude=-74.006)
+        expected = GeocodeLocation(lat=40.7128, lng=-74.006)
         mock_google_maps_client.geocode.return_value = expected
         response = subject.post(
             "/geocode",
@@ -97,6 +99,15 @@ class TestRoutes:
         assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
         assert response.json() == {"detail": "Unable to geocode address"}
 
+    def test_get_default_template(self, subject, mock_template_loader):
+        mock_template_loader.read_user_prompt.return_value = "This is a test template"
+        response = subject.get("/default-template")
+        assert response.status_code == HTTPStatus.OK
+        assert (
+            response.json()
+            == TemplateResponse(template="This is a test template").model_dump()
+        )
+
     @pytest.fixture
     def mock_coordinator(self):
         yield AsyncMock(spec=PostCoordinator)
@@ -106,15 +117,21 @@ class TestRoutes:
         yield AsyncMock(spec=GoogleMapsClient)
 
     @pytest.fixture
+    def mock_template_loader(self):
+        yield Mock(spec=TemplateLoader)
+
+    @pytest.fixture
     def subject(
         self,
         test_container: Container,
         mock_coordinator: AsyncMock,
         mock_google_maps_client: AsyncMock,
+        mock_template_loader: Mock,
     ):
         with test_container.override_providers(
             post_coordinator=mock_coordinator,
             google_maps_client=mock_google_maps_client,
+            template_loader=mock_template_loader,
         ):
             app = FastAPI()
             app.include_router(router)
