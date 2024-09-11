@@ -1,4 +1,5 @@
 from backend.services import PropertyService, PostGenerationService
+from backend.models import GeocodeLocation
 
 
 class PostCoordinator:
@@ -10,6 +11,7 @@ class PostCoordinator:
 
         self._property_service = property_service
         self._post_generation_service = post_generation_service
+        # self._google_maps_client = google_maps_client
 
     async def generate_post(self, address, agent_info, custom_template):
         """
@@ -29,4 +31,4 @@ class PostCoordinator:
         )
 
     async def post_to_instagram(self, post):
-        pass
+        raise NotImplementedError("Not implemented yet")

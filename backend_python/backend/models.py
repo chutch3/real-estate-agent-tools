@@ -14,6 +14,19 @@ class PostGenerationRequest(BaseModel):
     custom_template: Optional[str] = None
 
 
+class GeocodeRequest(BaseModel):
+    address: str
+
+
+class GeocodeLocation(BaseModel):
+    latitude: float
+    longitude: float
+
+
+class GeocodeResponse(BaseModel):
+    location: GeocodeLocation
+
+
 class PropertyFeatures(BaseModel):
     architecture_type: Optional[str] = Field(None, alias="architectureType")
     cooling: Optional[bool] = True
@@ -43,8 +56,8 @@ class PropertyInfo(BaseModel):
     latitude: Optional[Union[float, int]] = 0
     longitude: Optional[Union[float, int]] = 0
     property_type: Optional[str] = Field(None, alias="propertyType")
-    bedrooms: Optional[int] = 0
-    bathrooms: Optional[int] = 0
+    bedrooms: Optional[Union[float, int]] = 0
+    bathrooms: Optional[Union[float, int]] = 0
     square_footage: Optional[int] = Field(0, alias="squareFootage")
     lot_size: Optional[int] = Field(0, alias="lotSize")
     year_built: Optional[int] = Field(0, alias="yearBuilt")

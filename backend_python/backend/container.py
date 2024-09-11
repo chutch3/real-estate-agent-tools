@@ -1,3 +1,4 @@
+from backend.clients.google_maps import GoogleMapsClient
 from backend.clients.openai import OpenAIClient
 from backend.post_coordinator import PostCoordinator
 from backend.services.post_generation import PostGenerationService
@@ -34,6 +35,9 @@ class Container(containers.DeclarativeContainer):
         init_rentcast_client, api_key=config.rentcast.api_key
     )
     openai_client = providers.Singleton(OpenAIClient, model=config.openai.model)
+    google_maps_client = providers.Singleton(
+        GoogleMapsClient, api_key=config.google_maps.api_key
+    )
     template_loader = providers.Singleton(TemplateLoader)
 
     property_service = providers.Singleton(PropertyService, client=rentcast_client)

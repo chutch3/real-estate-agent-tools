@@ -6,8 +6,9 @@ from fastapi import FastAPI
 import uvicorn
 
 container = Container()
-container.config.openai.model.from_env("OPENAI_MODEL", default="gpt-3.5-turbo")
+container.config.openai.model.from_env("OPENAI_MODEL", default="gpt-4o-mini")
 container.config.rentcast.api_key.from_env("RENTCAST_API_KEY")
+container.config.google_maps.api_key.from_env("GOOGLE_MAPS_API_KEY")
 
 app = FastAPI()
 app.include_router(routes.router, prefix="/api")

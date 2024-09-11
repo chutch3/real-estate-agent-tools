@@ -2,7 +2,13 @@ from http import HTTPStatus
 from pathlib import Path
 
 import pytest
-from backend.models import AgentInfo, PostGenerationRequest
+from backend.models import (
+    AgentInfo,
+    GeocodeLocation,
+    GeocodeRequest,
+    GeocodeResponse,
+    PostGenerationRequest,
+)
 from dotenv import load_dotenv
 from fastapi.testclient import TestClient
 
@@ -32,6 +38,21 @@ class TestApp:
         assert "John Doe Real Estate" in response_json["post"]
         assert "john.doe@example.com" in response_json["post"]
         assert "Mountain View, CA" in response_json["post"]
+
+    def test_geocode(self, subject):
+        response = subject.post(
+            "/api/geocode",
+            json=GeocodeRequest(
+                address="1600 Amphitheatre Parkway Mountain View, CA 94043, USA"
+            ).model_dump(),
+        )
+        assert response.status_code == HTTPStatus.CREATED
+        assert (
+            response.json()
+            == GeocodeResponse(
+                location=GeocodeLocation(latitude=37.4225103, longitude=-122.0847089)
+            ).model_dump()
+        )
 
     # @pytest.mark.parametrize(
     #     "origin,expected_allow_origin,expected_status_code",
