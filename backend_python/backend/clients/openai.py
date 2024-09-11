@@ -1,3 +1,4 @@
+from typing import List
 import openai
 import os
 import logging
@@ -32,3 +33,18 @@ class OpenAIClient:
             max_tokens=max_tokens,
         )
         return response.choices[0].message.content.strip()
+
+    async def create_embeddings(self, text: str) -> List[float]:
+        """
+        Create embeddings using OpenAI.
+
+        Args:
+            text (str): The text to create embeddings for.
+
+        Returns:
+            List[float]: The embeddings.
+        """
+        response = await self._client.embeddings.create(
+            input=[text], model="text-embedding-ada-002"
+        )
+        return response.data[0].embedding

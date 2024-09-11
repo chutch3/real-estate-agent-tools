@@ -1,13 +1,18 @@
 from backend.clients.google_maps import GoogleMapsClient
 from backend.clients.openai import OpenAIClient
 from backend.post_coordinator import PostCoordinator
+from backend.repositories.document_embeddings import DocumentEmbeddingRepository
+from backend.services.document import DocumentService
 from backend.services.post_generation import PostGenerationService
 from backend.services.property import PropertyService
 from backend.template_loader import TemplateLoader
 from dependency_injector import containers, providers
+
+# from pymilvus import MilvusClient, connections
 from rentcast_client.api.default_api import DefaultApi
-from rentcast_client.configuration import Configuration
 from rentcast_client.api_client import ApiClient
+from pymilvus import MilvusClient
+from backend.schema import document_embeddings_schema, document_embeddings_index_params
 
 
 def init_rentcast_client(api_key: str):
@@ -17,6 +22,22 @@ def init_rentcast_client(api_key: str):
             header_value=api_key,
         )
     )
+
+
+def init_milvus_client(uri: str, collection_name: str):
+    client = MilvusClient(uri=uri)
+    if not client.has_collection(collection_name):
+        client.create_collection(
+            collection_name=collection_name,
+            schema=document_embeddings_schema,
+            index_params=document_embeddings_index_params,
+        )
+    else:
+        client.load_collection(collection_name=collection_name)
+
+    yield client
+    client.release_collection(collection_name=collection_name)
+    client.close()
 
 
 class Container(containers.DeclarativeContainer):
@@ -34,13 +55,28 @@ class Container(containers.DeclarativeContainer):
     rentcast_client = providers.Resource(
         init_rentcast_client, api_key=config.rentcast.api_key
     )
+    milvus_client = providers.Resource(
+        init_milvus_client,
+        uri=config.milvus.uri,
+        collection_name=config.milvus.collection_name,
+    )
     openai_client = providers.Singleton(OpenAIClient, model=config.openai.model)
     google_maps_client = providers.Singleton(
         GoogleMapsClient, api_key=config.google_maps.api_key
     )
     template_loader = providers.Singleton(TemplateLoader)
 
+    document_embedding_repository = providers.Singleton(
+        DocumentEmbeddingRepository,
+        client=milvus_client,
+        collection_name=config.milvus.collection_name,
+    )
     property_service = providers.Singleton(PropertyService, client=rentcast_client)
+    document_service = providers.Singleton(
+        DocumentService,
+        repository=document_embedding_repository,
+        client=openai_client,
+    )
     post_generation_service = providers.Singleton(
         PostGenerationService,
         openai_client=openai_client,

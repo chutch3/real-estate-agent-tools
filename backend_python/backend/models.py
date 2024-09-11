@@ -76,3 +76,7 @@ class PropertyInfo(BaseModel):
 
     class ConfigDict:
         populate_by_name = True
+
+
+class DocumentUploadResponse(BaseModel):
+    id: str
