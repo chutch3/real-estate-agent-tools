@@ -1,0 +1,58 @@
+{
+    "name": "instagram-post-generator-frontend",
+    "version": "0.1.0",
+    "private": true,
+    "dependencies": {
+        "@react-google-maps/api": "^2.19.3",
+        "axios": "^1.7.5",
+        "react": "^18.0.0",
+        "react-dom": "^18.0.0",
+        "react-router-dom": "^6.26.1",
+        "react-scripts": "5.0.1",
+        "react-spinners": "^0.14.1"
+    },
+    "scripts": {
+        "start": "react-scripts start",
+        "build": "react-scripts build",
+        "test": "jest",
+        "eject": "react-scripts eject",
+        "test:unit": "jest tests/unit",
+        "test:integration": "jest tests/integration",
+        "test:e2e": "jest tests/e2e"
+    },
+    "eslintConfig": {
+        "extends": [
+            "react-app",
+            "react-app/jest"
+        ]
+    },
+    "browserslist": {
+        "production": [
+            ">0.2%",
+            "not dead",
+            "not op_mini all"
+        ],
+        "development": [
+            "last 1 chrome version",
+            "last 1 firefox version",
+            "last 1 safari version"
+        ]
+    },
+    "jest": {
+        "testEnvironment": "jsdom",
+        "setupFilesAfterEnv": [
+            "<rootDir>/src/setupTests.js"
+        ],
+        "moduleNameMapper": {
+            "\\.(css|less|sass|scss)$": "<rootDir>/__mocks__/styleMock.js",
+            "\\.(gif|ttf|eot|svg)$": "<rootDir>/__mocks__/fileMock.js"
+        }
+    },
+    "devDependencies": {
+        "@testing-library/dom": "^10.4.0",
+        "@testing-library/jest-dom": "^6.5.0",
+        "@testing-library/react": "^16.0.0",
+        "@types/react": "^18.3.4",
+        "@types/react-dom": "^18.3.0"
+    }
+}

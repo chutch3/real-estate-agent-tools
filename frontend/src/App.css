@@ -1,0 +1,357 @@
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #f5f5f5;
+}
+
+.App {
+  text-align: center;
+  padding-top: 60px; /* Adjust this value based on the height of your NavMenu */
+}
+
+.App-header {
+  background-color: #282c34;
+  padding: 20px;
+  color: white;
+}
+
+.App-header h1 {
+  margin: 0;
+}
+
+.App-main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.post-container {
+  background-color: white;
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.post-textarea {
+  width: 100%;
+  padding: 12px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  resize: vertical;
+  margin-bottom: 16px;
+}
+
+.post-button {
+  padding: 12px 24px;
+  font-size: 16px;
+  background-color: #28a745;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.post-button:hover {
+  background-color: #218838;
+}
+
+.post-status {
+  margin-top: 16px;
+  font-weight: bold;
+}
+
+.loader-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: 20px 0;
+}
+
+.loader-container p {
+  margin-top: 10px;
+  font-size: 16px;
+  color: #007bff;
+}
+
+.error-message {
+  background-color: #ffebee;
+  color: #c62828;
+  padding: 10px;
+  border-radius: 4px;
+  margin-top: 20px;
+  text-align: center;
+  font-weight: bold;
+}
+
+.template-container {
+  margin-top: 20px;
+  background-color: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.template-textarea {
+  width: 90%; /* Adjust this value as needed */
+  max-width: 600px; /* Set a maximum width */
+  padding: 12px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  resize: vertical;
+  margin-bottom: 16px;
+  min-height: 150px; /* Set a minimum height */
+}
+
+.reset-template-button {
+  padding: 8px 16px;
+  font-size: 14px;
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  align-self: center; /* Center the button */
+}
+
+.reset-template-button:hover {
+  background-color: #5a6268;
+}
+
+.nav-link {
+    margin: 10px;
+    text-decoration: none;
+    color: #007bff; /* Link color */
+}
+
+.nav-link:hover {
+    text-decoration: underline; /* Underline on hover */
+}
+
+.button-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.action-button {
+  padding: 12px 24px;
+  font-size: 16px;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.instagram-button {
+  background-color: #E1306C;
+}
+
+.instagram-button:hover {
+  background-color: #C13584;
+}
+
+.email-button {
+  background-color: #D44638;
+}
+
+.email-button:hover {
+  background-color: #B23121;
+}
+
+.text-button {
+  background-color: #25D366;
+}
+
+.text-button:hover {
+  background-color: #128C7E;
+}
+
+.copy-button {
+  background-color: #4CAF50;
+}
+
+.copy-button:hover {
+  background-color: #45a049;
+}
+
+.agent-info-container {
+  background-color: white;
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.agent-info-container h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #333;
+}
+
+.input-group {
+  margin-bottom: 15px;
+}
+
+.agent-input {
+  width: 200px;
+  padding: 8px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  transition: border-color 0.3s ease;
+}
+
+.agent-input:focus {
+  outline: none;
+  border-color: #007bff;
+}
+
+.app-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.agent-section,
+.address-section,
+.post-section {
+  background-color: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.agent-section h2,
+.address-section h2,
+.post-section h2 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #333;
+}
+
+.agent-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.agent-input-group {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.agent-input-group label {
+  margin-right: 10px;
+  min-width: 70px;
+  text-align: right;
+}
+
+.post-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.image-upload-section {
+  background-color: white;
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.image-previews {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.image-preview {
+  width: 100px;
+  height: 100px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+button {
+  padding: 0.5rem 1rem;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+.post-button {
+  margin-top: 10px;
+  padding: 10px 20px;
+  background-color: #E1306C;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.post-button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+.image-preview-container {
+  position: relative;
+  display: inline-block;
+}
+
+.remove-image-button {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background-color: rgba(255, 0, 0, 0.7);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background-color 0.3s ease;
+}
+
+.remove-image-button:hover {
+  background-color: rgba(255, 0, 0, 1);
+}
+
+.remove-image-button::before {
+  content: '×';
+  display: block;
+  font-weight: bold;
+}
