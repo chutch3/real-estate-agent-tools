@@ -2,13 +2,15 @@ from http import HTTPStatus
 from http.client import HTTPException
 
 from backend.clients.google_maps import GoogleMapsClient
+from backend.services.document import DocumentService
 from backend.template_loader import TemplateLoader
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form
 
 from .container import Container
 from .exceptions import AddressNotFoundError, PropertyNotFoundError
 from .models import (
+    DocumentUploadResponse,
     GeocodeRequest,
     GeocodeResponse,
     PostGenerationRequest,
@@ -100,3 +102,37 @@ async def get_default_template(
     """
     template = template_loader.read_user_prompt()
     return TemplateResponse(template=template)
+
+
+@router.post(
+    "/document/upload",
+    status_code=HTTPStatus.CREATED,
+    response_model=DocumentUploadResponse,
+)
+@inject
+async def upload_pdf(
+    file: UploadFile = File(...),
+    address: str = Form(...),
+    document_service: DocumentService = Depends(Provide[Container.document_service]),
+):
+    """
+    Upload a PDF file.
+
+    Args:
+        file (UploadFile): The PDF file.
+        address (str): The address.
+        document_service (DocumentService): The document service.
+
+    Returns:
+        DocumentUploadResponse: The response object.
+    """
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="File must be a PDF")
+
+    content = await file.read()
+    metadata = {"address": address}
+    try:
+        doc_id = document_service.process_pdf(content, metadata)
+        return DocumentUploadResponse(id=doc_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing PDF: {str(e)}")

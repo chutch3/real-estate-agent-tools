@@ -11,9 +11,8 @@ class PostCoordinator:
 
         self._property_service = property_service
         self._post_generation_service = post_generation_service
-        # self._google_maps_client = google_maps_client
 
-    async def generate_post(self, address, agent_info, custom_template):
+    async def generate_post(self, address, agent_info, custom_template, pdf_id=None):
         """
         Generate a post for a property.
 
@@ -27,7 +26,7 @@ class PostCoordinator:
         """
         property = await self._property_service.get_property(address)
         return await self._post_generation_service.generate_post(
-            property, agent_info, custom_template
+            property, agent_info, custom_template, pdf_id
         )
 
     async def post_to_instagram(self, post):

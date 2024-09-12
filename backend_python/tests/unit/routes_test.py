@@ -3,11 +3,13 @@ from typing import Container
 from unittest.mock import AsyncMock, Mock
 
 from backend.clients.google_maps import GoogleMapsClient
+from backend.services.document import DocumentService
 from backend.template_loader import TemplateLoader
 import pytest
 from backend.exceptions import AddressNotFoundError, PropertyNotFoundError
 from backend.models import (
     AgentInfo,
+    DocumentUploadResponse,
     GeocodeLocation,
     GeocodeRequest,
     GeocodeResponse,
@@ -108,6 +110,38 @@ class TestRoutes:
             == TemplateResponse(template="This is a test template").model_dump()
         )
 
+    def test_document_upload(self, subject, mock_document_service):
+        mock_document_service.process_pdf.return_value = "123"
+        response = subject.post(
+            "/document/upload",
+            files={"file": ("test.pdf", b"test content", "application/pdf")},
+            data={"address": "123 Main St, Anytown, USA"},
+        )
+        assert response.status_code == HTTPStatus.CREATED
+        assert response.json() == DocumentUploadResponse(id="123").model_dump()
+        mock_document_service.process_pdf.assert_called_once_with(
+            b"test content", {"address": "123 Main St, Anytown, USA"}
+        )
+
+    def test_document_upload_with_unsupported_file(self, subject):
+        response = subject.post(
+            "/document/upload",
+            files={"file": ("test.txt", b"test content", "text/plain")},
+            data={"address": "123 Main St, Anytown, USA"},
+        )
+        assert response.status_code == HTTPStatus.BAD_REQUEST
+        assert response.json() == {"detail": "File must be a PDF"}
+
+    def test_document_upload_with_invalid_pdf(self, subject, mock_document_service):
+        mock_document_service.process_pdf.side_effect = Exception("bad pdf")
+        response = subject.post(
+            "/document/upload",
+            files={"file": ("test.pdf", b"invalid content", "application/pdf")},
+            data={"address": "123 Main St, Anytown, USA"},
+        )
+        assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
+        assert response.json() == {"detail": "Error processing PDF: bad pdf"}
+
     @pytest.fixture
     def mock_coordinator(self):
         yield AsyncMock(spec=PostCoordinator)
@@ -121,17 +155,23 @@ class TestRoutes:
         yield Mock(spec=TemplateLoader)
 
     @pytest.fixture
+    def mock_document_service(self):
+        yield AsyncMock(spec=DocumentService)
+
+    @pytest.fixture
     def subject(
         self,
         test_container: Container,
         mock_coordinator: AsyncMock,
         mock_google_maps_client: AsyncMock,
         mock_template_loader: Mock,
+        mock_document_service: AsyncMock,
     ):
         with test_container.override_providers(
             post_coordinator=mock_coordinator,
             google_maps_client=mock_google_maps_client,
             template_loader=mock_template_loader,
+            document_service=mock_document_service,
         ):
             app = FastAPI()
             app.include_router(router)

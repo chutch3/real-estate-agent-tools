@@ -1,12 +1,11 @@
 import os
-
 import uvicorn
 from backend.container import Container
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
 from backend import routes
+from backend.services.pdf_service import PDFService
 
 
 def create_app():
@@ -20,9 +19,14 @@ def create_app():
         FastAPI: The FastAPI app instance.
     """
     container = Container()
-    container.config.openai.model.from_env("OPENAI_MODEL", default="gpt-4o-mini")
+    container.config.openai.model.from_env(
+        "OPENAI_MODEL", default="gpt-4-turbo-preview"
+    )
     container.config.rentcast.api_key.from_env("RENTCAST_API_KEY")
     container.config.google_maps.api_key.from_env("GOOGLE_MAPS_API_KEY")
+    container.config.milvus.host.from_env("MILVUS_HOST", "localhost")
+    container.config.milvus.port.from_env("MILVUS_PORT", "19530")
+    container.config.openai.api_key.from_env("OPENAI_API_KEY")
 
     app = FastAPI()
     app.include_router(routes.router, prefix="/api")
