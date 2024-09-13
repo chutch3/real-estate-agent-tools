@@ -20,7 +20,7 @@ class PostGenerationService:
         property_info: dict,
         agent_info: dict,
         custom_template: str = None,
-        pdf_id: str = None,
+        # pdf_id: str = None,
     ):
         """
         Generate the post using openai and leveraging the templates.
@@ -51,5 +51,5 @@ class PostGenerationService:
         return await self.openai_client.generate_completion(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            max_tokens=300,
+            max_tokens=200,
         )

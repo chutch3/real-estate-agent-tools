@@ -1,55 +1,77 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { Stepper, Step, StepLabel, Button, Typography, Box } from '@mui/material';
 import AddressInput from './components/AddressInput';
 import AgentInfo from './components/AgentInfo';
 import PostEditor from './components/PostEditor';
 import MapComponent from './components/MapComponent';
 import CacheInspector from './pages/CacheInspector';
 import NavMenu from './components/NavMenu';
-import ImageUploader from './components/ImageUploader';
+import MaterialImageUploader from './components/MaterialImageUploader';
+import DocumentUploader from './components/DocumentUploader';
+import DefaultPromptEditor from './components/DefaultPromptEditor';
+import SocialMediaPoster from './components/SocialMediaPoster';
 import { ClipLoader } from 'react-spinners';
 import apiClient from './apiClient';
 import './App.css';
 
+const steps = ['Agent Info', 'Input Address', 'Upload Documents', 'Customize Prompt', 'Generate Post', 'Post to Socials'];
+
 function App() {
+  const [activeStep, setActiveStep] = useState(0);
   const [post, setPost] = useState('');
   const [postStatus, setPostStatus] = useState('');
   const [mapCenter, setMapCenter] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [template, setTemplate] = useState('');
-  const [defaultTemplate, setDefaultTemplate] = useState('');
   const [agentInfo, setAgentInfo] = useState({
-    agentName: '',
-    agentCompany: '',
-    agentContact: ''
+    agent_name: '',
+    agent_company: '',
+    agent_contact: ''
   });
   const [selectedImages, setSelectedImages] = useState([]);
+  const [uploadedDocumentId, setUploadedDocumentId] = useState(null);
+  const [address, setAddress] = useState('');
+  const [customTemplate, setCustomTemplate] = useState(null);
 
-  useEffect(() => {
-    async function fetchDefaultTemplate() {
-      try {
-        const response = await apiClient.getDefaultTemplate();
-        setDefaultTemplate(response.template);
-        setTemplate(response.template);
-      } catch (error) {
-        console.error('Error fetching default template:', error);
-        setError('Failed to load the default template. Please try refreshing the page.');
-      }
-    }
-    fetchDefaultTemplate();
-  }, []); // Removed apiClient from the dependency array
+  const handleNext = () => {
+    setActiveStep((prevActiveStep) => prevActiveStep + 1);
+  };
 
-  const generatePost = async (address) => {
+  const handleBack = () => {
+    setActiveStep((prevActiveStep) => prevActiveStep - 1);
+  };
+
+  const handleAddressChange = (newAddress, geocodedAddress) => {
+    setAddress(newAddress);
+  };
+
+  const handleDocumentUpload = async (file) => {
     try {
       setIsLoading(true);
       setError('');
-      const data = await apiClient.generatePost(address, agentInfo, template !== defaultTemplate ? template : null);
+      const documentId = await apiClient.uploadDocument(file);
+      setUploadedDocumentId(documentId);
+    } catch (error) {
+      console.error('Error uploading document:', error);
+      setError('Failed to upload document. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCustomTemplateChange = (template) => {
+    setCustomTemplate(template);
+  };
+
+  const generatePost = async () => {
+    try {
+      setIsLoading(true);
+      setError('');
+
+      const data = await apiClient.generatePost(address, agentInfo, customTemplate, uploadedDocumentId ? [uploadedDocumentId] : null);
       setPost(data.post);
       setPostStatus('');
-
-      const location = await apiClient.geocodeAddress(address);
-      setMapCenter(location);
     } catch (error) {
       console.error('Error generating post:', error);
       setError(error.response?.data?.error || 'An unexpected error occurred. Please try again later.');
@@ -68,7 +90,7 @@ function App() {
     setSelectedImages(prevImages => prevImages.filter((_, i) => i !== index));
   };
 
-  const handlePostToInstagram = async () => {
+  const handlePostToSocials = async (platforms) => {
     try {
       setIsLoading(true);
       setError('');
@@ -79,16 +101,95 @@ function App() {
         formData.append(`image${index}`, file);
       });
       formData.append('post', post);
+      formData.append('platforms', JSON.stringify(platforms));
 
-      // Post to Instagram
-      await apiClient.postToInstagram(formData);
+      // Post to selected platforms
+      await apiClient.postToSocialMedia(formData);
 
-      setPostStatus('Post submitted successfully to Instagram!');
+      setPostStatus('Post submitted successfully to selected social media platforms!');
     } catch (error) {
-      console.error('Error posting to Instagram:', error);
-      setError('Failed to post to Instagram. Please try again.');
+      console.error('Error posting to social media:', error);
+      setError('Failed to post to social media. Please try again.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const isStepComplete = (step) => {
+    switch (step) {
+      case 0:
+        return agentInfo.agent_name && agentInfo.agent_company && agentInfo.agent_contact;
+      case 1:
+        return address.trim() !== '';
+      case 2:
+        return uploadedDocumentId !== null;
+      case 3:
+        return true; // Always allow proceeding from the Customize Prompt step
+      case 4:
+        return post !== '';
+      case 5:
+        return selectedImages.length > 0;
+      default:
+        return false;
+    }
+  };
+
+  const getStepContent = (step) => {
+    switch (step) {
+      case 0:
+        return <AgentInfo agentInfo={agentInfo} setAgentInfo={setAgentInfo} />;
+      case 1:
+        return <AddressInput onAddressChange={(newAddress, geocodedAddress) => handleAddressChange(newAddress, geocodedAddress)} />;
+      case 2:
+        return (
+          <DocumentUploader onUpload={handleDocumentUpload} uploadedDocumentId={uploadedDocumentId} />
+        );
+      case 3:
+        return <DefaultPromptEditor onCustomTemplateChange={handleCustomTemplateChange} />;
+      case 4:
+        return (
+          <>
+            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={generatePost}
+                disabled={isLoading}
+                sx={{ minWidth: '200px' }}
+              >
+                Generate Post
+              </Button>
+            </Box>
+            {post && (
+              <PostEditor
+                post={post}
+                setPost={setPost}
+                postStatus={postStatus}
+                setPostStatus={setPostStatus}
+                setIsLoading={setIsLoading}
+                setError={setError}
+                selectedImages={selectedImages}
+              />
+            )}
+            {mapCenter && <MapComponent center={mapCenter} />}
+          </>
+        );
+      case 5:
+        return (
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <MaterialImageUploader
+              selectedImages={selectedImages}
+              onImagesSelected={handleImagesSelected}
+              onImageRemove={handleImageRemove}
+            />
+            <SocialMediaPoster
+              onPost={handlePostToSocials}
+              isLoading={isLoading}
+            />
+          </Box>
+        );
+      default:
+        return 'Unknown step';
     }
   };
 
@@ -100,55 +201,56 @@ function App() {
           <Routes>
             <Route path="/cache-inspector" element={<CacheInspector />} />
             <Route path="/" element={
-              <>
-                <h1>Instagram Post Generator</h1>
-                <div className="app-sections">
-                  <section className="agent-section">
-                    <h2>Agent Information</h2>
-                    <AgentInfo agentInfo={agentInfo} setAgentInfo={setAgentInfo} />
-                  </section>
-                  <section className="address-section">
-                    <h2>Property Address</h2>
-                    <AddressInput onGenerate={generatePost} />
-                  </section>
-                  {isLoading && (
-                    <div className="loader-container">
-                      <ClipLoader color="#007bff" size={50} />
-                      <p>Generating post...</p>
-                    </div>
-                  )}
-                  {error && <div className="error-message">{error}</div>}
-                  {mapCenter && <MapComponent center={mapCenter} />}
-                  {post && !isLoading && (
-                    <>
-                      <section className="image-upload-section">
-                        <h2>Add Images</h2>
-                        <ImageUploader
-                          selectedImages={selectedImages}
-                          onImagesSelected={handleImagesSelected}
-                          onImageRemove={handleImageRemove}
-                        />
-                      </section>
-                      <section className="post-section">
-                        <h2>Generated Post</h2>
-                        <PostEditor
-                          post={post}
-                          setPost={setPost}
-                          postStatus={postStatus}
-                          setPostStatus={setPostStatus}
-                        />
-                        <button 
-                          onClick={handlePostToInstagram} 
-                          disabled={isLoading || selectedImages.length === 0}
-                          className="post-button"
-                        >
-                          Post to Instagram
-                        </button>
-                      </section>
-                    </>
-                  )}
-                </div>
-              </>
+              <Box sx={{ width: '100%', maxWidth: '800px', margin: '0 auto', padding: '20px' }}>
+                <Stepper activeStep={activeStep}>
+                  {steps.map((label, index) => {
+                    const stepProps = {};
+                    const labelProps = {};
+                    return (
+                      <Step key={label} {...stepProps}>
+                        <StepLabel {...labelProps}>{label}</StepLabel>
+                      </Step>
+                    );
+                  })}
+                </Stepper>
+                {activeStep === steps.length ? (
+                  <Typography sx={{ mt: 2, mb: 1 }}>
+                    All steps completed - you&apos;re finished
+                  </Typography>
+                ) : (
+                  <>
+                    <Typography sx={{ mt: 2, mb: 1 }}>Step {activeStep + 1}</Typography>
+                    <Box>{getStepContent(activeStep)}</Box>
+                    <Box sx={{ display: 'flex', flexDirection: 'row', pt: 2 }}>
+                      <Button
+                        variant="outlined"
+                        color="primary"
+                        disabled={activeStep === 0}
+                        onClick={handleBack}
+                        sx={{ mr: 1 }}
+                      >
+                        Back
+                      </Button>
+                      <Box sx={{ flex: '1 1 auto' }} />
+                      <Button 
+                        variant="contained"
+                        color="primary"
+                        onClick={handleNext} 
+                        disabled={activeStep === steps.length - 1 || !isStepComplete(activeStep)}
+                      >
+                        {activeStep === steps.length - 1 ? 'Finish' : 'Next'}
+                      </Button>
+                    </Box>
+                  </>
+                )}
+                {isLoading && (
+                  <div className="loader-container">
+                    <ClipLoader color="#007bff" size={50} />
+                    <p>Processing...</p>
+                  </div>
+                )}
+                {error && <div className="error-message">{error}</div>}
+              </Box>
             } />
           </Routes>
         </main>

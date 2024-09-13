@@ -64,9 +64,7 @@ class TestDocumentService:
         ]
 
         pdf_content = generate_fake_pdf_content()
-        actual = await subject.process_pdf(
-            pdf_content, {"address": "123 Main St, Anytown, USA"}
-        )
+        actual = await subject.process_pdf(pdf_content)
         assert actual is not None
         assert isinstance(actual, str)
 
@@ -83,9 +81,7 @@ class TestDocumentService:
     ):
         pdf_content = b""
         with pytest.raises(ValueError):
-            await subject.process_pdf(
-                pdf_content, {"address": "123 Main St, Anytown, USA"}
-            )
+            await subject.process_pdf(pdf_content)
 
     @pytest.mark.asyncio
     async def test_process_pdf_with_invalid_pdf(
@@ -94,9 +90,7 @@ class TestDocumentService:
     ):
         pdf_content = generate_fake_pdf_content(bad_pdf=True)
         with pytest.raises(ValueError):
-            await subject.process_pdf(
-                pdf_content, {"address": "123 Main St, Anytown, USA"}
-            )
+            await subject.process_pdf(pdf_content)
 
     @pytest.fixture
     def mock_openai_client(self):

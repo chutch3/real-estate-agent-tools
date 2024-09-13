@@ -20,6 +20,10 @@ rentcast-client = "^1.0.4"
 jinja2 = "^3.1.4"
 openai = "^1.44.1"
 python-dotenv = "^1.0.1"
+pymilvus = "^2.4.6"
+python-multipart = "^0.0.9"
+pypdf = "^4.3.1"
+reportlab = "^4.2.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.2"

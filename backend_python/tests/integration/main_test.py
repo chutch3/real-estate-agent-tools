@@ -1,9 +1,13 @@
 from http import HTTPStatus
 from pathlib import Path
 
-from backend.main import create_app
-from backend.template_loader import TEMPLATE_DIR
+from backend.container import Container
+from backend.schema import (
+    create_document_embeddings_schema,
+    drop_document_embeddings_schema,
+)
 import pytest
+from backend.main import create_app
 from backend.models import (
     AgentInfo,
     GeocodeLocation,
@@ -12,6 +16,7 @@ from backend.models import (
     PostGenerationRequest,
     TemplateResponse,
 )
+from backend.template_loader import TEMPLATE_DIR
 from dotenv import load_dotenv
 from fastapi.testclient import TestClient
 
@@ -99,8 +104,32 @@ class TestApp:
         )
         assert response.text == expected_response
 
+    def test_upload_pdf(self, subject, milvus_client):
+        response = subject.post(
+            "/api/document/upload",
+            files={"file": open("tests/integration/fixtures/mls_sheet.pdf", "rb")},
+        )
+        assert response.status_code == HTTPStatus.CREATED
+        assert response.json().get("id") is not None
+        assert milvus_client.has_collection("document_embeddings")
+        actual = milvus_client.query(
+            collection_name="document_embeddings", ids=response.json().get("id")
+        )
+        assert len(actual) == 1
+        assert "Buyers Brokers Only, LLC \n| \nExclusive Buyer Agents - MA & NH \n| Tel: 617.501.0233" in actual[
+            0
+        ].get(
+            "text"
+        )
+        assert actual[0].get("embedding") is not None
+
     @pytest.fixture
-    def subject(self):
+    def milvus_client(self, test_container: Container):
+        yield test_container.milvus_client()
+
+    @pytest.fixture
+    def subject(self, test_container: Container):
         root_path = Path(__file__).parent.parent.parent
         load_dotenv(root_path / ".env")
-        return TestClient(create_app())
+        yield TestClient(create_app(test_container))
+        drop_document_embeddings_schema()
