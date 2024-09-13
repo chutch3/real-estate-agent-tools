@@ -65,6 +65,7 @@ class Container(containers.DeclarativeContainer):
         PostGenerationService,
         openai_client=openai_client,
         template_loader=template_loader,
+        document_embedding_repository=document_embedding_repository,
     )
 
     post_coordinator = providers.Singleton(

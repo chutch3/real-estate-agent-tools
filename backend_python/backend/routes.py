@@ -14,6 +14,7 @@ from .models import (
     GeocodeRequest,
     GeocodeResponse,
     PostGenerationRequest,
+    PostGenerationResponse,
     TemplateResponse,
 )
 from .post_coordinator import PostCoordinator
@@ -21,7 +22,7 @@ from .post_coordinator import PostCoordinator
 router = APIRouter()
 
 
-@router.post("/generate-post", status_code=HTTPStatus.CREATED)
+@router.post("/posts", status_code=HTTPStatus.CREATED)
 @inject
 async def generate_post(
     request: PostGenerationRequest,
@@ -43,7 +44,7 @@ async def generate_post(
             agent_info=request.agent_info,
             custom_template=request.custom_template,
         )
-        return {"post": post}
+        return PostGenerationResponse(post=post)
     except PropertyNotFoundError as e:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail="Property not found"
@@ -86,7 +87,7 @@ async def geocode(
         )
 
 
-@router.get("/default-template", status_code=HTTPStatus.OK)
+@router.get("/templates/default", status_code=HTTPStatus.OK)
 @inject
 async def get_default_template(
     template_loader: TemplateLoader = Depends(Provide[Container.template_loader]),
@@ -105,7 +106,7 @@ async def get_default_template(
 
 
 @router.post(
-    "/document/upload",
+    "/documents",
     status_code=HTTPStatus.CREATED,
     response_model=DocumentUploadResponse,
 )

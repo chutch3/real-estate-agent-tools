@@ -13,7 +13,7 @@ class ApiClient {
 
   async getDefaultTemplate() {
     try {
-      const response = await this.client.get('/default-template');
+      const response = await this.client.get('/templates/default');
       return response.data;
     } catch (error) {
       console.error('Error fetching default template:', error);
@@ -25,7 +25,7 @@ class ApiClient {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const response = await this.client.post('/document/upload', formData, {
+      const response = await this.client.post('/documents', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -37,13 +37,12 @@ class ApiClient {
     }
   }
 
-  async generatePost(address, agentInfo, customTemplate = null, documentIds = null) {
+  async generatePost(address, agentInfo, customTemplate = null) {
     try {
-      const response = await this.client.post('/generate-post', {
+      const response = await this.client.post('/posts', {
         address,
         agent_info: agentInfo,
         custom_template: customTemplate,
-        document_ids: documentIds,
       });
       return response.data;
     } catch (error) {
@@ -52,19 +51,9 @@ class ApiClient {
     }
   }
 
-  async savePost(post) {
-    try {
-      const response = await this.client.post('/save-post', { post });
-      return response.data;
-    } catch (error) {
-      console.error('Error saving post:', error);
-      throw error;
-    }
-  }
-
   async postToInstagram(formData) {
     try {
-      const response = await this.client.post('/post-to-instagram', formData, {
+      const response = await this.client.post('/posts-to-instagram', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -78,7 +67,7 @@ class ApiClient {
 
   async postToSocialMedia(formData) {
     try {
-      const response = await this.client.post('/post-to-social-media', formData, {
+      const response = await this.client.post('/posts-to-social-media', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },

@@ -1,7 +1,7 @@
+import logging
 from backend.clients.openai import OpenAIClient
 from backend.template_loader import TemplateLoader
-
-# from backend.services.pdf_service import PDFService
+from backend.repositories.document_embeddings import DocumentEmbeddingRepository
 
 
 class PostGenerationService:
@@ -9,18 +9,18 @@ class PostGenerationService:
         self,
         openai_client: OpenAIClient,
         template_loader: TemplateLoader,
-        # pdf_service: PDFService,
+        document_embedding_repository: DocumentEmbeddingRepository,
     ):
         self.openai_client = openai_client
         self.template_loader = template_loader
-        # self.pdf_service = pdf_service
+        self.document_embedding_repository = document_embedding_repository
+        self._logger = logging.getLogger(self.__class__.__name__)
 
     async def generate_post(
         self,
         property_info: dict,
         agent_info: dict,
         custom_template: str = None,
-        # pdf_id: str = None,
     ):
         """
         Generate the post using openai and leveraging the templates.
@@ -41,12 +41,16 @@ class PostGenerationService:
             custom_template=custom_template,
         )
 
-        # if pdf_id:
-        #     relevant_chunks = self.pdf_service.retrieve_similar_chunks(user_prompt)
-        #     additional_info = "\n".join([chunk["text"] for chunk in relevant_chunks])
-        #     user_prompt += (
-        #         f"\n\nAdditional information from MLS sheet:\n{additional_info}"
-        #     )
+        user_prompt_embedding = await self.openai_client.create_embeddings(user_prompt)
+        relevant_chunks = await self.document_embedding_repository.query_embeddings(
+            [user_prompt_embedding], limit=5
+        )
+
+        # TODO: move this the user prompt loader
+        additional_info = "\n".join([chunk["text"] for chunk in relevant_chunks])
+        user_prompt += f"\n\nAdditional information from MLS sheet:\n{additional_info}"
+
+        self._logger.info(f"User prompt: {user_prompt}")
 
         return await self.openai_client.generate_completion(
             system_prompt=system_prompt,

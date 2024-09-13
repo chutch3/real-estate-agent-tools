@@ -45,6 +45,7 @@ class TestRoutes:
                         agent_company="Jane Doe Real Estate",
                         agent_contact="jane.doe@example.com",
                     ),
+                    custom_template="This is a custom template",
                 ),
                 {"post": "this is another test post"},
             ),
@@ -54,9 +55,15 @@ class TestRoutes:
         self, subject, mock_coordinator, actual_request, expected_response
     ):
         mock_coordinator.generate_post.return_value = expected_response["post"]
-        response = subject.post("/generate-post", json=actual_request.model_dump())
+        response = subject.post("/posts", json=actual_request.model_dump())
         assert response.status_code == HTTPStatus.CREATED
         assert response.json() == expected_response
+
+        mock_coordinator.generate_post.assert_called_once_with(
+            address=actual_request.address,
+            agent_info=actual_request.agent_info,
+            custom_template=actual_request.custom_template,
+        )
 
     def test_generate_post_with_invalid_address(self, subject, mock_coordinator):
         request = PostGenerationRequest(
@@ -69,7 +76,7 @@ class TestRoutes:
         )
 
         mock_coordinator.generate_post.side_effect = PropertyNotFoundError()
-        response = subject.post("/generate-post", json=request.model_dump())
+        response = subject.post("/posts", json=request.model_dump())
         assert response.status_code == HTTPStatus.NOT_FOUND
         assert response.json() == {"detail": "Property not found"}
 
@@ -103,7 +110,7 @@ class TestRoutes:
 
     def test_get_default_template(self, subject, mock_template_loader):
         mock_template_loader.read_user_prompt.return_value = "This is a test template"
-        response = subject.get("/default-template")
+        response = subject.get("/templates/default")
         assert response.status_code == HTTPStatus.OK
         assert (
             response.json()
@@ -113,7 +120,7 @@ class TestRoutes:
     def test_document_upload(self, subject, mock_document_service):
         mock_document_service.process_pdf.return_value = "123"
         response = subject.post(
-            "/document/upload",
+            "/documents",
             files={"file": ("test.pdf", b"test content", "application/pdf")},
         )
         assert response.status_code == HTTPStatus.CREATED
@@ -122,7 +129,7 @@ class TestRoutes:
 
     def test_document_upload_with_unsupported_file(self, subject):
         response = subject.post(
-            "/document/upload",
+            "/documents",
             files={"file": ("test.txt", b"test content", "text/plain")},
         )
         assert response.status_code == HTTPStatus.BAD_REQUEST
@@ -131,7 +138,7 @@ class TestRoutes:
     def test_document_upload_with_invalid_pdf(self, subject, mock_document_service):
         mock_document_service.process_pdf.side_effect = Exception("bad pdf")
         response = subject.post(
-            "/document/upload",
+            "/documents",
             files={"file": ("test.pdf", b"invalid content", "application/pdf")},
         )
         assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR

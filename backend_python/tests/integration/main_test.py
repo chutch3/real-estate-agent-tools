@@ -1,11 +1,13 @@
 from http import HTTPStatus
 from pathlib import Path
 
+from backend.clients.openai import OpenAIClient
 from backend.container import Container
 from backend.schema import (
     create_document_embeddings_schema,
     drop_document_embeddings_schema,
 )
+from pymilvus import MilvusClient
 import pytest
 from backend.main import create_app
 from backend.models import (
@@ -27,9 +29,24 @@ class TestApp:
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
 
-    def test_generate_post(self, subject):
+    @pytest.mark.asyncio
+    async def test_generate_post(
+        self, subject, milvus_client: MilvusClient, openai_client: OpenAIClient
+    ):
+        text = "MLS Sheet for 123 Main St, Anytown, USA. Includes 3 bedrooms, 2 bathrooms, 1,500 square feet, and a 2-car garage."
+        milvus_client.insert(
+            collection_name="document_embeddings",
+            data=[
+                {
+                    "id": "1",
+                    "text": text,
+                    "embedding": await openai_client.create_embeddings(text),
+                }
+            ],
+        )
+
         response = subject.post(
-            "/api/generate-post",
+            "/api/posts",
             json=PostGenerationRequest(
                 address="1600 Amphitheatre Parkway Mountain View, CA 94043, USA",
                 agent_info=AgentInfo(
@@ -63,7 +80,7 @@ class TestApp:
         )
 
     def test_get_default_template(self, subject):
-        response = subject.get("/api/default-template")
+        response = subject.get("/api/templates/default")
         assert response.status_code == HTTPStatus.OK
         with open(f"{TEMPLATE_DIR}/post_prompt.txt", "r") as file:
             assert (
@@ -106,7 +123,7 @@ class TestApp:
 
     def test_upload_pdf(self, subject, milvus_client):
         response = subject.post(
-            "/api/document/upload",
+            "/api/documents",
             files={"file": open("tests/integration/fixtures/mls_sheet.pdf", "rb")},
         )
         assert response.status_code == HTTPStatus.CREATED
@@ -126,6 +143,10 @@ class TestApp:
     @pytest.fixture
     def milvus_client(self, test_container: Container):
         yield test_container.milvus_client()
+
+    @pytest.fixture
+    def openai_client(self, test_container: Container):
+        yield test_container.openai_client()
 
     @pytest.fixture
     def subject(self, test_container: Container):

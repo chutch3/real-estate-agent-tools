@@ -1,5 +1,6 @@
+from typing import List, Optional
 from backend.services import PropertyService, PostGenerationService
-from backend.models import GeocodeLocation
+from backend.models import AgentInfo, GeocodeLocation
 
 
 class PostCoordinator:
@@ -12,7 +13,12 @@ class PostCoordinator:
         self._property_service = property_service
         self._post_generation_service = post_generation_service
 
-    async def generate_post(self, address, agent_info, custom_template):
+    async def generate_post(
+        self,
+        address: str,
+        agent_info: AgentInfo,
+        custom_template: Optional[str] = None,
+    ):
         """
         Generate a post for a property.
 

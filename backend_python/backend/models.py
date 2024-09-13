@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Union
+from typing import Dict, List, Optional, Union
 from pydantic import BaseModel, Field
 
 
@@ -29,6 +29,10 @@ class GeocodeResponse(BaseModel):
 
 class TemplateResponse(BaseModel):
     template: str
+
+
+class PostGenerationResponse(BaseModel):
+    post: str
 
 
 class PropertyFeatures(BaseModel):
