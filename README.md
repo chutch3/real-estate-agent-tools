@@ -37,7 +37,7 @@ The goal of this integration is to create more informative and tailored social m
 
 ### Backend Setup
 
-3. Create a `.env` file in the `backend_python` directory with the following content:
+3. Create a `.env` file in the `backend` directory with the following content:
    ```
    OPENAI_API_KEY=your_openai_api_key
    RENTCAST_API_KEY=your_rentcast_api_key
@@ -72,7 +72,7 @@ With the frontend, backend, and third-party services running, open a web browser
 
 ## Development
 
-- To run backend tests: `cd backend_python && poetry run pytest`
+- To run backend tests: `cd backend && poetry run pytest`
 - To run frontend tests: `cd frontend && npm test`
 
 ## Note

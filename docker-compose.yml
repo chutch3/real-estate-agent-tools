@@ -1,7 +1,7 @@
 version: '3.8'
 services:
   backend:
-    build: ./backend_python
+    build: ./backend
     ports:
       - "3000:3000"
     environment:
@@ -14,7 +14,7 @@ services:
       - redis
       - milvus
     volumes:
-      - ./backend_python:/app
+      - ./backend:/app
     command: ["python", "backend/main.py"]
 
   frontend:
