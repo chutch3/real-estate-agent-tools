@@ -10,7 +10,7 @@ class DocumentService:
         self.repository = repository
         self.client = client
 
-    async def process_pdf(self, content: bytes, metadata: dict) -> str:
+    async def process_pdf(self, content: bytes) -> str:
         if not content:
             raise ValueError("Content is empty")
 

@@ -1,54 +1,95 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000/api';
-
 class ApiClient {
-  async generatePost(address, agentInfo, customTemplate = null) {
-    const response = await axios.post(`${API_BASE_URL}/generate-post`, {
-      address,
-      "agent_info": {
-        "agent_name": agentInfo['agentName'],
-        "agent_company": agentInfo['agentCompany'],
-        "agent_contact": agentInfo['agentContact']
+  constructor() {
+    this.baseURL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000';
+    this.client = axios.create({
+      baseURL: this.baseURL,
+      headers: {
+        'Content-Type': 'application/json',
       },
-      "custom_template": customTemplate
     });
-    return response.data;
-  }
-
-  async postToInstagram(formData) {
-    const response = await axios.post(`${API_BASE_URL}/post-to-instagram`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    });
-    return response.data;
-  }
-
-  async geocodeAddress(address) {
-    const response = await axios.post(`${API_BASE_URL}/geocode`, { address });
-    return response.data.location;
   }
 
   async getDefaultTemplate() {
-    const response = await axios.get(`${API_BASE_URL}/default-template`);
-    return response.data;
+    try {
+      const response = await this.client.get('/default-template');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching default template:', error);
+      throw error;
+    }
   }
 
-  async getCacheData() {
-    const response = await axios.get(`${API_BASE_URL}/cache`);
-    return response.data;
+  async uploadDocument(file) {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await this.client.post('/document/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data.id;
+    } catch (error) {
+      console.error('Error uploading document:', error);
+      throw error;
+    }
   }
 
-  async deleteCacheEntry(key) {
-    const response = await axios.delete(`${API_BASE_URL}/cache/${encodeURIComponent(key)}`);
-    return response.data;
+  async generatePost(address, agentInfo, customTemplate = null, documentIds = null) {
+    try {
+      const response = await this.client.post('/generate-post', {
+        address,
+        agent_info: agentInfo,
+        custom_template: customTemplate,
+        document_ids: documentIds,
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error generating post:', error);
+      throw error;
+    }
   }
 
-  async clearAllCache() {
-    const response = await axios.delete(`${API_BASE_URL}/cache`);
-    return response.data;
+  async savePost(post) {
+    try {
+      const response = await this.client.post('/save-post', { post });
+      return response.data;
+    } catch (error) {
+      console.error('Error saving post:', error);
+      throw error;
+    }
+  }
+
+  async postToInstagram(formData) {
+    try {
+      const response = await this.client.post('/post-to-instagram', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error posting to Instagram:', error);
+      throw error;
+    }
+  }
+
+  async postToSocialMedia(formData) {
+    try {
+      const response = await this.client.post('/post-to-social-media', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error posting to social media:', error);
+      throw error;
+    }
   }
 }
 
-const api_client = new ApiClient();
-
-export default api_client;
+const apiClient = new ApiClient();
+export default apiClient;

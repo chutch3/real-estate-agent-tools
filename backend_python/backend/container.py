@@ -12,7 +12,6 @@ from dependency_injector import containers, providers
 from rentcast_client.api.default_api import DefaultApi
 from rentcast_client.api_client import ApiClient
 from pymilvus import MilvusClient
-from backend.schema import document_embeddings_schema, document_embeddings_index_params
 
 
 def init_rentcast_client(api_key: str):
@@ -24,19 +23,9 @@ def init_rentcast_client(api_key: str):
     )
 
 
-def init_milvus_client(uri: str, collection_name: str):
+def init_milvus_client(uri: str):
     client = MilvusClient(uri=uri)
-    if not client.has_collection(collection_name):
-        client.create_collection(
-            collection_name=collection_name,
-            schema=document_embeddings_schema,
-            index_params=document_embeddings_index_params,
-        )
-    else:
-        client.load_collection(collection_name=collection_name)
-
     yield client
-    client.release_collection(collection_name=collection_name)
     client.close()
 
 
@@ -48,18 +37,14 @@ class Container(containers.DeclarativeContainer):
     config = providers.Configuration()
 
     wiring_config = containers.WiringConfiguration(
-        modules=[".routes"],
+        modules=[".routes", ".schema"],
         auto_wire=True,
     )
 
     rentcast_client = providers.Resource(
         init_rentcast_client, api_key=config.rentcast.api_key
     )
-    milvus_client = providers.Resource(
-        init_milvus_client,
-        uri=config.milvus.uri,
-        collection_name=config.milvus.collection_name,
-    )
+    milvus_client = providers.Resource(init_milvus_client, uri=config.milvus.uri)
     openai_client = providers.Singleton(OpenAIClient, model=config.openai.model)
     google_maps_client = providers.Singleton(
         GoogleMapsClient, api_key=config.google_maps.api_key
@@ -69,7 +54,6 @@ class Container(containers.DeclarativeContainer):
     document_embedding_repository = providers.Singleton(
         DocumentEmbeddingRepository,
         client=milvus_client,
-        collection_name=config.milvus.collection_name,
     )
     property_service = providers.Singleton(PropertyService, client=rentcast_client)
     document_service = providers.Singleton(

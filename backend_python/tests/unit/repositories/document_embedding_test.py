@@ -1,6 +1,10 @@
 import random
 from typing import Container
 
+from backend.schema import (
+    create_document_embeddings_schema,
+    drop_document_embeddings_schema,
+)
 import pytest
 from backend.repositories.document_embeddings import DocumentEmbeddingRepository
 from pymilvus import MilvusClient
@@ -21,16 +25,12 @@ class TestDocumentEmbeddingRepository:
     async def test_insert_embeddings(
         self, subject: DocumentEmbeddingRepository, milvus_client: MilvusClient
     ):
-        actual = await subject.insert_embeddings(
-            "1",
-            "test",
-            [1.0] * 1536,
-        )
+        actual = await subject.insert_embeddings("1", "test", [1.0] * 1536)
         assert actual["insert_count"] == 1
         assert actual["ids"] == ["1"]
-        assert milvus_client.query(collection_name="test", ids=actual["ids"]) == [
-            {"id": "1", "text": "test", "embedding": [1.0] * 1536}
-        ]
+        assert milvus_client.query(
+            collection_name="document_embeddings", ids=actual["ids"]
+        ) == [{"id": "1", "text": "test", "embedding": [1.0] * 1536}]
 
     @pytest.mark.parametrize(
         "document_contents,search_text,limit,expected",
@@ -69,7 +69,7 @@ class TestDocumentEmbeddingRepository:
         expected: list[dict],
     ):
         milvus_client.insert(
-            collection_name="test",
+            collection_name="document_embeddings",
             data=[
                 {
                     "id": str(i),
@@ -82,20 +82,16 @@ class TestDocumentEmbeddingRepository:
         actual = await subject.query_embeddings(
             [generate_simple_embedding(search_text)], limit
         )
-        # assert all(text in actual for text in expected)
         assert len(actual) == len(expected)
-        print(actual)
-        print(expected)
         assert all(text in actual for text in expected)
 
     @pytest.fixture
     def milvus_client(self, test_container: Container):
-        client = test_container.milvus_client()
-        yield client
-        # client.delete(collection_name="test", ids=["1", "2", "3"])
+        yield test_container.milvus_client()
 
     @pytest.fixture
     def subject(self, test_container: Container):
         test_container.config.milvus.uri.from_value("http://localhost:19530")
-        test_container.config.milvus.collection_name.from_value("test")
+        create_document_embeddings_schema()
         yield test_container.document_embedding_repository()
+        drop_document_embeddings_schema()

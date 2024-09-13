@@ -112,7 +112,6 @@ async def get_default_template(
 @inject
 async def upload_pdf(
     file: UploadFile = File(...),
-    address: str = Form(...),
     document_service: DocumentService = Depends(Provide[Container.document_service]),
 ):
     """
@@ -130,9 +129,8 @@ async def upload_pdf(
         raise HTTPException(status_code=400, detail="File must be a PDF")
 
     content = await file.read()
-    metadata = {"address": address}
     try:
-        doc_id = document_service.process_pdf(content, metadata)
+        doc_id = await document_service.process_pdf(content)
         return DocumentUploadResponse(id=doc_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing PDF: {str(e)}")

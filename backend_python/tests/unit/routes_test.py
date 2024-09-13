@@ -115,19 +115,15 @@ class TestRoutes:
         response = subject.post(
             "/document/upload",
             files={"file": ("test.pdf", b"test content", "application/pdf")},
-            data={"address": "123 Main St, Anytown, USA"},
         )
         assert response.status_code == HTTPStatus.CREATED
         assert response.json() == DocumentUploadResponse(id="123").model_dump()
-        mock_document_service.process_pdf.assert_called_once_with(
-            b"test content", {"address": "123 Main St, Anytown, USA"}
-        )
+        mock_document_service.process_pdf.assert_called_once_with(b"test content")
 
     def test_document_upload_with_unsupported_file(self, subject):
         response = subject.post(
             "/document/upload",
             files={"file": ("test.txt", b"test content", "text/plain")},
-            data={"address": "123 Main St, Anytown, USA"},
         )
         assert response.status_code == HTTPStatus.BAD_REQUEST
         assert response.json() == {"detail": "File must be a PDF"}
@@ -137,7 +133,6 @@ class TestRoutes:
         response = subject.post(
             "/document/upload",
             files={"file": ("test.pdf", b"invalid content", "application/pdf")},
-            data={"address": "123 Main St, Anytown, USA"},
         )
         assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
         assert response.json() == {"detail": "Error processing PDF: bad pdf"}
