@@ -1,5 +1,12 @@
-import React from 'react';
-import { GoogleMap, Marker } from '@react-google-maps/api';
+import React, { useCallback } from 'react';
+import { GoogleMap, Marker, useLoadScript } from '@react-google-maps/api';
+
+const defaultCenter = {
+  lat: 40.7128, // New York City coordinates as default
+  lng: -74.0060,
+};
+
+const defaultZoom = 15;
 
 const MapComponent = ({ center }) => {
   const mapContainerStyle = {
@@ -12,15 +19,30 @@ const MapComponent = ({ center }) => {
     disableDefaultUI: true,
     zoomControl: true,
   };
+  const { isLoaded, loadError } = useLoadScript({
+    googleMapsApiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY,
+    libraries: ['places'],
+  });
+
+  const onMapLoad = useCallback((map) => {
+    if (center) {
+      map.panTo(center);
+      map.setZoom(defaultZoom);
+    }
+  }, [center]);
+
+  if (loadError) return <div>Error loading maps</div>;
+  if (!isLoaded) return <div>Loading maps</div>;
 
   return (
     <GoogleMap
       mapContainerStyle={mapContainerStyle}
-      center={center}
-      zoom={18}
+      center={center || defaultCenter}
+      zoom={defaultZoom}
       options={options}
+      onLoad={onMapLoad}
     >
-      <Marker position={center} />
+      {center && <Marker position={center} />}
     </GoogleMap>
   );
 };
