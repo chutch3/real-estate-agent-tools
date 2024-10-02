@@ -1,256 +1,140 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Box, 
-  TextField, 
-  Select, 
-  MenuItem, 
-  Checkbox, 
-  FormControlLabel, 
-  Typography, 
-  Grid 
-} from '@mui/material';
+import React from 'react';
+import { TextField, Box, Typography, Checkbox, FormControlLabel, Card, CardContent, Grid } from '@mui/material';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFnsV3';
-import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 
 function MissingDetails({ propertyData, onDataChange }) {
-  const [formData, setFormData] = useState({
-    // PropertyInfo
-    formatted_address: propertyData.address || '',
-    address_line1: '',
-    address_line2: '',
-    city: '',
-    state: '',
-    zip_code: '',
-    county: '',
-    latitude: propertyData.location?.lat || '',
-    longitude: propertyData.location?.lng || '',
-    property_type: '',
-    bedrooms: '',
-    bathrooms: '',
-    square_footage: '',
-    lot_size: '',
-    year_built: '',
-    assessor_id: '',
-    legal_description: '',
-    subdivision: '',
-    zoning: '',
-    last_sale_date: null,
-    last_sale_price: '',
-    owner_occupied: false,
-    // PropertyFeatures
-    architecture_type: '',
-    cooling: false,
-    cooling_type: '',
-    exterior_type: '',
-    floor_count: '',
-    foundation_type: '',
-    garage: false,
-    garage_type: '',
-    heating: false,
-    heating_type: '',
-    pool: false,
-    roof_type: '',
-    room_count: '',
-    unit_count: '',
-  });
-
-  useEffect(() => {
-    onDataChange(formData);
-  }, [formData, onDataChange]);
-
   const handleInputChange = (event) => {
     const { name, value, type, checked } = event.target;
-    setFormData(prevData => ({
-      ...prevData,
-      [name]: type === 'checkbox' ? checked : value
-    }));
+    onDataChange({ [name]: type === 'checkbox' ? checked : value });
   };
 
-  const handleDateChange = (date) => {
-    setFormData(prevData => ({
-      ...prevData,
-      last_sale_date: date
-    }));
+  const handleDateChange = (name, value) => {
+    onDataChange({ [name]: value });
   };
+
+  const handleFeatureChange = (event) => {
+    const { name, value, type, checked } = event.target;
+    onDataChange({
+      features: {
+        ...propertyData.features,
+        [name]: type === 'checkbox' ? checked : value
+      }
+    });
+  };
+
+  const renderTextField = (label, name, value, onChange, type = "text", multiline = false, rows = 1) => (
+    <TextField
+      fullWidth
+      label={label}
+      name={name}
+      value={value || ''}
+      onChange={onChange}
+      type={type}
+      multiline={multiline}
+      rows={rows}
+      margin="normal"
+    />
+  );
+
+  const renderCheckbox = (label, name, checked, onChange) => (
+    <FormControlLabel
+      control={
+        <Checkbox
+          checked={checked || false}
+          onChange={onChange}
+          name={name}
+        />
+      }
+      label={label}
+    />
+  );
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <Box sx={{ mt: 3 }}>
-        <Typography variant="h6" gutterBottom>Basic Information</Typography>
-        <Grid container spacing={2}>
-          <Grid item xs={12}>
-            <TextField
-              fullWidth
-              label="Formatted Address"
-              name="formatted_address"
-              value={formData.formatted_address}
-              onChange={handleInputChange}
-              disabled
-            />
+      <Box sx={{ maxWidth: 800, margin: 'auto', mt: 4 }}>
+        <Typography variant="h5" gutterBottom>
+          Property Details
+        </Typography>
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Location Information
+                </Typography>
+                {renderTextField("Formatted Address", "formattedAddress", propertyData.formattedAddress, handleInputChange, "text", false, 1, true)}
+                {renderTextField("Address Line 1", "addressLine1", propertyData.addressLine1, handleInputChange, "text", false, 1, true)}
+                {renderTextField("Address Line 2", "addressLine2", propertyData.addressLine2, handleInputChange, "text", false, 1, true)}
+                {renderTextField("City", "city", propertyData.city, handleInputChange, "text", false, 1, true)}
+                {renderTextField("State", "state", propertyData.state, handleInputChange, "text", false, 1, true)}
+                {renderTextField("Zip Code", "zipCode", propertyData.zipCode, handleInputChange, "text", false, 1, true)}
+                {renderTextField("County", "county", propertyData.county, handleInputChange)}
+                {renderTextField("Latitude", "latitude", propertyData.latitude, handleInputChange, "number")}
+                {renderTextField("Longitude", "longitude", propertyData.longitude, handleInputChange, "number")}
+              </CardContent>
+            </Card>
           </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="Address Line 1"
-              name="address_line1"
-              value={formData.address_line1}
-              onChange={handleInputChange}
-            />
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Property Characteristics
+                </Typography>
+                {renderTextField("Property Type", "propertyType", propertyData.propertyType, handleInputChange)}
+                {renderTextField("Bedrooms", "bedrooms", propertyData.bedrooms, handleInputChange, "number")}
+                {renderTextField("Bathrooms", "bathrooms", propertyData.bathrooms, handleInputChange, "number")}
+                {renderTextField("Square Footage", "squareFootage", propertyData.squareFootage, handleInputChange, "number")}
+                {renderTextField("Lot Size", "lotSize", propertyData.lotSize, handleInputChange, "number")}
+                {renderTextField("Year Built", "yearBuilt", propertyData.yearBuilt, handleInputChange, "number")}
+                {renderTextField("Assessor ID", "assessorID", propertyData.assessorID, handleInputChange)}
+                {renderTextField("Legal Description", "legalDescription", propertyData.legalDescription, handleInputChange, "text", true, 3)}
+                {renderTextField("Subdivision", "subdivision", propertyData.subdivision, handleInputChange)}
+                {renderTextField("Zoning", "zoning", propertyData.zoning, handleInputChange)}
+              </CardContent>
+            </Card>
           </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="Address Line 2"
-              name="address_line2"
-              value={formData.address_line2}
-              onChange={handleInputChange}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="City"
-              name="city"
-              value={formData.city}
-              onChange={handleInputChange}
-            />
-          </Grid>
-          <Grid item xs={12} sm={3}>
-            <TextField
-              fullWidth
-              label="State"
-              name="state"
-              value={formData.state}
-              onChange={handleInputChange}
-            />
-          </Grid>
-          <Grid item xs={12} sm={3}>
-            <TextField
-              fullWidth
-              label="Zip Code"
-              name="zip_code"
-              value={formData.zip_code}
-              onChange={handleInputChange}
-            />
-          </Grid>
-        </Grid>
-
-        <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>Property Details</Typography>
-        <Grid container spacing={2}>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="Property Type"
-              name="property_type"
-              select
-              value={formData.property_type}
-              onChange={handleInputChange}
-            >
-              <MenuItem value="single_family">Single Family</MenuItem>
-              <MenuItem value="multi_family">Multi Family</MenuItem>
-              <MenuItem value="condo">Condo</MenuItem>
-              <MenuItem value="townhouse">Townhouse</MenuItem>
-            </TextField>
-          </Grid>
-          <Grid item xs={12} sm={3}>
-            <TextField
-              fullWidth
-              label="Bedrooms"
-              name="bedrooms"
-              type="number"
-              value={formData.bedrooms}
-              onChange={handleInputChange}
-            />
-          </Grid>
-          <Grid item xs={12} sm={3}>
-            <TextField
-              fullWidth
-              label="Bathrooms"
-              name="bathrooms"
-              type="number"
-              value={formData.bathrooms}
-              onChange={handleInputChange}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="Square Footage"
-              name="square_footage"
-              type="number"
-              value={formData.square_footage}
-              onChange={handleInputChange}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="Lot Size"
-              name="lot_size"
-              type="number"
-              value={formData.lot_size}
-              onChange={handleInputChange}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="Year Built"
-              name="year_built"
-              type="number"
-              value={formData.year_built}
-              onChange={handleInputChange}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <DatePicker
-              label="Last Sale Date"
-              value={formData.last_sale_date}
-              onChange={handleDateChange}
-              renderInput={(params) => <TextField {...params} fullWidth />}
-            />
-          </Grid>
-        </Grid>
-
-        <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>Features</Typography>
-        <Grid container spacing={2}>
-          <Grid item xs={12} sm={4}>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={formData.cooling}
-                  onChange={handleInputChange}
-                  name="cooling"
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Sale Information
+                </Typography>
+                <DatePicker
+                  label="Last Sale Date"
+                  value={propertyData.lastSaleDate ? new Date(propertyData.lastSaleDate) : null}
+                  onChange={(newValue) => handleDateChange('lastSaleDate', newValue)}
+                  renderInput={(params) => <TextField {...params} fullWidth margin="normal" />}
                 />
-              }
-              label="Cooling"
-            />
+                {renderTextField("Last Sale Price", "lastSalePrice", propertyData.lastSalePrice, handleInputChange, "number")}
+                {renderCheckbox("Owner Occupied", "ownerOccupied", propertyData.ownerOccupied, handleInputChange)}
+              </CardContent>
+            </Card>
           </Grid>
-          <Grid item xs={12} sm={4}>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={formData.heating}
-                  onChange={handleInputChange}
-                  name="heating"
-                />
-              }
-              label="Heating"
-            />
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Property Features
+                </Typography>
+                {renderTextField("Architecture Type", "architectureType", propertyData.features?.architectureType, handleFeatureChange)}
+                {renderCheckbox("Cooling", "cooling", propertyData.features?.cooling, handleFeatureChange)}
+                {renderTextField("Cooling Type", "coolingType", propertyData.features?.coolingType, handleFeatureChange)}
+                {renderTextField("Exterior Type", "exteriorType", propertyData.features?.exteriorType, handleFeatureChange)}
+                {renderTextField("Floor Count", "floorCount", propertyData.features?.floorCount, handleFeatureChange, "number")}
+                {renderTextField("Foundation Type", "foundationType", propertyData.features?.foundationType, handleFeatureChange)}
+                {renderCheckbox("Garage", "garage", propertyData.features?.garage, handleFeatureChange)}
+                {renderTextField("Garage Type", "garageType", propertyData.features?.garageType, handleFeatureChange)}
+                {renderCheckbox("Heating", "heating", propertyData.features?.heating, handleFeatureChange)}
+                {renderTextField("Heating Type", "heatingType", propertyData.features?.heatingType, handleFeatureChange)}
+                {renderCheckbox("Pool", "pool", propertyData.features?.pool, handleFeatureChange)}
+                {renderTextField("Roof Type", "roofType", propertyData.features?.roofType, handleFeatureChange)}
+                {renderTextField("Room Count", "roomCount", propertyData.features?.roomCount, handleFeatureChange, "number")}
+                {renderTextField("Unit Count", "unitCount", propertyData.features?.unitCount, handleFeatureChange, "number")}
+              </CardContent>
+            </Card>
           </Grid>
-          <Grid item xs={12} sm={4}>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={formData.pool}
-                  onChange={handleInputChange}
-                  name="pool"
-                />
-              }
-              label="Pool"
-            />
-          </Grid>
-          {/* Add more feature fields as needed */}
         </Grid>
       </Box>
     </LocalizationProvider>

@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLoadScript } from '@react-google-maps/api';
 import { TextField, Box, Typography } from '@mui/material';
-import './AddressInput.css';
+// Remove the following line as it's not being used
+// import './AddressInput.css';
 
 const libraries = ['places'];
 
 function AddressInput({ onGeocodeComplete }) {
   const [address, setAddress] = useState('');
-  const [geocodedAddress, setGeocodedAddress] = useState('');
+  // Remove the following line as it's redundant with 'address'
+  // const [geocodedAddress, setGeocodedAddress] = useState('');
   const inputRef = useRef(null);
   const autocompleteRef = useRef(null);
 
@@ -20,7 +22,6 @@ function AddressInput({ onGeocodeComplete }) {
     const place = autocompleteRef.current.getPlace();
     if (place.formatted_address) {
       setAddress(place.formatted_address);
-      setGeocodedAddress(place.formatted_address);
       if (place.geometry && place.geometry.location) {
         const newLocation = {
           lat: place.geometry.location.lat(),
@@ -50,7 +51,6 @@ function AddressInput({ onGeocodeComplete }) {
 
   const handleChange = (e) => {
     setAddress(e.target.value);
-    setGeocodedAddress('');
   };
 
   if (loadError) return <div>Error loading Google Maps</div>;
@@ -67,12 +67,12 @@ function AddressInput({ onGeocodeComplete }) {
         onChange={handleChange}
         margin="normal"
       />
-      {geocodedAddress && (
+      {address && (
         <Typography 
           variant="body2" 
           sx={{ mt: 1, color: 'text.secondary', fontStyle: 'italic' }}
         >
-          Resolved address: {geocodedAddress}
+          Resolved address: {address}
         </Typography>
       )}
     </Box>

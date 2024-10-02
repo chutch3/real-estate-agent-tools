@@ -87,8 +87,10 @@ class ApiClient {
           propertyData[key].forEach((file, index) => {
             formData.append(`image${index}`, file);
           });
-        } else if (key === 'mlsSheet') {
-          formData.append('mlsSheet', propertyData[key]);
+        } else if (key === 'supportingDocs') {
+          propertyData[key].forEach((file, index) => {
+            formData.append(`supportingDoc${index}`, file);
+          });
         } else {
           formData.append(key, propertyData[key]);
         }
@@ -112,6 +114,19 @@ class ApiClient {
       return response.data;
     } catch (error) {
       console.error('Error geocoding address:', error);
+      throw error;
+    }
+  }
+
+  async getPropertyDetails(address) {
+    try {
+      const response = await this.client.get('/properties', { params: { address: encodeURIComponent(address) } });
+      return response.data;
+    } catch (error) {
+      if (error.response && error.response.status === 404) {
+        return null; // Property not found
+      }
+      console.error('Error fetching property details:', error);
       throw error;
     }
   }

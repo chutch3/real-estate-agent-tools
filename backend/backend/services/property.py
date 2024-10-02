@@ -10,7 +10,7 @@ class PropertyService:
         self._client = client
         self._logger = logging.getLogger(self.__class__.__name__)
 
-    async def get_property(self, address: str):
+    async def get_property(self, address: str) -> PropertyInfo:
         """
         Get the property for the given address.
 
@@ -34,6 +34,8 @@ class PropertyService:
 
         if len(properties) > 1:
             self._logger.warning("Found multiple properties for address: %s", address)
+
+        print(properties[0])
 
         return PropertyInfo(
             id=properties[0].id,

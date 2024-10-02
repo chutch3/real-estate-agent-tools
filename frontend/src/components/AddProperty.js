@@ -3,12 +3,12 @@ import { Stepper, Step, StepLabel, Button, Typography, Box } from '@mui/material
 import LookupProperty from './AddProperty/LookupProperty';
 import MissingDetails from './AddProperty/MissingDetails';
 import AddPictures from './AddProperty/AddPictures';
-import AddMLSSheet from './AddProperty/AddMLSSheet';
+import SupportingDocumentation from './AddProperty/SupportingDocumentation';
 import PropertySummary from './AddProperty/PropertySummary';
 import apiClient from '../apiClient';
 import { CircularProgress } from '@mui/material';
 
-const propertySteps = ['Look up property', 'Missing Details', 'Add pictures', 'Add MLS Sheet', 'Summary'];
+const propertySteps = ['Look up property', 'Missing Details', 'Add pictures', 'Add Supporting Documentation', 'Summary'];
 
 function AddProperty() {
   const [activeStep, setActiveStep] = useState(0);
@@ -16,6 +16,8 @@ function AddProperty() {
   const [selectedImages, setSelectedImages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [supportingDoc, setSupportingDoc] = useState(null);
+  const [supportingDocs, setSupportingDocs] = useState([]);
 
   const handleNext = () => {
     setActiveStep((prevActiveStep) => prevActiveStep + 1);
@@ -33,16 +35,24 @@ function AddProperty() {
     setSelectedImages(files);
   };
 
+  const handleSupportingDocChange = (file) => {
+    setSupportingDoc(file);
+  };
+
+  const handleSupportingDocsChange = (files) => {
+    setSupportingDocs(files);
+  };
+
   const handleFinish = async () => {
     try {
       setIsLoading(true);
       setError('');
-      await apiClient.addProperty({ ...propertyData, images: selectedImages });
-      // Navigate to a success page or reset the form
-      // For now, we'll just reset to the first step
+      await apiClient.addProperty({ ...propertyData, images: selectedImages, supportingDocs });
+      // Reset form
       setActiveStep(0);
       setPropertyData({});
       setSelectedImages([]);
+      setSupportingDocs([]);
     } catch (error) {
       console.error('Error adding property:', error);
       setError('Failed to add property. Please try again.');
@@ -63,12 +73,12 @@ function AddProperty() {
           onImagesSelected={handleImagesSelected} 
         />;
       case 3:
-        return <AddMLSSheet onDataChange={handlePropertyDataChange} />;
+        return <SupportingDocumentation onFilesChange={handleSupportingDocsChange} />;
       case 4:
         return <PropertySummary 
           propertyData={propertyData} 
           images={selectedImages} 
-          mlsSheet={propertyData.mlsSheet} 
+          supportingDocs={supportingDocs}
           onBack={handleBack}
           onFinish={handleFinish}
         />;
