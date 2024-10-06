@@ -1,11 +1,14 @@
 from http import HTTPStatus
 from http.client import HTTPException
+from typing import Annotated
 
 from backend.clients.google_maps import GoogleMapsClient
 from backend.services.document import DocumentService
+from backend.services.property import PropertyService
 from backend.template_loader import TemplateLoader
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form
+from urllib.parse import unquote_plus
 
 from .container import Container
 from .exceptions import AddressNotFoundError, PropertyNotFoundError
@@ -15,6 +18,7 @@ from .models import (
     GeocodeResponse,
     PostGenerationRequest,
     PostGenerationResponse,
+    CreatePropertyFormData,
     TemplateResponse,
 )
 from .post_coordinator import PostCoordinator
@@ -135,3 +139,56 @@ async def upload_pdf(
         return DocumentUploadResponse(id=doc_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing PDF: {str(e)}")
+
+
+@router.get("/properties", status_code=HTTPStatus.OK)
+@inject
+async def search_properties(
+    address: str,
+    property_service: PropertyService = Depends(Provide[Container.property_service]),
+):
+    """
+    Get the property for the given address.
+
+    Args:
+        address (str): The address of the property to search for.
+        property_service (PropertyService): The property service.
+
+    Returns:
+        PropertyInfo: The property details.
+    """
+    try:
+        return await property_service.search_property(
+            address=unquote_plus(address),
+        )
+    except PropertyNotFoundError as e:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail="Property not found"
+        )
+    except Exception as e:
+        print(e)
+        raise HTTPException(
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+            detail="Unable to get property details",
+        )
+
+
+@router.post("/properties", status_code=HTTPStatus.CREATED)
+@inject
+async def create_property(
+    data: Annotated[CreatePropertyFormData, Form()],
+    property_service: PropertyService = Depends(Provide[Container.property_service]),
+):
+    """
+    Create a new property.
+    """
+    try:
+        return await property_service.create_property(
+            property_data=data.property_data,
+            images=data.images,
+            supporting_docs=data.supporting_docs,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error creating property: {str(e)}"
+        )

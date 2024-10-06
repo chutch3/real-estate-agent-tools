@@ -1,6 +1,7 @@
 import logging
+from typing import List
 
-from backend.models import PropertyFeatures, PropertyInfo
+from backend.models import File, PropertyFeatures, PropertyInfo
 from rentcast_client.api.default_api import DefaultApi
 from backend.exceptions import PropertyNotFoundError
 
@@ -10,7 +11,7 @@ class PropertyService:
         self._client = client
         self._logger = logging.getLogger(self.__class__.__name__)
 
-    async def get_property(self, address: str):
+    async def search_property(self, address: str) -> PropertyInfo:
         """
         Get the property for the given address.
 
@@ -35,8 +36,10 @@ class PropertyService:
         if len(properties) > 1:
             self._logger.warning("Found multiple properties for address: %s", address)
 
+        print(properties[0])
+
         return PropertyInfo(
-            id=properties[0].id,
+            rentcast_id=properties[0].id,
             formatted_address=properties[0].formatted_address,
             address_line1=properties[0].address_line1,
             address_line2=properties[0].address_line2,
@@ -65,3 +68,19 @@ class PropertyService:
             ),
             owner_occupied=properties[0].owner_occupied,
         )
+
+    async def create_property(
+        self,
+        property_data: PropertyInfo,
+        images: List[File],
+        supporting_docs: List[File],
+    ) -> PropertyInfo:
+        """
+        Create a new property.
+
+        Args:
+            property_data (PropertyInfo): The property data.
+            images (List[UploadFile]): The images.
+            supporting_docs (List[UploadFile]): The supporting documents.
+        """
+        raise NotImplementedError

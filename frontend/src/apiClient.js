@@ -78,6 +78,58 @@ class ApiClient {
       throw error;
     }
   }
+
+  async addProperty(propertyData) {
+    try {
+      const formData = new FormData();
+      Object.keys(propertyData).forEach(key => {
+        if (key === 'images') {
+          propertyData[key].forEach((file, index) => {
+            formData.append(`image${index}`, file);
+          });
+        } else if (key === 'supportingDocs') {
+          propertyData[key].forEach((file, index) => {
+            formData.append(`supportingDoc${index}`, file);
+          });
+        } else {
+          formData.append(key, propertyData[key]);
+        }
+      });
+
+      const response = await this.client.post('/properties', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error adding property:', error);
+      throw error;
+    }
+  }
+
+  async geocodeAddress(address) {
+    try {
+      const response = await this.client.get('/geocode', { params: { address } });
+      return response.data;
+    } catch (error) {
+      console.error('Error geocoding address:', error);
+      throw error;
+    }
+  }
+
+  async getPropertyDetails(address) {
+    try {
+      const response = await this.client.get('/properties', { params: { address: encodeURIComponent(address) } });
+      return response.data;
+    } catch (error) {
+      if (error.response && error.response.status === 404) {
+        return null; // Property not found
+      }
+      console.error('Error fetching property details:', error);
+      throw error;
+    }
+  }
 }
 
 const apiClient = new ApiClient();

@@ -14,8 +14,18 @@ import SocialMediaPoster from './components/SocialMediaPoster';
 import { ClipLoader } from 'react-spinners';
 import apiClient from './apiClient';
 import './App.css';
+import AddProperty from './components/AddProperty';
+import HomeScreen from './components/HomeScreen';
 
-const steps = ['Agent Info', 'Input Address', 'Upload Documents', 'Customize Prompt', 'Generate Post', 'Post to Socials'];
+const steps = [
+  'Agent Info',
+  'Input Address',
+  'Upload Documents',
+  'Customize Prompt',
+  'Generate Post',
+  'Post to Socials',
+  'Add Property'
+];
 
 function App() {
   const [activeStep, setActiveStep] = useState(0);
@@ -33,6 +43,8 @@ function App() {
   const [uploadedDocumentId, setUploadedDocumentId] = useState(null);
   const [address, setAddress] = useState('');
   const [customTemplate, setCustomTemplate] = useState(null);
+  const [propertyData, setPropertyData] = useState(null);
+  const [properties, setProperties] = useState([]); // Add this line to manage properties
 
   const handleNext = () => {
     setActiveStep((prevActiveStep) => prevActiveStep + 1);
@@ -188,6 +200,8 @@ function App() {
             />
           </Box>
         );
+      case 6:
+        return <AddProperty propertyData={propertyData} setPropertyData={setPropertyData} />;
       default:
         return 'Unknown step';
     }
@@ -200,58 +214,9 @@ function App() {
         <main className="App-main">
           <Routes>
             <Route path="/cache-inspector" element={<CacheInspector />} />
-            <Route path="/" element={
-              <Box sx={{ width: '100%', maxWidth: '800px', margin: '0 auto', padding: '20px' }}>
-                <Stepper activeStep={activeStep}>
-                  {steps.map((label, index) => {
-                    const stepProps = {};
-                    const labelProps = {};
-                    return (
-                      <Step key={label} {...stepProps}>
-                        <StepLabel {...labelProps}>{label}</StepLabel>
-                      </Step>
-                    );
-                  })}
-                </Stepper>
-                {activeStep === steps.length ? (
-                  <Typography sx={{ mt: 2, mb: 1 }}>
-                    All steps completed - you&apos;re finished
-                  </Typography>
-                ) : (
-                  <>
-                    <Typography sx={{ mt: 2, mb: 1 }}>Step {activeStep + 1}</Typography>
-                    <Box>{getStepContent(activeStep)}</Box>
-                    <Box sx={{ display: 'flex', flexDirection: 'row', pt: 2 }}>
-                      <Button
-                        variant="outlined"
-                        color="primary"
-                        disabled={activeStep === 0}
-                        onClick={handleBack}
-                        sx={{ mr: 1 }}
-                      >
-                        Back
-                      </Button>
-                      <Box sx={{ flex: '1 1 auto' }} />
-                      <Button 
-                        variant="contained"
-                        color="primary"
-                        onClick={handleNext} 
-                        disabled={activeStep === steps.length - 1 || !isStepComplete(activeStep)}
-                      >
-                        {activeStep === steps.length - 1 ? 'Finish' : 'Next'}
-                      </Button>
-                    </Box>
-                  </>
-                )}
-                {isLoading && (
-                  <div className="loader-container">
-                    <ClipLoader color="#007bff" size={50} />
-                    <p>Processing...</p>
-                  </div>
-                )}
-                {error && <div className="error-message">{error}</div>}
-              </Box>
-            } />
+            <Route path="/add-property" element={<AddProperty />} />
+            <Route path="/" element={<HomeScreen properties={properties} />} />
+            {/* ... other routes ... */}
           </Routes>
         </main>
       </div>
