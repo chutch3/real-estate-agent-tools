@@ -75,7 +75,7 @@ class TestPropertyService:
         ],
     )
     @pytest.mark.asyncio
-    async def test_get_property(
+    async def test_search_property(
         self,
         subject: PropertyService,
         mock_client: AsyncMock,
@@ -84,7 +84,7 @@ class TestPropertyService:
     ):
         mock_client.property_records.return_value = property_records
 
-        actual = await subject.get_property(address)
+        actual = await subject.search_property(address)
 
         assert actual == PropertyInfo(
             id=property_records[0].id,
@@ -114,14 +114,14 @@ class TestPropertyService:
         )
 
     @pytest.mark.asyncio
-    async def test_get_property_when_features_are_missing(
+    async def test_search_property_when_features_are_missing(
         self,
         subject: PropertyService,
         mock_client: AsyncMock,
     ):
         property_records = [fake_property_record(no_features=True)]
         mock_client.property_records.return_value = property_records
-        actual = await subject.get_property("123 Main St, Anytown, USA")
+        actual = await subject.search_property("123 Main St, Anytown, USA")
 
         assert actual == PropertyInfo(
             id=property_records[0].id,
@@ -151,13 +151,13 @@ class TestPropertyService:
         )
 
     @pytest.mark.asyncio
-    async def test_get_property_not_found(
+    async def test_search_property_not_found(
         self, subject: PropertyService, mock_client: AsyncMock
     ):
         mock_client.property_records.return_value = []
 
         with pytest.raises(PropertyNotFoundError):
-            await subject.get_property("123 Main St, Anytown, USA")
+            await subject.search_property("123 Main St, Anytown, USA")
 
     @pytest.fixture
     def mock_client(self):

@@ -1,4 +1,5 @@
 from typing import Dict, List, Optional, Union
+from fastapi import UploadFile
 from pydantic import BaseModel, Field
 
 
@@ -56,6 +57,7 @@ class PropertyFeatures(BaseModel):
 
 class PropertyInfo(BaseModel):
     id: Optional[str] = None
+    rentcast_id: Optional[str] = Field(None, serialization_alias="rentcastID")
     formatted_address: Optional[str] = Field(
         None, serialization_alias="formattedAddress"
     )
@@ -90,3 +92,14 @@ class PropertyInfo(BaseModel):
 
 class DocumentUploadResponse(BaseModel):
     id: str
+
+
+class CreatePropertyFormData(BaseModel):
+    property_data: PropertyInfo
+    images: List[UploadFile]
+    supporting_docs: List[UploadFile]
+
+
+class File(BaseModel):
+    filename: str
+    file: bytes

@@ -1,4 +1,5 @@
 from http import HTTPStatus
+import json
 from typing import Container
 from unittest.mock import AsyncMock, Mock
 from urllib.parse import quote_plus
@@ -16,12 +17,13 @@ from backend.models import (
     GeocodeRequest,
     GeocodeResponse,
     PostGenerationRequest,
+    CreatePropertyFormData,
     PropertyInfo,
     TemplateResponse,
 )
 from backend.post_coordinator import PostCoordinator
 from backend.routes import router
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile
 from fastapi.testclient import TestClient
 from tests.factories import PropertyInfoFactory
 
@@ -148,23 +150,55 @@ class TestRoutes:
         assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
         assert response.json() == {"detail": "Error processing PDF: bad pdf"}
 
-    def test_get_property_details(
+    def test_search_properties(
         self,
         subject,
         mock_property_service: AsyncMock,
         property_info_factory: PropertyInfoFactory,
     ):
         expected = property_info_factory.build()
-        mock_property_service.get_property.return_value = expected
+        mock_property_service.search_property.return_value = expected
 
         response = subject.get(
             f"/properties?address={quote_plus('123 Main St, Anytown, USA')}"
         )
         assert response.status_code == HTTPStatus.OK
         assert response.json() == expected.model_dump(by_alias=True)
-        mock_property_service.get_property.assert_awaited_once_with(
+        mock_property_service.search_property.assert_awaited_once_with(
             address="123 Main St, Anytown, USA"
         )
+
+    def test_create_property(self, subject, mock_property_service):
+        actual_request = CreatePropertyFormData(
+            property_data=PropertyInfo(
+                rentcast_id="some-rentcast-id",
+            ),
+            images=[
+                UploadFile(
+                    filename="test.jpg",
+                    file=b"test content",
+                ),
+            ],
+            supporting_docs=[
+                UploadFile(
+                    filename="test.pdf",
+                    file=b"test content",
+                ),
+            ],
+        )
+
+        expected_result = actual_request.model_copy(update={"id": "123"})
+        mock_property_service.create_property.return_value = expected_result
+
+        # make a post request to /properties using form data
+        response = subject.post(
+            "/properties",
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            data=actual_request.model_dump_json(),
+        )
+        print(response.json())
+        assert response.status_code == HTTPStatus.CREATED
+        assert response.json() == expected_result.model_dump(by_alias=True)
 
     @pytest.fixture
     def mock_coordinator(self):

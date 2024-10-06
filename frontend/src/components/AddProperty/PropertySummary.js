@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { 
-  Modal, 
   Box, 
   Typography, 
   Grid, 
@@ -9,21 +8,9 @@ import {
   ListItem, 
   ListItemText,
 } from '@mui/material';
-import { CheckCircleOutline } from '@mui/icons-material';
 
-const PropertySummary = ({ propertyData, images, mlsSheet, onBack, onFinish }) => {
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-  const handleFinish = async () => {
-    try {
-      await onFinish();
-      setShowSuccessModal(true);
-    } catch (error) {
-      // Error handling is now managed in the parent component
-      console.error('Error in PropertySummary:', error);
-    }
-  };
-
+const PropertySummary = ({ propertyData, images, supportingDocs}) => {
   return (
     <Box sx={{ mt: 3 }}>
       <Typography variant="h4" gutterBottom>Property Summary</Typography>
@@ -32,10 +19,10 @@ const PropertySummary = ({ propertyData, images, mlsSheet, onBack, onFinish }) =
         <Typography variant="h6" gutterBottom>Basic Information</Typography>
         <Grid container spacing={2}>
           <Grid item xs={12} sm={6}>
-            <Typography><strong>Address:</strong> {propertyData.formatted_address}</Typography>
+            <Typography><strong>Address:</strong> {propertyData.formattedAddress}</Typography>
           </Grid>
           <Grid item xs={12} sm={6}>
-            <Typography><strong>Property Type:</strong> {propertyData.property_type}</Typography>
+            <Typography><strong>Property Type:</strong> {propertyData.propertyType}</Typography>
           </Grid>
           <Grid item xs={12} sm={6}>
             <Typography><strong>Bedrooms:</strong> {propertyData.bedrooms}</Typography>
@@ -44,10 +31,10 @@ const PropertySummary = ({ propertyData, images, mlsSheet, onBack, onFinish }) =
             <Typography><strong>Bathrooms:</strong> {propertyData.bathrooms}</Typography>
           </Grid>
           <Grid item xs={12} sm={6}>
-            <Typography><strong>Square Footage:</strong> {propertyData.square_footage}</Typography>
+            <Typography><strong>Square Footage:</strong> {propertyData.squareFootage}</Typography>
           </Grid>
           <Grid item xs={12} sm={6}>
-            <Typography><strong>Year Built:</strong> {propertyData.year_built}</Typography>
+            <Typography><strong>Year Built:</strong> {propertyData.yearBuilt}</Typography>
           </Grid>
         </Grid>
       </Paper>
@@ -55,45 +42,41 @@ const PropertySummary = ({ propertyData, images, mlsSheet, onBack, onFinish }) =
       <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
         <Typography variant="h6" gutterBottom>Features</Typography>
         <List>
-          {propertyData.cooling && <ListItem><ListItemText primary="Cooling" /></ListItem>}
-          {propertyData.heating && <ListItem><ListItemText primary="Heating" /></ListItem>}
-          {propertyData.pool && <ListItem><ListItemText primary="Pool" /></ListItem>}
-          {/* Add more features as needed */}
+          {Object.entries(propertyData.features || {}).map(([feature, value]) => (
+            value && (
+              <ListItem key={feature}>
+                <ListItemText primary={feature.charAt(0).toUpperCase() + feature.slice(1)} />
+              </ListItem>
+            )
+          ))}
         </List>
       </Paper>
 
       <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
         <Typography variant="h6" gutterBottom>Attachments</Typography>
-        <Typography><strong>Images:</strong> {images.length} uploaded</Typography>
-        <Typography><strong>MLS Sheet:</strong> {mlsSheet ? 'Uploaded' : 'Not uploaded'}</Typography>
+        <Typography variant="subtitle1" gutterBottom><strong>Images:</strong></Typography>
+        <Grid container spacing={2}>
+          {images.map((image, index) => (
+            <Grid item xs={4} key={index}>
+              <img src={URL.createObjectURL(image)} alt={`Property image ${index + 1}`} style={{ width: '100%', height: 'auto' }} />
+            </Grid>
+          ))}
+        </Grid>
+        <Typography variant="subtitle1" gutterBottom sx={{ mt: 2 }}><strong>Supporting Documents:</strong></Typography>
+        <Grid container spacing={2}>
+          {supportingDocs.map((doc, index) => (
+            <Grid item xs={4} key={index}>
+              {doc.type.startsWith('image/') ? (
+                <img src={URL.createObjectURL(doc)} alt={`Supporting document ${index + 1}`} style={{ width: '100%', height: 'auto' }} />
+              ) : (
+                <Box sx={{ p: 2, border: '1px solid #ccc', borderRadius: 2 }}>
+                  <Typography>{doc.name}</Typography>
+                </Box>
+              )}
+            </Grid>
+          ))}
+        </Grid>
       </Paper>
-
-      <Modal
-        open={showSuccessModal}
-        onClose={() => setShowSuccessModal(false)}
-        aria-labelledby="success-modal-title"
-        aria-describedby="success-modal-description"
-      >
-        <Box sx={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: 400,
-          bgcolor: 'background.paper',
-          boxShadow: 24,
-          p: 4,
-          textAlign: 'center',
-        }}>
-          <CheckCircleOutline sx={{ fontSize: 60, color: 'success.main', mb: 2 }} />
-          <Typography id="success-modal-title" variant="h5" component="h2">
-            Added!
-          </Typography>
-          <Typography id="success-modal-description" sx={{ mt: 2 }}>
-            Property has been successfully added.
-          </Typography>
-        </Box>
-      </Modal>
     </Box>
   );
 };
