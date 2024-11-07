@@ -7,8 +7,12 @@ import pypdf
 
 class DocumentService:
     def __init__(self, repository: DocumentEmbeddingRepository, client: OpenAIClient):
-        self.repository = repository
-        self.client = client
+        self._repository = repository
+        self._client = client
+
+    async def exists(self, doc_id: str) -> bool:
+        pass
+        # return await self._repository.exists(doc_id)
 
     async def process_pdf(self, content: bytes) -> str:
         if not content:
@@ -23,6 +27,6 @@ class DocumentService:
             raise ValueError("Invalid PDF content")
 
         doc_id = str(uuid.uuid4())
-        embedding = await self.client.create_embeddings(text)
-        await self.repository.insert_embeddings(doc_id, text, embedding)
+        embedding = await self._client.create_embeddings(text)
+        await self._repository.insert_embeddings(doc_id, text, embedding)
         return doc_id

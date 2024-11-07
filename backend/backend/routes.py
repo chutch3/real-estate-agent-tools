@@ -1,6 +1,6 @@
 from http import HTTPStatus
 from http.client import HTTPException
-from typing import Annotated
+from typing import Annotated, List
 
 from backend.clients.google_maps import GoogleMapsClient
 from backend.services.document import DocumentService
@@ -11,14 +11,18 @@ from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form
 from urllib.parse import unquote_plus
 
 from .container import Container
-from .exceptions import AddressNotFoundError, PropertyNotFoundError
+from .exceptions import (
+    AddressNotFoundError,
+    DocumentNotFoundError,
+    PropertyNotFoundError,
+)
 from .models import (
     DocumentUploadResponse,
     GeocodeRequest,
     GeocodeResponse,
     PostGenerationRequest,
     PostGenerationResponse,
-    CreatePropertyFormData,
+    PropertyInfo,
     TemplateResponse,
 )
 from .post_coordinator import PostCoordinator
@@ -176,17 +180,27 @@ async def search_properties(
 @router.post("/properties", status_code=HTTPStatus.CREATED)
 @inject
 async def create_property(
-    data: Annotated[CreatePropertyFormData, Form()],
+    property_data: PropertyInfo,
     property_service: PropertyService = Depends(Provide[Container.property_service]),
 ):
     """
     Create a new property.
+
+    Args:
+        data (CreatePropertyFormData): The form data.
+        property_service (PropertyService): The property service.
+
+    Returns:
+        PropertyInfo: The created property.
     """
     try:
         return await property_service.create_property(
-            property_data=data.property_data,
-            images=data.images,
-            supporting_docs=data.supporting_docs,
+            property_data=property_data,
+        )
+    except DocumentNotFoundError as e:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail="No documents found with the provided IDs",
         )
     except Exception as e:
         raise HTTPException(

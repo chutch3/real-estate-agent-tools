@@ -8,7 +8,7 @@ packages = [{ include = "backend", from = "." }]
 
 [tool.poetry.dependencies]
 python = "^3.11"
-fastapi = "^0.113.0"
+fastapi = "^0.115.0"
 uvicorn = "^0.30.6"
 pydantic = "^2.9.0"
 dependency-injector = "^4.41.0"
@@ -25,11 +25,13 @@ python-multipart = "^0.0.9"
 pypdf = "^4.3.1"
 reportlab = "^4.2.2"
 polyfactory = "^2.17.0"
+sqlmodel = "^0.0.22"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.2"
 ruff = "^0.6.4"
 faker = "^28.4.1"
+reportlab = "^4.2.5"
 
 [build-system]
 requires = ["poetry-core"]

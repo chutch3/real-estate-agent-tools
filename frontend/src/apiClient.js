@@ -82,20 +82,8 @@ class ApiClient {
   async addProperty(propertyData) {
     try {
       const formData = new FormData();
-      Object.keys(propertyData).forEach(key => {
-        if (key === 'images') {
-          propertyData[key].forEach((file, index) => {
-            formData.append(`image${index}`, file);
-          });
-        } else if (key === 'supportingDocs') {
-          propertyData[key].forEach((file, index) => {
-            formData.append(`supportingDoc${index}`, file);
-          });
-        } else {
-          formData.append(key, propertyData[key]);
-        }
-      });
-
+      // Convert JSON object to form data string
+      formData.append('data', JSON.stringify(propertyData));
       const response = await this.client.post('/properties', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',

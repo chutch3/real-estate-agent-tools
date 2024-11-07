@@ -2,6 +2,7 @@ from backend.clients.google_maps import GoogleMapsClient
 from backend.clients.openai import OpenAIClient
 from backend.post_coordinator import PostCoordinator
 from backend.repositories.document_embeddings import DocumentEmbeddingRepository
+from backend.repositories.properties import PropertyRepository
 from backend.services.document import DocumentService
 from backend.services.post_generation import PostGenerationService
 from backend.services.property import PropertyService
@@ -55,11 +56,18 @@ class Container(containers.DeclarativeContainer):
         DocumentEmbeddingRepository,
         client=milvus_client,
     )
-    property_service = providers.Singleton(PropertyService, client=rentcast_client)
     document_service = providers.Singleton(
         DocumentService,
         repository=document_embedding_repository,
         client=openai_client,
+    )
+    property_repository = providers.Singleton(PropertyRepository)
+
+    property_service = providers.Singleton(
+        PropertyService,
+        client=rentcast_client,
+        property_repository=property_repository,
+        document_service=document_service,
     )
     post_generation_service = providers.Singleton(
         PostGenerationService,

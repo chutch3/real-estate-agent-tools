@@ -9,7 +9,7 @@ import apiClient from '../apiClient';
 import { CircularProgress } from '@mui/material';
 import { CheckCircleOutline } from '@mui/icons-material';
 
-const propertySteps = ['Look up property', 'Missing Details', 'Add pictures', 'Add Supporting Documentation', 'Summary'];
+const propertySteps = ['Look up property', 'Missing Details', 'Add Supporting Documentation', 'Summary'];
 
 function AddProperty() {
   const [activeStep, setActiveStep] = useState(0);
@@ -36,21 +36,15 @@ function AddProperty() {
     setSelectedImages(files);
   };
 
-
-  const handleSupportingDocsChange = (files) => {
-    setSupportingDocs(files);
-  };
-
   const handleFinish = async () => {
     try {
       setIsLoading(true);
       setError('');
-      await apiClient.addProperty({ ...propertyData, images: selectedImages, supportingDocs });
+      await apiClient.addProperty({ ...propertyData, documents_ids: supportingDocs.map(doc => doc.id) });
       setShowSuccessModal(true);
       // Reset form
       setActiveStep(0);
       setPropertyData({});
-      setSelectedImages([]);
       setSupportingDocs([]);
     } catch (error) {
       console.error('Error adding property:', error);
@@ -67,17 +61,10 @@ function AddProperty() {
       case 1:
         return <MissingDetails propertyData={propertyData} onDataChange={handlePropertyDataChange} />;
       case 2:
-        return <AddPictures 
-          selectedImages={selectedImages} 
-          onImagesSelected={handleImagesSelected} 
-        />;
+        return <SupportingDocumentation onDataChange={handlePropertyDataChange} />;
       case 3:
-        return <SupportingDocumentation onFilesChange={handleSupportingDocsChange} />;
-      case 4:
         return <PropertySummary 
           propertyData={propertyData} 
-          images={selectedImages} 
-          supportingDocs={supportingDocs}
         />;
       default:
         return 'Unknown step';

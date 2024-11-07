@@ -9,7 +9,11 @@ from backend.services.document import DocumentService
 from backend.services.property import PropertyService
 from backend.template_loader import TemplateLoader
 import pytest
-from backend.exceptions import AddressNotFoundError, PropertyNotFoundError
+from backend.exceptions import (
+    AddressNotFoundError,
+    DocumentNotFoundError,
+    PropertyNotFoundError,
+)
 from backend.models import (
     AgentInfo,
     DocumentUploadResponse,
@@ -17,7 +21,6 @@ from backend.models import (
     GeocodeRequest,
     GeocodeResponse,
     PostGenerationRequest,
-    CreatePropertyFormData,
     PropertyInfo,
     TemplateResponse,
 )
@@ -26,6 +29,33 @@ from backend.routes import router
 from fastapi import FastAPI, UploadFile
 from fastapi.testclient import TestClient
 from tests.factories import PropertyInfoFactory
+
+
+def generate_fake_pdf(text="This is a fake PDF") -> bytes:
+    from io import BytesIO
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import letter
+
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+
+    # Add some text to the PDF
+    p.drawString(100, height - 100, text)
+
+    # Add a rectangle
+    p.rect(100, height - 200, 200, 50)
+
+    # Add more elements as needed...
+
+    p.showPage()
+    p.save()
+
+    # Get the value of the BytesIO buffer and return it
+    pdf_content = buffer.getvalue()
+    buffer.close()
+
+    return pdf_content
 
 
 class TestRoutes:
@@ -169,36 +199,39 @@ class TestRoutes:
         )
 
     def test_create_property(self, subject, mock_property_service):
-        actual_request = CreatePropertyFormData(
-            property_data=PropertyInfo(
-                rentcast_id="some-rentcast-id",
-            ),
-            images=[
-                UploadFile(
-                    filename="test.jpg",
-                    file=b"test content",
-                ),
-            ],
-            supporting_docs=[
-                UploadFile(
-                    filename="test.pdf",
-                    file=b"test content",
-                ),
-            ],
+        property_data = PropertyInfo(
+            rentcast_id="some-rentcast-id",
+            latitude=0,
+            longitude=0,
+            bedrooms=0,
+            bathrooms=0,
+            square_footage=0,
+            lot_size=0,
+            year_built=0,
+            last_sale_price=0,
+            owner_occupied=True,
+            documents_ids=["123"],
         )
-
-        expected_result = actual_request.model_copy(update={"id": "123"})
+        expected_result = property_data.model_copy(update={"id": "123"})
         mock_property_service.create_property.return_value = expected_result
 
-        # make a post request to /properties using form data
-        response = subject.post(
-            "/properties",
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-            data=actual_request.model_dump_json(),
-        )
-        print(response.json())
+        response = subject.post("/properties", json=property_data.model_dump())
+
         assert response.status_code == HTTPStatus.CREATED
         assert response.json() == expected_result.model_dump(by_alias=True)
+
+        mock_property_service.create_property.assert_called_once()
+        call_args = mock_property_service.create_property.call_args
+        assert call_args.kwargs["property_data"] == property_data
+
+    def test_create_property_document_not_found(
+        self, subject, mock_property_service, property_info_factory
+    ):
+        property_data = property_info_factory.build()
+        mock_property_service.create_property.side_effect = DocumentNotFoundError()
+        response = subject.post("/properties", json=property_data.model_dump())
+        assert response.status_code == HTTPStatus.BAD_REQUEST
+        assert response.json() == {"detail": "No documents found with the provided IDs"}
 
     @pytest.fixture
     def mock_coordinator(self):

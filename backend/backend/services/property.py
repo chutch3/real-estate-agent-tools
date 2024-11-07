@@ -1,14 +1,22 @@
 import logging
-from typing import List
 
-from backend.models import File, PropertyFeatures, PropertyInfo
+from backend.models import PropertyFeatures, PropertyInfo
+from backend.repositories.properties import PropertyRepository
+from backend.services.document import DocumentService
 from rentcast_client.api.default_api import DefaultApi
-from backend.exceptions import PropertyNotFoundError
+from backend.exceptions import DocumentNotFoundError, PropertyNotFoundError
 
 
 class PropertyService:
-    def __init__(self, client: DefaultApi):
+    def __init__(
+        self,
+        client: DefaultApi,
+        property_repository: PropertyRepository,
+        document_service: DocumentService,
+    ):
         self._client = client
+        self._property_repository = property_repository
+        self._document_service = document_service
         self._logger = logging.getLogger(self.__class__.__name__)
 
     async def search_property(self, address: str) -> PropertyInfo:
@@ -72,8 +80,6 @@ class PropertyService:
     async def create_property(
         self,
         property_data: PropertyInfo,
-        images: List[File],
-        supporting_docs: List[File],
     ) -> PropertyInfo:
         """
         Create a new property.
@@ -82,5 +88,15 @@ class PropertyService:
             property_data (PropertyInfo): The property data.
             images (List[UploadFile]): The images.
             supporting_docs (List[UploadFile]): The supporting documents.
+
+        Returns:
+            PropertyInfo: The created property.
+
+        Raises:
+            DocumentNotFoundError: If the document does not exist.
         """
-        raise NotImplementedError
+
+        if not await self._document_service.exists(property_data.rentcast_id):
+            raise DocumentNotFoundError
+
+        return await self._property_repository.insert_property(property_data)

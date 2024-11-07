@@ -1,26 +1,29 @@
 import React, { useState } from 'react';
 import { Button, Box, Typography, List, ListItem, ListItemText, IconButton } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
+import apiClient from '../../apiClient';
 
-function SupportingDocumentation({ onFilesChange }) {
+function SupportingDocumentation({ onDataChange }) {
   const [supportingDocs, setSupportingDocs] = useState([]);
 
-  const handleFileUpload = (event) => {
+  const handleFileUpload = async (event) => {
     const files = Array.from(event.target.files);
     const pdfFiles = files.filter(file => file.type === 'application/pdf');
     
     if (pdfFiles.length !== files.length) {
       alert('Only PDF files are allowed. Non-PDF files were ignored.');
     }
+    const docIds = await Promise.all(pdfFiles.map(file => apiClient.uploadDocument(file)));
 
-    setSupportingDocs(prevDocs => [...prevDocs, ...pdfFiles]);
-    onFilesChange([...supportingDocs, ...pdfFiles]);
+    setSupportingDocs(prevDocIds => [...prevDocIds, ...docIds]);
+    onDataChange({ supportingDocs: supportingDocs });
   };
 
-  const handleRemoveFile = (index) => {
+  const handleRemoveFile = async (index) => {
     const updatedDocs = supportingDocs.filter((_, i) => i !== index);
+    
     setSupportingDocs(updatedDocs);
-    onFilesChange(updatedDocs);
+    onDataChange({ supportingDocs: updatedDocs });
   };
 
   return (

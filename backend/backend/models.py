@@ -85,6 +85,7 @@ class PropertyInfo(BaseModel):
     last_sale_price: Optional[int] = Field(0, serialization_alias="lastSalePrice")
     features: Optional[PropertyFeatures] = None
     owner_occupied: Optional[bool] = Field(True, serialization_alias="ownerOccupied")
+    documents_ids: Optional[List[str]] = Field(None, serialization_alias="documentsIDs")
 
     class ConfigDict:
         populate_by_name = True

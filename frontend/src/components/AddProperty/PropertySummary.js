@@ -10,7 +10,7 @@ import {
 } from '@mui/material';
 
 
-const PropertySummary = ({ propertyData, images, supportingDocs}) => {
+const PropertySummary = ({ propertyData }) => {
   return (
     <Box sx={{ mt: 3 }}>
       <Typography variant="h4" gutterBottom>Property Summary</Typography>
@@ -54,17 +54,17 @@ const PropertySummary = ({ propertyData, images, supportingDocs}) => {
 
       <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
         <Typography variant="h6" gutterBottom>Attachments</Typography>
-        <Typography variant="subtitle1" gutterBottom><strong>Images:</strong></Typography>
+        {/* <Typography variant="subtitle1" gutterBottom><strong>Images:</strong></Typography>
         <Grid container spacing={2}>
-          {images.map((image, index) => (
+          {propertyData.images.map((image, index) => (
             <Grid item xs={4} key={index}>
               <img src={URL.createObjectURL(image)} alt={`Property image ${index + 1}`} style={{ width: '100%', height: 'auto' }} />
             </Grid>
           ))}
-        </Grid>
+        </Grid> */}
         <Typography variant="subtitle1" gutterBottom sx={{ mt: 2 }}><strong>Supporting Documents:</strong></Typography>
         <Grid container spacing={2}>
-          {supportingDocs.map((doc, index) => (
+          {(propertyData.supportingDocs || []).map((doc, index) => (
             <Grid item xs={4} key={index}>
               {doc.type.startsWith('image/') ? (
                 <img src={URL.createObjectURL(doc)} alt={`Supporting document ${index + 1}`} style={{ width: '100%', height: 'auto' }} />

@@ -3,12 +3,15 @@ from typing import Container
 from unittest.mock import AsyncMock, MagicMock
 
 from backend.models import PropertyFeatures, PropertyInfo
+from backend.repositories.properties import PropertyRepository
+from backend.services.document import DocumentService
 import pytest
-from backend.exceptions import PropertyNotFoundError
+from backend.exceptions import DocumentNotFoundError, PropertyNotFoundError
 from backend.services.property import PropertyService
 from faker import Faker
 from rentcast_client.api.default_api import DefaultApi
 from rentcast_client.models import PropertyRecords200ResponseInner
+from tests.factories import PropertyInfoFactory
 
 
 def fake_property_record(
@@ -151,6 +154,35 @@ class TestPropertyService:
         )
 
     @pytest.mark.asyncio
+    async def test_create_property(
+        self,
+        subject: PropertyService,
+        property_info_factory: PropertyInfoFactory,
+        mock_property_repository: AsyncMock,
+        mock_document_service: AsyncMock,
+    ):
+        property_data = property_info_factory.build()
+        expected = property_data.model_copy(update={"id": "123"})
+        mock_property_repository.insert_property.return_value = expected
+        mock_document_service.exists.return_value = True
+
+        actual = await subject.create_property(property_data)
+        mock_property_repository.insert_property.assert_called_once_with(property_data)
+        assert actual == expected
+
+    @pytest.mark.asyncio
+    async def test_create_property_when_document_does_not_exist(
+        self,
+        subject: PropertyService,
+        property_info_factory: PropertyInfoFactory,
+        mock_document_service: AsyncMock,
+    ):
+        mock_document_service.exists.return_value = False
+        property_data = property_info_factory.build()
+        with pytest.raises(DocumentNotFoundError):
+            await subject.create_property(property_data)
+
+    @pytest.mark.asyncio
     async def test_search_property_not_found(
         self, subject: PropertyService, mock_client: AsyncMock
     ):
@@ -166,6 +198,26 @@ class TestPropertyService:
         yield mock
 
     @pytest.fixture
-    def subject(self, test_container: Container, mock_client: AsyncMock):
-        with test_container.override_providers(rentcast_client=mock_client):
+    def mock_property_repository(self):
+        mock = AsyncMock(spec=PropertyRepository)
+        yield mock
+
+    @pytest.fixture
+    def mock_document_service(self):
+        mock = AsyncMock(spec=DocumentService)
+        yield mock
+
+    @pytest.fixture
+    def subject(
+        self,
+        test_container: Container,
+        mock_client: AsyncMock,
+        mock_property_repository: AsyncMock,
+        mock_document_service: AsyncMock,
+    ):
+        with test_container.override_providers(
+            rentcast_client=mock_client,
+            property_repository=mock_property_repository,
+            document_service=mock_document_service,
+        ):
             yield test_container.property_service()
