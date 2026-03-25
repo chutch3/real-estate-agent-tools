@@ -56,6 +56,16 @@ describe('PropertyDetailPanel', () => {
     expect(screen.getByText('disclosure.pdf')).toBeInTheDocument();
   });
 
+  it('renders each document as a link to the document API endpoint', () => {
+    render(
+      <PropertyDetailPanel property={mockProperty} onClose={jest.fn()} onGeneratePost={jest.fn()} onUploadDocument={jest.fn()} />
+    );
+    const listingLink = screen.getByRole('link', { name: 'listing.pdf' });
+    expect(listingLink).toHaveAttribute('href', expect.stringContaining('/documents/doc-1'));
+    expect(listingLink).toHaveAttribute('target', '_blank');
+    expect(listingLink).toHaveAttribute('rel', 'noreferrer');
+  });
+
   it('shows Ratings and Climate sections', () => {
     render(
       <PropertyDetailPanel property={mockProperty} onClose={jest.fn()} onGeneratePost={jest.fn()} onUploadDocument={jest.fn()} />
@@ -131,6 +141,30 @@ describe('PropertyDetailPanel', () => {
       <PropertyDetailPanel property={mockProperty} onClose={jest.fn()} onGeneratePost={jest.fn()} onUploadDocument={jest.fn()} uploadError="Upload failed. Please try again." />
     );
     expect(screen.getByRole('alert')).toHaveTextContent('Upload failed. Please try again.');
+  });
+
+  it('renders a delete button for each document', () => {
+    render(
+      <PropertyDetailPanel property={mockProperty} onClose={jest.fn()} onGeneratePost={jest.fn()} onUploadDocument={jest.fn()} onDeleteDocument={jest.fn()} />
+    );
+    expect(screen.getByRole('button', { name: /delete listing\.pdf/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /delete disclosure\.pdf/i })).toBeInTheDocument();
+  });
+
+  it('calls onDeleteDocument with the property and doc id when delete is clicked', () => {
+    const onDeleteDocument = jest.fn();
+    render(
+      <PropertyDetailPanel property={mockProperty} onClose={jest.fn()} onGeneratePost={jest.fn()} onUploadDocument={jest.fn()} onDeleteDocument={onDeleteDocument} />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /delete listing\.pdf/i }));
+    expect(onDeleteDocument).toHaveBeenCalledWith(mockProperty, 'doc-1');
+  });
+
+  it('shows a delete error message when deleteError prop is set', () => {
+    render(
+      <PropertyDetailPanel property={mockProperty} onClose={jest.fn()} onGeneratePost={jest.fn()} onUploadDocument={jest.fn()} onDeleteDocument={jest.fn()} deleteError="Failed to delete document." />
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent('Failed to delete document.');
   });
 
   it('calls onClose when the panel is dismissed', () => {

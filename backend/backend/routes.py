@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from http import HTTPStatus
 from http.client import HTTPException
@@ -6,13 +7,14 @@ from typing import Annotated, List
 from pymilvus.exceptions import MilvusException
 
 from backend.clients.google_maps import GoogleMapsClient
+from backend.repositories.document_storage import DocumentStorageRepository
 from backend.services.chat import ChatService
 from backend.services.document import DocumentService
 from backend.services.property import PropertyService
 from backend.template_loader import TemplateLoader
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from urllib.parse import unquote_plus
 
 from .container import Container
@@ -121,6 +123,19 @@ async def get_default_template(
     return TemplateResponse(template=template)
 
 
+@router.get("/documents/{doc_id}", status_code=HTTPStatus.OK)
+@inject
+async def get_document(
+    doc_id: str,
+    document_storage_repository: DocumentStorageRepository = Depends(Provide[Container.document_storage_repository]),
+):
+    try:
+        content = await asyncio.to_thread(document_storage_repository.get, doc_id)
+        return Response(content=content, media_type="application/pdf")
+    except DocumentNotFoundError:
+        raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail="Document not found")
+
+
 @router.post(
     "/documents",
     status_code=HTTPStatus.CREATED,
@@ -190,6 +205,22 @@ async def search_properties(
         raise HTTPException(
             status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
             detail="Unable to get property details",
+        )
+
+
+@router.delete("/properties/{property_id}/documents/{doc_id}", status_code=HTTPStatus.OK)
+@inject
+async def delete_document(
+    property_id: str,
+    doc_id: str,
+    property_service: PropertyService = Depends(Provide[Container.property_service]),
+):
+    try:
+        return await property_service.remove_document(property_id, doc_id)
+    except DocumentNotFoundError:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail="Document not found",
         )
 
 

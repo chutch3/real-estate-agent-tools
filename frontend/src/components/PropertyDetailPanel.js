@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { X, Home, Upload, Sparkles, FileText, Star, Loader2 } from 'lucide-react';
+import { X, Home, Upload, Sparkles, FileText, Star, Loader2, Trash2 } from 'lucide-react';
 
-function PropertyDetailPanel({ property, onClose, onChat, onGeneratePost, onUploadDocument, isUploading, uploadError }) {
+function PropertyDetailPanel({ property, onClose, onChat, onGeneratePost, onUploadDocument, onDeleteDocument, isUploading, uploadError, deleteError }) {
   const fileInputRef = useRef(null);
   const [uploadingFileName, setUploadingFileName] = useState(null);
 
@@ -95,6 +95,12 @@ function PropertyDetailPanel({ property, onClose, onChat, onGeneratePost, onUplo
                 </p>
               )}
 
+              {deleteError && (
+                <p role="alert" className="font-sans text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+                  {deleteError}
+                </p>
+              )}
+
               {/* Documents */}
               <div className="animate-fade-up" style={{ animationDelay: '80ms', animationFillMode: 'both' }}>
                 <p className="font-sans text-xs uppercase tracking-widest text-ink-400 mb-2">Documents</p>
@@ -105,7 +111,21 @@ function PropertyDetailPanel({ property, onClose, onChat, onGeneratePost, onUplo
                     {(property.documents || []).map((doc) => (
                       <li key={doc.id} className="flex items-center gap-2.5 py-1">
                         <FileText size={13} className="text-ink-400 flex-shrink-0" strokeWidth={1.5} />
-                        <span className="font-sans text-sm text-ink-700">{doc.filename}</span>
+                        <a
+                          href={`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000'}/documents/${doc.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-sans text-sm text-bronze-500 hover:text-bronze-700 hover:underline truncate flex-1"
+                        >
+                          {doc.filename}
+                        </a>
+                        <button
+                          aria-label={`Delete ${doc.filename}`}
+                          onClick={() => onDeleteDocument(property, doc.id)}
+                          className="p-1 text-ink-300 hover:text-red-500 transition-colors focus:outline-none"
+                        >
+                          <Trash2 size={12} strokeWidth={1.5} />
+                        </button>
                       </li>
                     ))}
                     {uploadingFileName && (

@@ -1,12 +1,15 @@
 import os
+from contextlib import asynccontextmanager
 from typing import Optional
-from backend.schema import create_document_embeddings_schema
+
 import uvicorn
-from backend.container import Container
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from backend import routes
+from backend.container import Container
+from backend.startup import _on_startup
 
 
 def create_app(container: Optional[Container] = None):
@@ -41,10 +44,17 @@ def create_app(container: Optional[Container] = None):
     container.config.db.uri.from_env("DB_URI", default="sqlite:///./real_estate.db")
     container.config.rag.top_k.from_env("RAG_TOP_K", as_=int, default=5)
     container.config.chat.max_tokens.from_env("CHAT_MAX_TOKENS", as_=int, default=1000)
+    container.config.s3.endpoint_url.from_env("S3_ENDPOINT_URL")
+    container.config.s3.bucket.from_env("S3_BUCKET")
+    container.config.s3.access_key.from_env("S3_ACCESS_KEY")
+    container.config.s3.secret_key.from_env("S3_SECRET_KEY")
 
-    create_document_embeddings_schema()
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        _on_startup()
+        yield
 
-    app = FastAPI()
+    app = FastAPI(lifespan=lifespan)
     app.include_router(routes.router, prefix="/api")
 
     app.add_middleware(

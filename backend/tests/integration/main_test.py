@@ -2,7 +2,9 @@ import os
 from http import HTTPStatus
 from unittest.mock import patch
 
+import boto3
 import pytest
+from moto import mock_aws
 from backend.container import Container
 from backend.main import create_app
 from backend.models import (
@@ -172,6 +174,73 @@ class TestApp:
         assert len(properties) == 1
         assert properties[0]["id"] == created_id
 
+    def test_upload_and_retrieve_pdf(self, subject, httpserver: HTTPServer):
+        httpserver.expect_request("/embeddings").respond_with_json({
+            "data": [{"embedding": [0.1] * 1536, "index": 0, "object": "embedding"}],
+            "model": "text-embedding-ada-002",
+            "object": "list",
+            "usage": {"prompt_tokens": 5, "total_tokens": 5},
+        })
+
+        with open("tests/integration/fixtures/mls_sheet.pdf", "rb") as f:
+            original_bytes = f.read()
+
+        upload_response = subject.post(
+            "/api/documents",
+            files={"file": ("mls_sheet.pdf", original_bytes, "application/pdf")},
+        )
+        assert upload_response.status_code == HTTPStatus.CREATED
+        doc_id = upload_response.json()["id"]
+
+        retrieve_response = subject.get(f"/api/documents/{doc_id}")
+        assert retrieve_response.status_code == HTTPStatus.OK
+        assert retrieve_response.headers["content-type"] == "application/pdf"
+        assert retrieve_response.content == original_bytes
+
+    def test_retrieve_pdf_returns_404_for_unknown_id(self, subject):
+        response = subject.get("/api/documents/nonexistent-id")
+        assert response.status_code == HTTPStatus.NOT_FOUND
+
+    def test_delete_document_from_property(self, subject, httpserver: HTTPServer):
+        httpserver.expect_request("/embeddings").respond_with_json({
+            "data": [{"embedding": [0.1] * 1536, "index": 0, "object": "embedding"}],
+            "model": "text-embedding-ada-002",
+            "object": "list",
+            "usage": {"prompt_tokens": 5, "total_tokens": 5},
+        })
+
+        upload_response = subject.post(
+            "/api/documents",
+            files={"file": open("tests/integration/fixtures/mls_sheet.pdf", "rb")},
+        )
+        assert upload_response.status_code == HTTPStatus.CREATED
+        doc_id = upload_response.json()["id"]
+
+        property_data = PropertyInfo(
+            latitude=37.4225103,
+            longitude=-122.0847089,
+            documents=[DocumentInfo(id=doc_id, filename="mls_sheet.pdf")],
+        )
+        create_response = subject.post("/api/properties", json=property_data.model_dump())
+        assert create_response.status_code == HTTPStatus.CREATED
+        property_id = create_response.json()["id"]
+
+        delete_response = subject.delete(f"/api/properties/{property_id}/documents/{doc_id}")
+        assert delete_response.status_code == HTTPStatus.OK
+        assert delete_response.json()["documents"] == []
+
+        retrieve_after_delete = subject.get(f"/api/documents/{doc_id}")
+        assert retrieve_after_delete.status_code == HTTPStatus.NOT_FOUND
+
+    def test_delete_document_returns_404_when_doc_not_in_property(self, subject):
+        property_data = PropertyInfo(latitude=37.4225103, longitude=-122.0847089)
+        create_response = subject.post("/api/properties", json=property_data.model_dump())
+        assert create_response.status_code == HTTPStatus.CREATED
+        property_id = create_response.json()["id"]
+
+        response = subject.delete(f"/api/properties/{property_id}/documents/nonexistent-doc")
+        assert response.status_code == HTTPStatus.NOT_FOUND
+
     def test_upload_pdf(self, subject, httpserver: HTTPServer, milvus_client, test_container: Container):
         httpserver.expect_request("/embeddings").respond_with_json({
             "data": [{"embedding": [0.1] * 1536, "index": 0, "object": "embedding"}],
@@ -293,7 +362,14 @@ class TestApp:
         yield test_container.milvus_client()
 
     @pytest.fixture
-    def subject(self, test_container: Container, tmp_path, httpserver: HTTPServer, integration_services):
+    def mock_s3(self):
+        with mock_aws():
+            client = boto3.client("s3", region_name="us-east-1", aws_access_key_id="test", aws_secret_access_key="test")
+            client.create_bucket(Bucket="test-documents")
+            yield
+
+    @pytest.fixture
+    def subject(self, test_container: Container, tmp_path, httpserver: HTTPServer, integration_services, mock_s3):
         base_url = httpserver.url_for("").rstrip("/")
         env_overrides = {
             "DB_URI": f"sqlite:///{tmp_path}/test.db",
@@ -307,6 +383,10 @@ class TestApp:
             "GOOGLE_MAPS_API_KEY": "fake-key",
             "GOOGLE_MAPS_BASE_URL": base_url,
             "RAG_TOP_K": "5",
+            "S3_ENDPOINT_URL": "http://localhost:9000",
+            "S3_BUCKET": "test-documents",
+            "S3_ACCESS_KEY": "test",
+            "S3_SECRET_KEY": "test",
         }
         with patch.dict(os.environ, env_overrides):
             yield TestClient(create_app(test_container))

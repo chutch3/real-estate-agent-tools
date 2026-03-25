@@ -2,6 +2,7 @@ from typing import Callable, List
 
 from sqlmodel import select
 
+from backend.exceptions import DocumentNotFoundError, PropertyNotFoundError
 from backend.models import DocumentInfo, PropertyInfo
 
 
@@ -28,6 +29,21 @@ class PropertyRepository:
         with self._session_factory() as session:
             prop = session.get(PropertyInfo, property_id)
             prop.documents = (prop.documents or []) + [document]
+            session.add(prop)
+            session.commit()
+            session.refresh(prop)
+            return prop
+
+    async def remove_document(self, property_id: str, doc_id: str) -> PropertyInfo:
+        with self._session_factory() as session:
+            prop = session.get(PropertyInfo, property_id)
+            if prop is None:
+                raise PropertyNotFoundError(f"Property {property_id} not found")
+            documents = prop.documents or []
+            updated = [d for d in documents if d.id != doc_id]
+            if len(updated) == len(documents):
+                raise DocumentNotFoundError(f"Document {doc_id} not found on property {property_id}")
+            prop.documents = updated
             session.add(prop)
             session.commit()
             session.refresh(prop)

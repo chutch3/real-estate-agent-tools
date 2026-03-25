@@ -248,6 +248,36 @@ class TestPropertyService:
             await subject.append_document("prop-id", doc)
 
     @pytest.mark.asyncio
+    async def test_remove_document(
+        self,
+        subject: PropertyService,
+        mock_property_repository: AsyncMock,
+        mock_document_service: AsyncMock,
+    ):
+        expected = PropertyInfo(rentcast_id="r", latitude=0, longitude=0, documents=[])
+        mock_property_repository.remove_document.return_value = expected
+
+        result = await subject.remove_document("prop-id", "doc-1")
+
+        mock_property_repository.remove_document.assert_awaited_once_with("prop-id", "doc-1")
+        mock_document_service.delete.assert_awaited_once_with("doc-1")
+        assert result == expected
+
+    @pytest.mark.asyncio
+    async def test_remove_document_raises_when_doc_not_in_property(
+        self,
+        subject: PropertyService,
+        mock_property_repository: AsyncMock,
+        mock_document_service: AsyncMock,
+    ):
+        mock_property_repository.remove_document.side_effect = DocumentNotFoundError()
+
+        with pytest.raises(DocumentNotFoundError):
+            await subject.remove_document("prop-id", "missing-doc")
+
+        mock_document_service.delete.assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_list_properties(
         self,
         subject: PropertyService,

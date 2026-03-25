@@ -11,6 +11,7 @@ function HomeScreen() {
   const [selectedPropertyId, setSelectedPropertyId] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState(null);
+  const [deleteError, setDeleteError] = useState(null);
 
   const selectedProperty = properties.find(p => p.id === selectedPropertyId) ?? null;
 
@@ -34,6 +35,16 @@ function HomeScreen() {
       setUploadError('Upload failed. Please try again.');
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleDeleteDocument = async (property, docId) => {
+    setDeleteError(null);
+    try {
+      const updated = await apiClient.deleteDocument(property.id, docId);
+      setProperties(prev => prev.map(p => p.id === updated.id ? updated : p));
+    } catch {
+      setDeleteError('Failed to delete document. Please try again.');
     }
   };
 
@@ -145,8 +156,10 @@ function HomeScreen() {
           onChat={handleChat}
           onGeneratePost={handleGeneratePost}
           onUploadDocument={handleUploadDocument}
+          onDeleteDocument={handleDeleteDocument}
           isUploading={isUploading}
           uploadError={uploadError}
+          deleteError={deleteError}
         />
       </div>
     </div>

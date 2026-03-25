@@ -109,3 +109,8 @@ class PropertyService:
         if not await self._document_service.exists(document.id):
             raise DocumentNotFoundError
         return await self._property_repository.append_document(property_id, document)
+
+    async def remove_document(self, property_id: str, doc_id: str) -> PropertyInfo:
+        updated_property = await self._property_repository.remove_document(property_id, doc_id)
+        await self._document_service.delete(doc_id)
+        return updated_property

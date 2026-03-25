@@ -1,12 +1,13 @@
 from http import HTTPStatus
 import json
 from typing import Container
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, MagicMock, Mock
 from urllib.parse import quote_plus
 
 from pymilvus.exceptions import MilvusException
 
 from backend.clients.google_maps import GoogleMapsClient
+from backend.repositories.document_storage import DocumentStorageRepository
 from backend.services.chat import ChatService
 from backend.services.document import DocumentService
 from backend.services.property import PropertyService
@@ -273,6 +274,25 @@ class TestRoutes:
         assert response.status_code == HTTPStatus.BAD_REQUEST
         assert response.json() == {"detail": "No documents found with the provided IDs"}
 
+    def test_delete_document_from_property(self, subject, mock_property_service, property_info_factory):
+        expected = property_info_factory.build()
+        mock_property_service.remove_document.return_value = expected
+
+        response = subject.delete("/properties/prop-1/documents/doc-1")
+
+        assert response.status_code == HTTPStatus.OK
+        assert response.json() == expected.model_dump(by_alias=True)
+        mock_property_service.remove_document.assert_awaited_once_with("prop-1", "doc-1")
+
+    def test_delete_document_from_property_returns_404_when_doc_not_in_property(
+        self, subject, mock_property_service
+    ):
+        mock_property_service.remove_document.side_effect = DocumentNotFoundError()
+
+        response = subject.delete("/properties/prop-1/documents/missing-doc")
+
+        assert response.status_code == HTTPStatus.NOT_FOUND
+
     def test_chat_streams_assistant_response(self, subject, mock_chat_service):
         mock_chat_service.prepare_chat_messages.return_value = [{"role": "user", "content": "Tell me about this property"}]
 
@@ -320,6 +340,27 @@ class TestRoutes:
         assert data[1]["role"] == "assistant"
         mock_chat_service.get_history.assert_awaited_once_with("prop-1")
 
+    def test_get_document_returns_pdf_content(self, subject, mock_document_storage_repository):
+        mock_document_storage_repository.get.return_value = b"%PDF-1.4 fake content"
+
+        response = subject.get("/documents/doc-123")
+
+        assert response.status_code == HTTPStatus.OK
+        assert response.headers["content-type"] == "application/pdf"
+        assert response.content == b"%PDF-1.4 fake content"
+        mock_document_storage_repository.get.assert_called_once_with("doc-123")
+
+    def test_get_document_returns_404_when_not_found(self, subject, mock_document_storage_repository):
+        mock_document_storage_repository.get.side_effect = DocumentNotFoundError("not found")
+
+        response = subject.get("/documents/nonexistent")
+
+        assert response.status_code == HTTPStatus.NOT_FOUND
+
+    @pytest.fixture
+    def mock_document_storage_repository(self):
+        yield MagicMock(spec=DocumentStorageRepository)
+
     @pytest.fixture
     def mock_chat_service(self):
         yield AsyncMock(spec=ChatService)
@@ -354,6 +395,7 @@ class TestRoutes:
         mock_document_service: AsyncMock,
         mock_property_service: AsyncMock,
         mock_chat_service: AsyncMock,
+        mock_document_storage_repository: MagicMock,
     ):
         with test_container.override_providers(
             post_coordinator=mock_coordinator,
@@ -362,6 +404,7 @@ class TestRoutes:
             document_service=mock_document_service,
             property_service=mock_property_service,
             chat_service=mock_chat_service,
+            document_storage_repository=mock_document_storage_repository,
         ):
             app = FastAPI()
             app.include_router(router)

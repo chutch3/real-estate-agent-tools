@@ -108,6 +108,20 @@ describe('ApiClient', () => {
     });
   });
 
+  describe('deleteDocument', () => {
+    it('calls DELETE /properties/:propertyId/documents/:docId and returns the updated property', async () => {
+      const updated = { id: 'prop-1', documents: [] };
+      mockAxiosInstance.delete = jest.fn().mockResolvedValue({ data: updated });
+
+      const result = await subject.deleteDocument('prop-1', 'doc-1');
+
+      expect(mockAxiosInstance.delete).toHaveBeenCalledWith(
+        '/properties/prop-1/documents/doc-1'
+      );
+      expect(result).toEqual(updated);
+    });
+  });
+
   describe('geocodeAddress', () => {
     it('calls POST /geocode with address in JSON body', async () => {
       const location = { lat: 37.4225, lng: -122.0847 };

@@ -1,9 +1,12 @@
+import boto3
+
 from backend.clients.google_maps import GoogleMapsClient
 from backend.clients.openai import OpenAIClient
 from backend.database import Database
 from backend.post_coordinator import PostCoordinator
 from backend.repositories.chat_messages import ChatMessageRepository
 from backend.repositories.document_embeddings import DocumentEmbeddingRepository
+from backend.repositories.document_storage import DocumentStorageRepository
 from backend.embeddings import collection_name as make_collection_name
 from backend.repositories.properties import PropertyRepository
 from backend.services.chat import ChatService
@@ -44,7 +47,7 @@ class Container(containers.DeclarativeContainer):
     config = providers.Configuration()
 
     wiring_config = containers.WiringConfiguration(
-        modules=[".routes", ".schema"],
+        modules=[".routes", ".schema", ".startup"],
         auto_wire=True,
     )
 
@@ -78,10 +81,23 @@ class Container(containers.DeclarativeContainer):
         client=milvus_client,
         collection_name=embeddings_collection_name,
     )
+    s3_client = providers.Singleton(
+        boto3.client,
+        "s3",
+        endpoint_url=config.s3.endpoint_url,
+        aws_access_key_id=config.s3.access_key,
+        aws_secret_access_key=config.s3.secret_key,
+    )
+    document_storage_repository = providers.Singleton(
+        DocumentStorageRepository,
+        client=s3_client,
+        bucket_name=config.s3.bucket,
+    )
     document_service = providers.Singleton(
         DocumentService,
         repository=document_embedding_repository,
         client=openai_client,
+        storage_repository=document_storage_repository,
     )
     db = providers.Singleton(Database, url=config.db.uri)
 

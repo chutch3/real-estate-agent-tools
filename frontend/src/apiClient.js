@@ -109,6 +109,16 @@ class ApiClient {
     }
   }
 
+  async deleteDocument(propertyId, docId) {
+    try {
+      const response = await this.client.delete(`/properties/${propertyId}/documents/${docId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error deleting document:', error);
+      throw error;
+    }
+  }
+
   async getChatHistory(propertyId) {
     const response = await this.client.get(`/properties/${propertyId}/chat`);
     return response.data;

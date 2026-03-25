@@ -3,6 +3,7 @@ from sqlmodel import select
 
 from backend.container import Container
 from backend.database import Database
+from backend.exceptions import DocumentNotFoundError, PropertyNotFoundError
 from backend.models import DocumentInfo, PropertyInfo
 from backend.repositories.properties import PropertyRepository
 
@@ -65,6 +66,33 @@ class TestPropertyRepository:
         with db.session() as session:
             persisted = session.get(PropertyInfo, property_data.id)
             assert persisted.documents == [doc]
+
+    @pytest.mark.asyncio
+    async def test_remove_document(self, subject, property_info_factory, db):
+        doc1 = DocumentInfo(id="doc-1", filename="listing.pdf")
+        doc2 = DocumentInfo(id="doc-2", filename="disclosure.pdf")
+        prop = property_info_factory.build(documents=[doc1, doc2])
+        await subject.insert_property(prop)
+
+        result = await subject.remove_document(prop.id, "doc-1")
+
+        assert result.documents == [doc2]
+        with db.session() as session:
+            persisted = session.get(PropertyInfo, prop.id)
+            assert persisted.documents == [doc2]
+
+    @pytest.mark.asyncio
+    async def test_remove_document_raises_when_doc_not_in_property(self, subject, property_info_factory):
+        prop = property_info_factory.build(documents=[DocumentInfo(id="doc-1", filename="listing.pdf")])
+        await subject.insert_property(prop)
+
+        with pytest.raises(DocumentNotFoundError):
+            await subject.remove_document(prop.id, "nonexistent-doc")
+
+    @pytest.mark.asyncio
+    async def test_remove_document_raises_when_property_not_found(self, subject):
+        with pytest.raises(PropertyNotFoundError):
+            await subject.remove_document("nonexistent-property", "doc-1")
 
     @pytest.fixture
     def subject(self, test_container: Container, db: Database) -> PropertyRepository:
