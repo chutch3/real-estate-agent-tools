@@ -1,16 +1,26 @@
 import logging
+from typing import List
 
-from backend.models import PropertyFeatures, PropertyInfo
+from backend.models import DocumentInfo, PropertyFeatures, PropertyInfo
+from backend.repositories.properties import PropertyRepository
+from backend.services.document import DocumentService
 from rentcast_client.api.default_api import DefaultApi
-from backend.exceptions import PropertyNotFoundError
+from backend.exceptions import DocumentNotFoundError, PropertyNotFoundError
 
 
 class PropertyService:
-    def __init__(self, client: DefaultApi):
+    def __init__(
+        self,
+        client: DefaultApi,
+        property_repository: PropertyRepository,
+        document_service: DocumentService,
+    ):
         self._client = client
+        self._property_repository = property_repository
+        self._document_service = document_service
         self._logger = logging.getLogger(self.__class__.__name__)
 
-    async def get_property(self, address: str):
+    async def search_property(self, address: str) -> PropertyInfo:
         """
         Get the property for the given address.
 
@@ -36,7 +46,7 @@ class PropertyService:
             self._logger.warning("Found multiple properties for address: %s", address)
 
         return PropertyInfo(
-            id=properties[0].id,
+            rentcast_id=properties[0].id,
             formatted_address=properties[0].formatted_address,
             address_line1=properties[0].address_line1,
             address_line2=properties[0].address_line2,
@@ -65,3 +75,37 @@ class PropertyService:
             ),
             owner_occupied=properties[0].owner_occupied,
         )
+
+    async def list_properties(self) -> List[PropertyInfo]:
+        return await self._property_repository.list_properties()
+
+    async def create_property(
+        self,
+        property_data: PropertyInfo,
+    ) -> PropertyInfo:
+        """
+        Create a new property.
+
+        Args:
+            property_data (PropertyInfo): The property data.
+            images (List[UploadFile]): The images.
+            supporting_docs (List[UploadFile]): The supporting documents.
+
+        Returns:
+            PropertyInfo: The created property.
+
+        Raises:
+            DocumentNotFoundError: If the document does not exist.
+        """
+
+        for doc in (property_data.documents or []):
+            doc_id = doc['id'] if isinstance(doc, dict) else doc.id
+            if not await self._document_service.exists(doc_id):
+                raise DocumentNotFoundError
+
+        return await self._property_repository.insert_property(property_data)
+
+    async def append_document(self, property_id: str, document: DocumentInfo) -> PropertyInfo:
+        if not await self._document_service.exists(document.id):
+            raise DocumentNotFoundError
+        return await self._property_repository.append_document(property_id, document)

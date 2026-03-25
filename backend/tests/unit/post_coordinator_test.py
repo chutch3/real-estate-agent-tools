@@ -42,7 +42,7 @@ class TestPostCoordinator:
             "zip_code": "12345",
         }
 
-        mock_property_service.get_property.return_value = resolved_property
+        mock_property_service.search_property.return_value = resolved_property
         mock_post_generation_service.generate_post.return_value = expected
 
         actual = await subject.generate_post(

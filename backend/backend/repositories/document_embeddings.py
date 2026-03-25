@@ -3,18 +3,16 @@ import logging
 from pymilvus import MilvusClient
 from pymilvus.client.types import LoadState
 
-DOCUMENT_EMBEDDINGS_COLLECTION = "document_embeddings"
-
-
 class DocumentEmbeddingRepository:
-    def __init__(self, client: MilvusClient):
+    def __init__(self, client: MilvusClient, collection_name: str):
         self.client = client
+        self._collection_name = collection_name
         self._logger = logging.getLogger(self.__class__.__name__)
 
     def _load_if_needed(self):
-        load_state = self.client.get_load_state(DOCUMENT_EMBEDDINGS_COLLECTION)
+        load_state = self.client.get_load_state(self._collection_name)
         if load_state["state"] != LoadState.Loaded:
-            self.client.load_collection(DOCUMENT_EMBEDDINGS_COLLECTION)
+            self.client.load_collection(self._collection_name)
 
     async def insert_embeddings(
         self,
@@ -27,7 +25,7 @@ class DocumentEmbeddingRepository:
         self._logger.info(f"Inserting embedding for document {doc_id}")
 
         inserted = self.client.insert(
-            collection_name=DOCUMENT_EMBEDDINGS_COLLECTION,
+            collection_name=self._collection_name,
             data={
                 "id": doc_id,
                 "text": text,
@@ -37,6 +35,14 @@ class DocumentEmbeddingRepository:
         self._logger.info(f"Inserted {len(inserted['ids'])} embeddings")
         return inserted
 
+    async def exists(self, doc_id: str) -> bool:
+        self._load_if_needed()
+        results = self.client.query(
+            collection_name=self._collection_name,
+            ids=[doc_id],
+        )
+        return len(results) > 0
+
     async def query_embeddings(
         self, query_embedding: list[list[float]], limit: int
     ) -> list[dict]:
@@ -44,12 +50,11 @@ class DocumentEmbeddingRepository:
 
         search_params = {"metric_type": "L2", "params": {"nprobe": 10}}
         results = self.client.search(
-            collection_name=DOCUMENT_EMBEDDINGS_COLLECTION,
+            collection_name=self._collection_name,
             data=query_embedding,
             anns_field="embedding",
             search_params=search_params,
             limit=limit,
             output_fields=["text"],
         )
-        print(results)
-        return [{"text": hit[0]["entity"]["text"]} for hit in results]
+        return [{"text": hit[0]["entity"]["text"]} for hit in results if hit]

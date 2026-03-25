@@ -1,29 +1,27 @@
-from typing import List
+from typing import List, Optional
 import openai
-import os
 import logging
 
 
 class OpenAIClient:
-    def __init__(self, model: str = "gpt-3.5-turbo"):
-        self._client = openai.AsyncOpenAI()
+    def __init__(
+        self,
+        model: str = "gpt-3.5-turbo",
+        embeddings_model: str = "text-embedding-ada-002",
+        base_url: Optional[str] = None,
+        api_key: Optional[str] = None,
+    ):
+        self._client = openai.AsyncOpenAI(
+            base_url=base_url,
+            api_key=api_key or "placeholder",
+        )
         self._model = model
+        self._embeddings_model = embeddings_model
         self._logger = logging.getLogger(self.__class__.__name__)
 
     async def generate_completion(
         self, system_prompt: str, user_prompt: str, max_tokens: int
     ) -> str:
-        """
-        Generate a completion using OpenAI.
-
-        Args:
-            system_prompt (str): The system prompt.
-            user_prompt (str): The user prompt.
-            max_tokens (int): The maximum number of tokens to generate.
-
-        Returns:
-            str: The generated completion.
-        """
         response = await self._client.chat.completions.create(
             model=self._model,
             messages=[
@@ -35,16 +33,7 @@ class OpenAIClient:
         return response.choices[0].message.content.strip()
 
     async def create_embeddings(self, text: str) -> List[float]:
-        """
-        Create embeddings using OpenAI.
-
-        Args:
-            text (str): The text to create embeddings for.
-
-        Returns:
-            List[float]: The embeddings.
-        """
         response = await self._client.embeddings.create(
-            input=[text], model="text-embedding-ada-002"
+            input=[text], model=self._embeddings_model
         )
         return response.data[0].embedding

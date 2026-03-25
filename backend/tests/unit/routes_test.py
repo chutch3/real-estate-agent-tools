@@ -1,25 +1,62 @@
 from http import HTTPStatus
+import json
 from typing import Container
 from unittest.mock import AsyncMock, Mock
+from urllib.parse import quote_plus
 
 from backend.clients.google_maps import GoogleMapsClient
 from backend.services.document import DocumentService
+from backend.services.property import PropertyService
 from backend.template_loader import TemplateLoader
 import pytest
-from backend.exceptions import AddressNotFoundError, PropertyNotFoundError
+from backend.exceptions import (
+    AddressNotFoundError,
+    DocumentNotFoundError,
+    PropertyNotFoundError,
+)
 from backend.models import (
     AgentInfo,
+    DocumentInfo,
     DocumentUploadResponse,
     GeocodeLocation,
     GeocodeRequest,
     GeocodeResponse,
     PostGenerationRequest,
+    PropertyInfo,
     TemplateResponse,
 )
 from backend.post_coordinator import PostCoordinator
 from backend.routes import router
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile
 from fastapi.testclient import TestClient
+from tests.factories import PropertyInfoFactory
+
+
+def generate_fake_pdf(text="This is a fake PDF") -> bytes:
+    from io import BytesIO
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import letter
+
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+
+    # Add some text to the PDF
+    p.drawString(100, height - 100, text)
+
+    # Add a rectangle
+    p.rect(100, height - 200, 200, 50)
+
+    # Add more elements as needed...
+
+    p.showPage()
+    p.save()
+
+    # Get the value of the BytesIO buffer and return it
+    pdf_content = buffer.getvalue()
+    buffer.close()
+
+    return pdf_content
 
 
 class TestRoutes:
@@ -144,6 +181,94 @@ class TestRoutes:
         assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
         assert response.json() == {"detail": "Error processing PDF: bad pdf"}
 
+    def test_search_properties(
+        self,
+        subject,
+        mock_property_service: AsyncMock,
+        property_info_factory: PropertyInfoFactory,
+    ):
+        expected = property_info_factory.build()
+        mock_property_service.search_property.return_value = expected
+
+        response = subject.get(
+            f"/properties?address={quote_plus('123 Main St, Anytown, USA')}"
+        )
+        assert response.status_code == HTTPStatus.OK
+        assert response.json() == expected.model_dump(by_alias=True)
+        mock_property_service.search_property.assert_awaited_once_with(
+            address="123 Main St, Anytown, USA"
+        )
+
+    def test_list_properties(
+        self,
+        subject,
+        mock_property_service: AsyncMock,
+        property_info_factory: PropertyInfoFactory,
+    ):
+        expected = [property_info_factory.build(), property_info_factory.build()]
+        mock_property_service.list_properties.return_value = expected
+
+        response = subject.get("/properties/list")
+
+        assert response.status_code == HTTPStatus.OK
+        assert response.json() == [p.model_dump(by_alias=True) for p in expected]
+        mock_property_service.list_properties.assert_awaited_once()
+
+    def test_create_property(self, subject, mock_property_service):
+        property_data = PropertyInfo(
+            rentcast_id="some-rentcast-id",
+            latitude=0,
+            longitude=0,
+            bedrooms=0,
+            bathrooms=0,
+            square_footage=0,
+            lot_size=0,
+            year_built=0,
+            last_sale_price=0,
+            owner_occupied=True,
+            documents=[DocumentInfo(id="123", filename="listing.pdf")],
+        )
+        expected_result = property_data.model_copy(update={"id": "123"})
+        mock_property_service.create_property.return_value = expected_result
+
+        response = subject.post("/properties", json=property_data.model_dump())
+
+        assert response.status_code == HTTPStatus.CREATED
+        assert response.json() == expected_result.model_dump(by_alias=True)
+
+        mock_property_service.create_property.assert_called_once()
+        call_args = mock_property_service.create_property.call_args
+        assert call_args.kwargs["property_data"].model_dump() == property_data.model_dump()
+
+    def test_append_document_to_property(self, subject, mock_property_service, property_info_factory):
+        doc = DocumentInfo(id="doc-1", filename="listing.pdf")
+        expected = property_info_factory.build()
+        mock_property_service.append_document.return_value = expected
+
+        response = subject.patch("/properties/prop-1/documents", json=doc.model_dump())
+
+        assert response.status_code == HTTPStatus.OK
+        assert response.json() == expected.model_dump(by_alias=True)
+        mock_property_service.append_document.assert_awaited_once_with("prop-1", doc)
+
+    def test_append_document_to_property_when_document_not_found(self, subject, mock_property_service):
+        mock_property_service.append_document.side_effect = DocumentNotFoundError()
+        doc = DocumentInfo(id="missing", filename="missing.pdf")
+
+        response = subject.patch("/properties/prop-1/documents", json=doc.model_dump())
+
+        assert response.status_code == HTTPStatus.BAD_REQUEST
+        assert response.json() == {"detail": "No documents found with the provided IDs"}
+
+    def test_create_property_document_not_found(
+        self, subject, mock_property_service, property_info_factory
+    ):
+        property_data = property_info_factory.build()
+        mock_property_service.create_property.side_effect = DocumentNotFoundError()
+        response = subject.post("/properties", json=property_data.model_dump())
+        assert response.status_code == HTTPStatus.BAD_REQUEST
+        assert response.json() == {"detail": "No documents found with the provided IDs"}
+
     @pytest.fixture
     def mock_coordinator(self):
         yield AsyncMock(spec=PostCoordinator)
@@ -161,6 +286,10 @@ class TestRoutes:
         yield AsyncMock(spec=DocumentService)
 
     @pytest.fixture
+    def mock_property_service(self):
+        yield AsyncMock(spec=PropertyService)
+
+    @pytest.fixture
     def subject(
         self,
         test_container: Container,
@@ -168,12 +297,14 @@ class TestRoutes:
         mock_google_maps_client: AsyncMock,
         mock_template_loader: Mock,
         mock_document_service: AsyncMock,
+        mock_property_service: AsyncMock,
     ):
         with test_container.override_providers(
             post_coordinator=mock_coordinator,
             google_maps_client=mock_google_maps_client,
             template_loader=mock_template_loader,
             document_service=mock_document_service,
+            property_service=mock_property_service,
         ):
             app = FastAPI()
             app.include_router(router)

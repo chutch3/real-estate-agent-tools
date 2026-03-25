@@ -7,13 +7,17 @@
         "@emotion/styled": "^11.13.0",
         "@mui/icons-material": "^6.1.0",
         "@mui/material": "^6.1.0",
+        "@mui/x-date-pickers": "^7.18.0",
         "@react-google-maps/api": "^2.19.3",
         "axios": "^1.7.5",
+        "date-fns": "^4.1.0",
+        "lucide-react": "^1.6.0",
         "react": "^18.0.0",
         "react-dom": "^18.0.0",
         "react-router-dom": "^6.26.1",
         "react-scripts": "5.0.1",
-        "react-spinners": "^0.14.1"
+        "react-spinners": "^0.14.1",
+        "tailwindcss": "^3.4.19"
     },
     "scripts": {
         "start": "react-scripts start",
@@ -50,7 +54,10 @@
         "moduleNameMapper": {
             "\\.(css|less|sass|scss)$": "<rootDir>/__mocks__/styleMock.js",
             "\\.(gif|ttf|eot|svg)$": "<rootDir>/__mocks__/fileMock.js"
-        }
+        },
+        "transformIgnorePatterns": [
+            "/node_modules/(?!(date-fns|axios)/)"
+        ]
     },
     "devDependencies": {
         "@testing-library/dom": "^10.4.0",

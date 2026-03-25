@@ -30,7 +30,7 @@ class PostCoordinator:
         Returns:
             str: The generated post.
         """
-        property = await self._property_service.get_property(address)
+        property = await self._property_service.search_property(address)
         return await self._post_generation_service.generate_post(
             property, agent_info, custom_template
         )

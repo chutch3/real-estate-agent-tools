@@ -49,11 +49,10 @@ class TestDocumentEmbeddingRepository:
                     "some other text content",
                     "some different text content",
                 ],
-                "different text content",
+                "some different text content",
                 2,
                 [
                     {"text": "some different text content"},
-                    # {"text": "some other text content"},
                 ],
             ),
         ],
@@ -85,12 +84,28 @@ class TestDocumentEmbeddingRepository:
         assert len(actual) == len(expected)
         assert all(text in actual for text in expected)
 
+    @pytest.mark.asyncio
+    async def test_exists_returns_true_when_document_found(
+        self, subject: DocumentEmbeddingRepository, milvus_client: MilvusClient
+    ):
+        milvus_client.insert(
+            collection_name="document_embeddings",
+            data=[{"id": "doc-123", "text": "test", "embedding": [1.0] * 1536}],
+        )
+        assert await subject.exists("doc-123") is True
+
+    @pytest.mark.asyncio
+    async def test_exists_returns_false_when_document_not_found(
+        self, subject: DocumentEmbeddingRepository, milvus_client: MilvusClient
+    ):
+        assert await subject.exists("nonexistent-id") is False
+
     @pytest.fixture
     def milvus_client(self, test_container: Container):
         yield test_container.milvus_client()
 
     @pytest.fixture
-    def subject(self, test_container: Container):
+    def subject(self, test_container: Container, integration_services):
         test_container.config.milvus.uri.from_value("http://localhost:19530")
         create_document_embeddings_schema()
         yield test_container.document_embedding_repository()

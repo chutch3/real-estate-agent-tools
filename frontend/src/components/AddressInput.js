@@ -1,112 +1,81 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useLoadScript, GoogleMap, MarkerF } from '@react-google-maps/api';
-import { TextField, Box, Typography } from '@mui/material';
-import './AddressInput.css';
+import { useLoadScript } from '@react-google-maps/api';
+import { MapPin } from 'lucide-react';
 
 const libraries = ['places'];
-const mapContainerStyle = {
-  width: '100%',
-  height: '300px',
-  marginTop: '20px',
-};
 
-function AddressInput({ onAddressChange }) {
+function AddressInput({ onGeocodeComplete }) {
   const [address, setAddress] = useState('');
-  const [geocodedAddress, setGeocodedAddress] = useState('');
-  const [mapCenter, setMapCenter] = useState(null);
+  const inputRef = useRef(null);
   const autocompleteRef = useRef(null);
-  const mapRef = useRef(null);
 
   const { isLoaded, loadError } = useLoadScript({
     googleMapsApiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY,
     libraries,
   });
 
-  const onMapLoad = useCallback((map) => {
-    mapRef.current = map;
-  }, []);
+  const handlePlaceSelect = useCallback(() => {
+    const place = autocompleteRef.current.getPlace();
+    if (place.formatted_address) {
+      setAddress(place.formatted_address);
+      if (place.geometry && place.geometry.location) {
+        const newLocation = {
+          lat: place.geometry.location.lat(),
+          lng: place.geometry.location.lng(),
+        };
+        onGeocodeComplete(place.formatted_address, newLocation);
+      }
+    }
+  }, [onGeocodeComplete]);
 
   useEffect(() => {
-    if (isLoaded && !loadError) {
-      const autocomplete = new window.google.maps.places.Autocomplete(
-        autocompleteRef.current.querySelector('input'),
+    if (isLoaded && !loadError && inputRef.current) {
+      autocompleteRef.current = new window.google.maps.places.Autocomplete(
+        inputRef.current,
         { types: ['address'] }
       );
+      autocompleteRef.current.addListener('place_changed', handlePlaceSelect);
 
-      autocomplete.addListener('place_changed', () => {
-        const place = autocomplete.getPlace();
-        if (place.formatted_address) {
-          setAddress(place.formatted_address);
-          setGeocodedAddress(place.formatted_address);
-          onAddressChange(place.formatted_address);
-          if (place.geometry && place.geometry.location) {
-            const newCenter = {
-              lat: place.geometry.location.lat(),
-              lng: place.geometry.location.lng(),
-            };
-            setMapCenter(newCenter);
-            if (mapRef.current) {
-              mapRef.current.panTo(newCenter);
-              mapRef.current.setZoom(15);
-            }
-          }
+      return () => {
+        if (autocompleteRef.current) {
+          window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
         }
-      });
+      };
     }
-  }, [isLoaded, loadError, onAddressChange]);
+  }, [isLoaded, loadError, handlePlaceSelect]);
 
-  const handleChange = (e) => {
-    const newAddress = e.target.value;
-    setAddress(newAddress);
-    onAddressChange(newAddress);
-    // Clear geocoded address and map when user starts typing
-    setGeocodedAddress('');
-    setMapCenter(null);
-  };
-
-  if (loadError) return <div>Error loading Google Maps</div>;
-  if (!isLoaded) return <div>Loading...</div>;
+  if (loadError) return <p className="font-sans text-sm text-red-700">Error loading Google Maps</p>;
+  if (!isLoaded) return <p className="font-sans text-sm text-ink-400">Loading…</p>;
 
   return (
-    <Box sx={{ width: '100%', maxWidth: '600px', margin: '0 auto' }}>
-      <TextField
-        ref={autocompleteRef}
-        fullWidth
-        variant="outlined"
-        label="Enter address"
-        value={address}
-        onChange={handleChange}
-        margin="normal"
-      />
-      {geocodedAddress && (
-        <Typography 
-          variant="body2" 
-          sx={{ mt: 1, color: 'text.secondary', fontStyle: 'italic' }}
-        >
-          Resolved address: {geocodedAddress}
-        </Typography>
+    <div className="relative">
+      <label htmlFor="address-input" className="block font-sans text-xs uppercase tracking-widest text-ink-400 mb-1.5">
+        Property Address
+      </label>
+      <div className="relative">
+        <MapPin
+          size={15}
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-bronze-400 pointer-events-none"
+          strokeWidth={1.5}
+        />
+        <input
+          id="address-input"
+          ref={inputRef}
+          type="text"
+          placeholder="Enter address"
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          className="w-full pl-9 pr-4 py-2.5 border border-linen-300 rounded-md bg-white font-sans text-sm text-ink-900 placeholder-ink-300 focus:outline-none focus:border-bronze-400 transition-colors"
+          aria-label="Enter address"
+          autoComplete="off"
+        />
+      </div>
+      {address && (
+        <p className="mt-1.5 font-sans text-xs text-ink-400 italic">
+          {address}
+        </p>
       )}
-      {mapCenter && (
-        <GoogleMap
-          mapContainerStyle={mapContainerStyle}
-          zoom={15}
-          center={mapCenter}
-          onLoad={onMapLoad}
-        >
-          <MarkerF 
-            position={mapCenter}
-            icon={{
-              path: window.google.maps.SymbolPath.CIRCLE,
-              scale: 7,
-              fillColor: "#F00",
-              fillOpacity: 1,
-              strokeWeight: 2,
-              strokeColor: "#FFF",
-            }}
-          />
-        </GoogleMap>
-      )}
-    </Box>
+    </div>
   );
 }
 

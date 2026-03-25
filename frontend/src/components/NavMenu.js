@@ -1,21 +1,46 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import './NavMenu.css';
+import { Link, useLocation } from 'react-router-dom';
+import { MapPin } from 'lucide-react';
 
 function NavMenu() {
+  const { pathname } = useLocation();
+
   return (
-    <nav className="nav-menu">
-      <div className="nav-content">
-        <div className="logo">
-          <svg viewBox="0 0 24 24" width="24" height="24">
-            <path fill="#ffffff" d="M21 14.5V10c0-3.9-3.1-7-7-7s-7 3.1-7 7v4.5c-1.2 1.1-2 2.7-2 4.5 0 3.3 2.7 6 6 6s6-2.7 6-6c0-1.8-0.8-3.4-2-4.5zM14 20h-4v-2h4v2zm1-4H9v-2h6v2zm0-4H9v-2h6v2z"/>
-          </svg>
-          <span>PostGen</span>
-        </div>
-        <div className="menu-items">
-          <Link to="/">Home</Link>
-          <Link to="/cache-inspector">Cache Inspector</Link>
-        </div>
+    <nav
+      role="navigation"
+      aria-label="Main navigation"
+      className="fixed top-0 inset-x-0 z-50 h-14 bg-white/95 backdrop-blur-sm border-b border-linen-200 flex items-center px-6"
+    >
+      <Link
+        to="/"
+        className="flex items-center gap-2.5 font-serif text-xl text-ink-900 hover:text-bronze-500 transition-colors"
+        aria-label="Estates home"
+      >
+        <MapPin size={17} className="text-bronze-500" strokeWidth={1.5} />
+        <span>Estates</span>
+      </Link>
+
+      <div className="ml-auto flex items-center gap-6">
+        <Link
+          to="/"
+          className={`font-sans text-sm transition-colors ${
+            pathname === '/'
+              ? 'text-ink-900 font-medium'
+              : 'text-ink-400 hover:text-ink-900'
+          }`}
+        >
+          Map
+        </Link>
+        <Link
+          to="/cache-inspector"
+          className={`font-sans text-sm transition-colors ${
+            pathname === '/cache-inspector'
+              ? 'text-ink-900 font-medium'
+              : 'text-ink-400 hover:text-ink-900'
+          }`}
+        >
+          Cache
+        </Link>
       </div>
     </nav>
   );

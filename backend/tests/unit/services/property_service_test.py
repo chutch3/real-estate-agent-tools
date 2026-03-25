@@ -2,13 +2,16 @@ import random
 from typing import Container
 from unittest.mock import AsyncMock, MagicMock
 
-from backend.models import PropertyFeatures, PropertyInfo
+from backend.models import DocumentInfo, PropertyFeatures, PropertyInfo
+from backend.repositories.properties import PropertyRepository
+from backend.services.document import DocumentService
 import pytest
-from backend.exceptions import PropertyNotFoundError
+from backend.exceptions import DocumentNotFoundError, PropertyNotFoundError
 from backend.services.property import PropertyService
 from faker import Faker
 from rentcast_client.api.default_api import DefaultApi
 from rentcast_client.models import PropertyRecords200ResponseInner
+from tests.factories import PropertyInfoFactory
 
 
 def fake_property_record(
@@ -75,7 +78,7 @@ class TestPropertyService:
         ],
     )
     @pytest.mark.asyncio
-    async def test_get_property(
+    async def test_search_property(
         self,
         subject: PropertyService,
         mock_client: AsyncMock,
@@ -84,7 +87,7 @@ class TestPropertyService:
     ):
         mock_client.property_records.return_value = property_records
 
-        actual = await subject.get_property(address)
+        actual = await subject.search_property(address)
 
         assert actual == PropertyInfo(
             id=property_records[0].id,
@@ -114,14 +117,14 @@ class TestPropertyService:
         )
 
     @pytest.mark.asyncio
-    async def test_get_property_when_features_are_missing(
+    async def test_search_property_when_features_are_missing(
         self,
         subject: PropertyService,
         mock_client: AsyncMock,
     ):
         property_records = [fake_property_record(no_features=True)]
         mock_client.property_records.return_value = property_records
-        actual = await subject.get_property("123 Main St, Anytown, USA")
+        actual = await subject.search_property("123 Main St, Anytown, USA")
 
         assert actual == PropertyInfo(
             id=property_records[0].id,
@@ -151,13 +154,122 @@ class TestPropertyService:
         )
 
     @pytest.mark.asyncio
-    async def test_get_property_not_found(
+    async def test_create_property(
+        self,
+        subject: PropertyService,
+        mock_property_repository: AsyncMock,
+        mock_document_service: AsyncMock,
+    ):
+        property_data = PropertyInfo(
+            rentcast_id="rentcast-123",
+            latitude=37.4,
+            longitude=-122.1,
+            documents=[
+                DocumentInfo(id="doc-uuid-1", filename="listing.pdf"),
+                DocumentInfo(id="doc-uuid-2", filename="disclosure.pdf"),
+            ],
+        )
+        expected = property_data.model_copy(update={"id": "new-id"})
+        mock_property_repository.insert_property.return_value = expected
+        mock_document_service.exists.return_value = True
+
+        actual = await subject.create_property(property_data)
+
+        mock_document_service.exists.assert_any_call("doc-uuid-1")
+        mock_document_service.exists.assert_any_call("doc-uuid-2")
+        mock_property_repository.insert_property.assert_called_once_with(property_data)
+        assert actual == expected
+
+    @pytest.mark.asyncio
+    async def test_create_property_without_documents(
+        self,
+        subject: PropertyService,
+        mock_property_repository: AsyncMock,
+        mock_document_service: AsyncMock,
+    ):
+        property_data = PropertyInfo(
+            rentcast_id="rentcast-123",
+            latitude=37.4,
+            longitude=-122.1,
+            documents=None,
+        )
+        expected = property_data.model_copy(update={"id": "new-id"})
+        mock_property_repository.insert_property.return_value = expected
+
+        actual = await subject.create_property(property_data)
+
+        mock_document_service.exists.assert_not_called()
+        mock_property_repository.insert_property.assert_called_once_with(property_data)
+        assert actual == expected
+
+    @pytest.mark.asyncio
+    async def test_create_property_when_document_does_not_exist(
+        self,
+        subject: PropertyService,
+        mock_document_service: AsyncMock,
+    ):
+        mock_document_service.exists.return_value = False
+        property_data = PropertyInfo(
+            rentcast_id="rentcast-123",
+            latitude=37.4,
+            longitude=-122.1,
+            documents=[DocumentInfo(id="doc-uuid-missing", filename="missing.pdf")],
+        )
+        with pytest.raises(DocumentNotFoundError):
+            await subject.create_property(property_data)
+
+    @pytest.mark.asyncio
+    async def test_append_document(
+        self,
+        subject: PropertyService,
+        mock_property_repository: AsyncMock,
+        mock_document_service: AsyncMock,
+    ):
+        doc = DocumentInfo(id="doc-1", filename="new.pdf")
+        expected = PropertyInfo(rentcast_id="r", latitude=0, longitude=0, documents=[doc])
+        mock_document_service.exists.return_value = True
+        mock_property_repository.append_document.return_value = expected
+
+        result = await subject.append_document("prop-id", doc)
+
+        mock_document_service.exists.assert_called_once_with("doc-1")
+        mock_property_repository.append_document.assert_called_once_with("prop-id", doc)
+        assert result == expected
+
+    @pytest.mark.asyncio
+    async def test_append_document_when_document_does_not_exist(
+        self,
+        subject: PropertyService,
+        mock_document_service: AsyncMock,
+    ):
+        mock_document_service.exists.return_value = False
+        doc = DocumentInfo(id="missing", filename="missing.pdf")
+        with pytest.raises(DocumentNotFoundError):
+            await subject.append_document("prop-id", doc)
+
+    @pytest.mark.asyncio
+    async def test_list_properties(
+        self,
+        subject: PropertyService,
+        property_info_factory: PropertyInfoFactory,
+        mock_property_repository: AsyncMock,
+    ):
+        expected = [property_info_factory.build(), property_info_factory.build()]
+        mock_property_repository.list_properties.return_value = expected
+
+        actual = await subject.list_properties()
+
+        mock_property_repository.list_properties.assert_called_once()
+        assert actual == expected
+
+    @pytest.mark.asyncio
+    async def test_search_property_not_found(
         self, subject: PropertyService, mock_client: AsyncMock
     ):
         mock_client.property_records.return_value = []
 
         with pytest.raises(PropertyNotFoundError):
-            await subject.get_property("123 Main St, Anytown, USA")
+            await subject.search_property("123 Main St, Anytown, USA")
 
     @pytest.fixture
     def mock_client(self):
@@ -166,6 +278,26 @@ class TestPropertyService:
         yield mock
 
     @pytest.fixture
-    def subject(self, test_container: Container, mock_client: AsyncMock):
-        with test_container.override_providers(rentcast_client=mock_client):
+    def mock_property_repository(self):
+        mock = AsyncMock(spec=PropertyRepository)
+        yield mock
+
+    @pytest.fixture
+    def mock_document_service(self):
+        mock = AsyncMock(spec=DocumentService)
+        yield mock
+
+    @pytest.fixture
+    def subject(
+        self,
+        test_container: Container,
+        mock_client: AsyncMock,
+        mock_property_repository: AsyncMock,
+        mock_document_service: AsyncMock,
+    ):
+        with test_container.override_providers(
+            rentcast_client=mock_client,
+            property_repository=mock_property_repository,
+            document_service=mock_document_service,
+        ):
             yield test_container.property_service()

@@ -78,3 +78,19 @@ With the frontend, backend, and third-party services running, open a web browser
 ## Note
 
 This application requires valid API keys for OpenAI, Google Maps, and other services. Ensure you have the necessary permissions and have correctly set up these integrations before attempting to use all features of the application. Additionally, make sure the Milvus vector database is properly configured and running for optimal performance of the document processing and post generation features.
+
+
+## Roadmap
+
+- [ ] Support for property resource
+- [ ] Setup chat interface on the property resource
+- [ ] Support for posting to different social media platforms (Facebook, Instagram, X, Reddit, etc)
+- [ ] Authentication
+- [ ] Agent details and user profile
+- [ ] Caching property lookup
+- [ ] CI/CD setup
+- [ ] Deployment
+- [ ] Support for different LLM sources
+- [ ] Support for different proprety data sources (MLS, Zillow, etc)
+
+

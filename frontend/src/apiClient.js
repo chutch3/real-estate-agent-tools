@@ -78,7 +78,61 @@ class ApiClient {
       throw error;
     }
   }
+
+  async listProperties() {
+    try {
+      const response = await this.client.get('/properties/list');
+      return response.data;
+    } catch (error) {
+      console.error('Error listing properties:', error);
+      throw error;
+    }
+  }
+
+  async addProperty(propertyData) {
+    try {
+      const response = await this.client.post('/properties', propertyData);
+      return response.data;
+    } catch (error) {
+      console.error('Error adding property:', error);
+      throw error;
+    }
+  }
+
+  async addDocumentToProperty(propertyId, docId, filename) {
+    try {
+      const response = await this.client.patch(`/properties/${propertyId}/documents`, { id: docId, filename });
+      return response.data;
+    } catch (error) {
+      console.error('Error adding document to property:', error);
+      throw error;
+    }
+  }
+
+  async geocodeAddress(address) {
+    try {
+      const response = await this.client.post('/geocode', { address });
+      return response.data;
+    } catch (error) {
+      console.error('Error geocoding address:', error);
+      throw error;
+    }
+  }
+
+  async getPropertyDetails(address) {
+    try {
+      const response = await this.client.get('/properties', { params: { address: encodeURIComponent(address) } });
+      return response.data;
+    } catch (error) {
+      if (error.response && error.response.status === 404) {
+        return null; // Property not found
+      }
+      console.error('Error fetching property details:', error);
+      throw error;
+    }
+  }
 }
 
+export { ApiClient };
 const apiClient = new ApiClient();
 export default apiClient;
