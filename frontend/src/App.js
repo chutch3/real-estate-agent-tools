@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import NavMenu from './components/NavMenu';
 import HomeScreen from './components/HomeScreen';
 import AddProperty from './components/AddProperty';
+import Chat from './pages/Chat';
 import GeneratePost from './pages/GeneratePost';
 import CacheInspector from './pages/CacheInspector';
 
@@ -14,6 +15,7 @@ function App() {
         <Routes>
           <Route path="/" element={<HomeScreen />} />
           <Route path="/add-property" element={<AddProperty />} />
+          <Route path="/chat" element={<Chat />} />
           <Route path="/generate-post" element={<GeneratePost />} />
           <Route path="/cache-inspector" element={<CacheInspector />} />
         </Routes>

@@ -47,6 +47,26 @@ describe('PropertyMap', () => {
     });
   });
 
+  it('pans the map to the user location when geolocation resolves after the map is loaded', async () => {
+    const mockPanTo = jest.fn();
+    GoogleMap.mockImplementationOnce(({ children, onLoad }) => {
+      React.useEffect(() => { onLoad?.({ panTo: mockPanTo }); }, []);
+      return <div data-testid="google-map">{children}</div>;
+    });
+
+    global.navigator.geolocation = {
+      getCurrentPosition: jest.fn((success) =>
+        success({ coords: { latitude: 38.352193, longitude: -85.721456 } })
+      ),
+    };
+
+    render(<PropertyMap properties={[]} onPropertySelect={jest.fn()} />);
+
+    await waitFor(() => {
+      expect(mockPanTo).toHaveBeenCalledWith({ lat: 38.352193, lng: -85.721456 });
+    });
+  });
+
   it('renders a Marker for each property', () => {
     render(<PropertyMap properties={mockProperties} onPropertySelect={jest.fn()} />);
 

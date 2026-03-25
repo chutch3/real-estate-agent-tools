@@ -1,5 +1,8 @@
+import json
+
 import pytest
 from pytest_httpserver import HTTPServer
+from werkzeug.wrappers import Response
 
 from backend.clients.openai import OpenAIClient
 
@@ -43,6 +46,31 @@ class TestOpenAIClient:
         result = await client.create_embeddings("hello world")
 
         assert result == embedding
+
+    @pytest.mark.asyncio
+    async def test_stream_completion_sends_max_tokens(self, httpserver: HTTPServer):
+        def handler(request):
+            body = json.loads(request.data)
+            assert body.get("max_tokens") == 500
+            sse = (
+                'data: {"id":"1","object":"chat.completion.chunk","model":"gpt-4",'
+                '"choices":[{"index":0,"delta":{"content":"hi"},"finish_reason":null}]}\n\n'
+                'data: [DONE]\n\n'
+            )
+            return Response(sse, content_type="text/event-stream")
+
+        httpserver.expect_request("/chat/completions").respond_with_handler(handler)
+
+        client = OpenAIClient(
+            model="gpt-4",
+            base_url=httpserver.url_for("").rstrip("/"),
+            api_key="fake-key",
+        )
+        chunks = [chunk async for chunk in client.stream_completion(
+            [{"role": "user", "content": "hi"}],
+            max_tokens=500,
+        )]
+        assert chunks == ["hi"]
 
     @pytest.mark.asyncio
     async def test_generate_completion(self, httpserver: HTTPServer):

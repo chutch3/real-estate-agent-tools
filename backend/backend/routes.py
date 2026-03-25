@@ -3,12 +3,16 @@ from http import HTTPStatus
 from http.client import HTTPException
 from typing import Annotated, List
 
+from pymilvus.exceptions import MilvusException
+
 from backend.clients.google_maps import GoogleMapsClient
+from backend.services.chat import ChatService
 from backend.services.document import DocumentService
 from backend.services.property import PropertyService
 from backend.template_loader import TemplateLoader
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form
+from fastapi.responses import StreamingResponse
 from urllib.parse import unquote_plus
 
 from .container import Container
@@ -18,6 +22,8 @@ from .exceptions import (
     PropertyNotFoundError,
 )
 from .models import (
+    ChatMessageResponse,
+    ChatRequest,
     DocumentInfo,
     DocumentUploadResponse,
     GeocodeRequest,
@@ -201,6 +207,38 @@ async def append_document(
             status_code=HTTPStatus.BAD_REQUEST,
             detail="No documents found with the provided IDs",
         )
+
+
+@router.post("/properties/{property_id}/chat", status_code=HTTPStatus.OK)
+@inject
+async def chat(
+    property_id: str,
+    request: ChatRequest,
+    chat_service: ChatService = Depends(Provide[Container.chat_service]),
+):
+    try:
+        messages = await chat_service.prepare_chat_messages(property_id, request.message)
+    except MilvusException:
+        raise HTTPException(status_code=HTTPStatus.SERVICE_UNAVAILABLE, detail="Document search unavailable")
+
+    async def event_generator():
+        async for chunk in chat_service.stream_response(property_id, messages):
+            yield chunk
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+@router.get(
+    "/properties/{property_id}/chat",
+    status_code=HTTPStatus.OK,
+    response_model=List[ChatMessageResponse],
+)
+@inject
+async def get_chat_history(
+    property_id: str,
+    chat_service: ChatService = Depends(Provide[Container.chat_service]),
+):
+    return await chat_service.get_history(property_id)
 
 
 @router.post("/properties", status_code=HTTPStatus.CREATED)

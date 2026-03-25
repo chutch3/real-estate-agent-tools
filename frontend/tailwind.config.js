@@ -48,7 +48,24 @@ module.exports = {
         'fade-up': 'fade-up 0.3s ease-out forwards',
         'slide-in': 'slide-in 0.25s ease-out forwards',
       },
+      typography: {
+        DEFAULT: {
+          css: {
+            color: '#2C2925',
+            fontFamily: "'DM Sans', system-ui, sans-serif",
+            fontSize: '0.875rem',
+            lineHeight: '1.6',
+            'h1, h2, h3, h4': { fontFamily: "'DM Sans', system-ui, sans-serif", color: '#1A1714', fontWeight: '600' },
+            strong: { color: '#1A1714' },
+            'ul, ol': { paddingLeft: '1.25rem' },
+            hr: { borderColor: '#EDE9E3' },
+            a: { color: '#8B7355' },
+            'p:first-child': { marginTop: '0' },
+            'p:last-child': { marginBottom: '0' },
+          },
+        },
+      },
     },
   },
-  plugins: [],
+  plugins: [require('@tailwindcss/typography')],
 };

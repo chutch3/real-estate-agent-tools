@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { X, Home, Upload, Sparkles, FileText, Star, Loader2 } from 'lucide-react';
 
-function PropertyDetailPanel({ property, onClose, onGeneratePost, onUploadDocument, isUploading, uploadError }) {
+function PropertyDetailPanel({ property, onClose, onChat, onGeneratePost, onUploadDocument, isUploading, uploadError }) {
   const fileInputRef = useRef(null);
   const [uploadingFileName, setUploadingFileName] = useState(null);
 
@@ -10,10 +10,10 @@ function PropertyDetailPanel({ property, onClose, onGeneratePost, onUploadDocume
   }, [isUploading]);
 
   const handleFileChange = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      setUploadingFileName(file.name);
-      onUploadDocument(property, file);
+    const files = Array.from(event.target.files);
+    if (files.length > 0) {
+      setUploadingFileName(files[0].name);
+      onUploadDocument(property, files);
       event.target.value = '';
     }
   };
@@ -67,9 +67,8 @@ function PropertyDetailPanel({ property, onClose, onGeneratePost, onUploadDocume
               {/* Actions */}
               <div className="flex flex-col gap-2 animate-fade-up" style={{ animationDelay: '40ms', animationFillMode: 'both' }}>
                 <button
-                  disabled
-                  className="w-full py-2.5 px-4 bg-linen-200 text-ink-300 font-sans text-sm rounded-md cursor-not-allowed"
-                  aria-disabled="true"
+                  onClick={() => onChat(property)}
+                  className="w-full py-2.5 px-4 bg-bronze-500 hover:bg-bronze-600 text-white font-sans text-sm rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-bronze-300"
                 >
                   Chat
                 </button>
@@ -144,6 +143,7 @@ function PropertyDetailPanel({ property, onClose, onGeneratePost, onUploadDocume
               ref={fileInputRef}
               type="file"
               accept=".pdf"
+              multiple
               className="hidden"
               onChange={handleFileChange}
               aria-hidden="true"

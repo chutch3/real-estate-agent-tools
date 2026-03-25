@@ -22,9 +22,13 @@ def create_document_embeddings_schema(
         fields=[
             FieldSchema(
                 name="id",
-                dtype=DataType.VARCHAR,
+                dtype=DataType.INT64,
                 is_primary=True,
-                auto_id=False,
+                auto_id=True,
+            ),
+            FieldSchema(
+                name="doc_id",
+                dtype=DataType.VARCHAR,
                 max_length=36,
             ),
             FieldSchema(name="text", dtype=DataType.VARCHAR, max_length=65535),

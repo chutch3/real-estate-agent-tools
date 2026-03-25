@@ -23,14 +23,18 @@ def generate_simple_embedding(text: str, dimension: int = 1536) -> list[float]:
 class TestDocumentEmbeddingRepository:
     @pytest.mark.asyncio
     async def test_insert_embeddings(
-        self, subject: DocumentEmbeddingRepository, milvus_client: MilvusClient
+        self, subject: DocumentEmbeddingRepository, milvus_client: MilvusClient, test_container: Container
     ):
+        collection_name = test_container.embeddings_collection_name()
         actual = await subject.insert_embeddings("1", "test", [1.0] * 1536)
         assert actual["insert_count"] == 1
-        assert actual["ids"] == ["1"]
-        assert milvus_client.query(
-            collection_name="document_embeddings", ids=actual["ids"]
-        ) == [{"id": "1", "text": "test", "embedding": [1.0] * 1536}]
+        query_results = milvus_client.query(
+            collection_name=collection_name, filter='doc_id == "1"'
+        )
+        assert len(query_results) == 1
+        assert query_results[0]["doc_id"] == "1"
+        assert query_results[0]["text"] == "test"
+        assert query_results[0]["embedding"] == [1.0] * 1536
 
     @pytest.mark.parametrize(
         "document_contents,search_text,limit,expected",
@@ -53,6 +57,7 @@ class TestDocumentEmbeddingRepository:
                 2,
                 [
                     {"text": "some different text content"},
+                    {"text": "some other text content"},
                 ],
             ),
         ],
@@ -62,16 +67,18 @@ class TestDocumentEmbeddingRepository:
         self,
         subject: DocumentEmbeddingRepository,
         milvus_client: MilvusClient,
+        test_container: Container,
         document_contents: list[str],
         search_text: str,
         limit: int,
         expected: list[dict],
     ):
+        collection_name = test_container.embeddings_collection_name()
         milvus_client.insert(
-            collection_name="document_embeddings",
+            collection_name=collection_name,
             data=[
                 {
-                    "id": str(i),
+                    "doc_id": str(i),
                     "text": content,
                     "embedding": generate_simple_embedding(content),
                 }
@@ -86,13 +93,36 @@ class TestDocumentEmbeddingRepository:
 
     @pytest.mark.asyncio
     async def test_exists_returns_true_when_document_found(
-        self, subject: DocumentEmbeddingRepository, milvus_client: MilvusClient
+        self, subject: DocumentEmbeddingRepository, milvus_client: MilvusClient, test_container: Container
     ):
+        collection_name = test_container.embeddings_collection_name()
         milvus_client.insert(
-            collection_name="document_embeddings",
-            data=[{"id": "doc-123", "text": "test", "embedding": [1.0] * 1536}],
+            collection_name=collection_name,
+            data=[{"doc_id": "doc-123", "text": "test", "embedding": [1.0] * 1536}],
         )
         assert await subject.exists("doc-123") is True
+
+    @pytest.mark.asyncio
+    async def test_batch_insert_embeddings(
+        self, subject: DocumentEmbeddingRepository, milvus_client: MilvusClient, test_container: Container
+    ):
+        collection_name = test_container.embeddings_collection_name()
+        chunks = [
+            ("page one", [1.0] * 1536),
+            ("page two", [0.5] * 1536),
+        ]
+
+        result = await subject.batch_insert_embeddings("doc-batch", chunks)
+
+        assert result["insert_count"] == 2
+        query_results = milvus_client.query(
+            collection_name=collection_name,
+            filter='doc_id == "doc-batch"',
+            output_fields=["text"],
+        )
+        assert len(query_results) == 2
+        assert any(r["text"] == "page one" for r in query_results)
+        assert any(r["text"] == "page two" for r in query_results)
 
     @pytest.mark.asyncio
     async def test_exists_returns_false_when_document_not_found(
@@ -107,6 +137,8 @@ class TestDocumentEmbeddingRepository:
     @pytest.fixture
     def subject(self, test_container: Container, integration_services):
         test_container.config.milvus.uri.from_value("http://localhost:19530")
+        test_container.config.openai.embeddings_model.from_value("text-embedding-ada-002")
+        test_container.config.openai.embeddings_dimension.from_value(1536)
         create_document_embeddings_schema()
         yield test_container.document_embedding_repository()
         drop_document_embeddings_schema()

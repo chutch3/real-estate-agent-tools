@@ -20,6 +20,10 @@ class PropertyRepository:
         with self._session_factory() as session:
             return list(session.exec(select(PropertyInfo)).all())
 
+    async def get_property(self, property_id: str) -> PropertyInfo:
+        with self._session_factory() as session:
+            return session.get(PropertyInfo, property_id)
+
     async def append_document(self, property_id: str, document: DocumentInfo) -> PropertyInfo:
         with self._session_factory() as session:
             prop = session.get(PropertyInfo, property_id)

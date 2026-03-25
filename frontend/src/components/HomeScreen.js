@@ -8,9 +8,11 @@ import apiClient from '../apiClient';
 function HomeScreen() {
   const navigate = useNavigate();
   const [properties, setProperties] = useState([]);
-  const [selectedProperty, setSelectedProperty] = useState(null);
+  const [selectedPropertyId, setSelectedPropertyId] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState(null);
+
+  const selectedProperty = properties.find(p => p.id === selectedPropertyId) ?? null;
 
   useEffect(() => {
     apiClient.listProperties()
@@ -18,13 +20,16 @@ function HomeScreen() {
       .catch((err) => console.error('Error loading properties:', err));
   }, []);
 
-  const handleUploadDocument = async (property, file) => {
+  const handleUploadDocument = async (property, files) => {
     setIsUploading(true);
     setUploadError(null);
     try {
-      const docId = await apiClient.uploadDocument(file);
-      const updated = await apiClient.addDocumentToProperty(property.id, docId, file.name);
-      setSelectedProperty(updated);
+      let updated = property;
+      for (const file of files) {
+        const docId = await apiClient.uploadDocument(file);
+        updated = await apiClient.addDocumentToProperty(updated.id, docId, file.name);
+      }
+      setProperties(prev => prev.map(p => p.id === updated.id ? updated : p));
     } catch {
       setUploadError('Upload failed. Please try again.');
     } finally {
@@ -34,6 +39,10 @@ function HomeScreen() {
 
   const handleGeneratePost = (property) => {
     navigate('/generate-post', { state: { property } });
+  };
+
+  const handleChat = (property) => {
+    navigate('/chat', { state: { property } });
   };
 
   return (
@@ -68,7 +77,7 @@ function HomeScreen() {
             properties.map((property, i) => (
               <button
                 key={property.id}
-                onClick={() => setSelectedProperty(property)}
+                onClick={() => setSelectedPropertyId(property.id)}
                 className={`w-full text-left px-5 py-4 border-b border-linen-100 transition-colors hover:bg-linen-50 focus:outline-none focus:bg-linen-100 animate-fade-up opacity-0
                   ${selectedProperty?.id === property.id ? 'bg-linen-100 border-l-2 border-l-bronze-400' : ''}`}
                 style={{ animationDelay: `${i * 40}ms`, animationFillMode: 'forwards' }}
@@ -128,11 +137,12 @@ function HomeScreen() {
       <div className="relative flex-1 overflow-hidden">
         <PropertyMap
           properties={properties}
-          onPropertySelect={setSelectedProperty}
+          onPropertySelect={(property) => setSelectedPropertyId(property.id)}
         />
         <PropertyDetailPanel
           property={selectedProperty}
-          onClose={() => setSelectedProperty(null)}
+          onClose={() => setSelectedPropertyId(null)}
+          onChat={handleChat}
           onGeneratePost={handleGeneratePost}
           onUploadDocument={handleUploadDocument}
           isUploading={isUploading}

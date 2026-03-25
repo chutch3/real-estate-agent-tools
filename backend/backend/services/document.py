@@ -1,8 +1,11 @@
+import asyncio
 import io
 import uuid
+
+import pypdf
+
 from backend.clients.openai import OpenAIClient
 from backend.repositories.document_embeddings import DocumentEmbeddingRepository
-import pypdf
 
 
 class DocumentService:
@@ -19,13 +22,17 @@ class DocumentService:
 
         try:
             pdf_reader = pypdf.PdfReader(io.BytesIO(content))
-            text = ""
+            pages_text = []
             for page in pdf_reader.pages:
-                text += page.extract_text()
+                text = page.extract_text()
+                if text.strip():
+                    pages_text.append(text)
         except pypdf.errors.PdfReadError:
             raise ValueError("Invalid PDF content")
 
         doc_id = str(uuid.uuid4())
-        embedding = await self._client.create_embeddings(text)
-        await self._repository.insert_embeddings(doc_id, text, embedding)
+        embeddings = await asyncio.gather(
+            *[self._client.create_embeddings(text) for text in pages_text]
+        )
+        await self._repository.batch_insert_embeddings(doc_id, list(zip(pages_text, embeddings)))
         return doc_id

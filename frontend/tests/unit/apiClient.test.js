@@ -1,5 +1,9 @@
 import axios from 'axios';
 import { ApiClient } from '../../src/apiClient';
+import { TextEncoder, TextDecoder } from 'util';
+
+global.TextEncoder = TextEncoder;
+global.TextDecoder = TextDecoder;
 
 jest.mock('axios');
 
@@ -58,6 +62,49 @@ describe('ApiClient', () => {
         { id: 'doc-1', filename: 'listing.pdf' }
       );
       expect(result).toEqual(updated);
+    });
+  });
+
+  describe('getChatHistory', () => {
+    it('calls GET /properties/:id/chat and returns the data', async () => {
+      const messages = [
+        { id: 'msg-1', role: 'user', content: 'Hi', created_at: '2026-01-01T00:00:00' },
+      ];
+      mockAxiosInstance.get.mockResolvedValue({ data: messages });
+
+      const result = await subject.getChatHistory('prop-1');
+
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/properties/prop-1/chat');
+      expect(result).toEqual(messages);
+    });
+  });
+
+  describe('sendChatMessage', () => {
+    it('calls fetch POST /properties/:id/chat and handles the stream', async () => {
+      const mockReader = {
+        read: jest.fn()
+          .mockResolvedValueOnce({ done: false, value: new TextEncoder().encode('Hello') })
+          .mockResolvedValueOnce({ done: true }),
+      };
+      const mockResponse = {
+        ok: true,
+        body: {
+          getReader: jest.fn().mockReturnValue(mockReader),
+        },
+      };
+      global.fetch = jest.fn().mockResolvedValue(mockResponse);
+      const onChunk = jest.fn();
+
+      await subject.sendChatMessage('prop-1', 'Hi', onChunk);
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        `${subject.baseURL}/properties/prop-1/chat`,
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ message: 'Hi' }),
+        })
+      );
+      expect(onChunk).toHaveBeenCalledWith('Hello');
     });
   });
 

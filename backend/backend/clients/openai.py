@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import AsyncGenerator, List, Optional
 import openai
 import logging
 
@@ -31,6 +31,20 @@ class OpenAIClient:
             max_tokens=max_tokens,
         )
         return response.choices[0].message.content.strip()
+
+    async def stream_completion(
+        self, messages: List[dict], max_tokens: int = 1000
+    ) -> AsyncGenerator[str, None]:
+        stream = await self._client.chat.completions.create(
+            model=self._model,
+            messages=messages,
+            stream=True,
+            max_tokens=max_tokens,
+        )
+        async for chunk in stream:
+            content = chunk.choices[0].delta.content
+            if content:
+                yield content
 
     async def create_embeddings(self, text: str) -> List[float]:
         response = await self._client.embeddings.create(

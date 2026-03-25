@@ -2,9 +2,11 @@ from backend.clients.google_maps import GoogleMapsClient
 from backend.clients.openai import OpenAIClient
 from backend.database import Database
 from backend.post_coordinator import PostCoordinator
+from backend.repositories.chat_messages import ChatMessageRepository
 from backend.repositories.document_embeddings import DocumentEmbeddingRepository
 from backend.embeddings import collection_name as make_collection_name
 from backend.repositories.properties import PropertyRepository
+from backend.services.chat import ChatService
 from backend.services.document import DocumentService
 from backend.services.post_generation import PostGenerationService
 from backend.services.property import PropertyService
@@ -17,15 +19,15 @@ from rentcast_client.configuration import Configuration
 from pymilvus import MilvusClient
 
 
-def init_rentcast_client(api_key: str, base_url: str = None):
+async def init_rentcast_client(api_key: str, base_url: str = None):
     configuration = Configuration(host=base_url) if base_url else Configuration()
-    yield DefaultApi(
-        api_client=ApiClient(
-            configuration=configuration,
-            header_name="X-Api-Key",
-            header_value=api_key,
-        )
+    api_client = ApiClient(
+        configuration=configuration,
+        header_name="X-Api-Key",
+        header_value=api_key,
     )
+    yield DefaultApi(api_client=api_client)
+    await api_client.close()
 
 
 def init_milvus_client(uri: str):
@@ -105,4 +107,19 @@ class Container(containers.DeclarativeContainer):
         PostCoordinator,
         property_service=property_service,
         post_generation_service=post_generation_service,
+    )
+
+    chat_message_repository = providers.Singleton(
+        ChatMessageRepository,
+        session_factory=db.provided.session,
+    )
+
+    chat_service = providers.Singleton(
+        ChatService,
+        chat_message_repository=chat_message_repository,
+        property_repository=property_repository,
+        document_embedding_repository=document_embedding_repository,
+        openai_client=openai_client,
+        rag_top_k=config.rag.top_k,
+        max_tokens=config.chat.max_tokens,
     )

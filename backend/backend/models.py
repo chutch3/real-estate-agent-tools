@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 from typing import Any, List, Optional
 from fastapi import UploadFile
 from pydantic import BaseModel, Field as PydanticField, field_validator
@@ -166,3 +167,30 @@ class CreatePropertyFormData(BaseModel):
 class File(BaseModel):
     filename: str
     file: bytes
+
+
+class ChatMessage(SQLModel, table=True):
+    __tablename__ = "chat_message"
+
+    id: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String, primary_key=True, default=lambda: str(uuid.uuid4())),
+    )
+    property_id: str = Field(sa_column=Column(String, index=True))
+    role: str
+    content: str
+    created_at: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
+
+
+class ChatRequest(BaseModel):
+    message: str
+
+
+class ChatMessageResponse(BaseModel):
+    id: str
+    property_id: str
+    role: str
+    content: str
+    created_at: str

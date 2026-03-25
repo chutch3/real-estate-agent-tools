@@ -39,6 +39,8 @@ def create_app(container: Optional[Container] = None):
     container.config.google_maps.base_url.from_env("GOOGLE_MAPS_BASE_URL", default=None)
     container.config.milvus.uri.from_env("MILVUS_URI")
     container.config.db.uri.from_env("DB_URI", default="sqlite:///./real_estate.db")
+    container.config.rag.top_k.from_env("RAG_TOP_K", as_=int, default=5)
+    container.config.chat.max_tokens.from_env("CHAT_MAX_TOKENS", as_=int, default=1000)
 
     create_document_embeddings_schema()
 

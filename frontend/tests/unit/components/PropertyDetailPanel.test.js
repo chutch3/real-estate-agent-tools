@@ -29,13 +29,22 @@ describe('PropertyDetailPanel', () => {
     expect(screen.getByText('1600 Amphitheatre Pkwy, Mountain View, CA 94043')).toBeInTheDocument();
   });
 
-  it('renders Chat (disabled), Upload Docs, and Generate buttons', () => {
+  it('renders Chat, Upload Docs, and Generate buttons', () => {
     render(
-      <PropertyDetailPanel property={mockProperty} onClose={jest.fn()} onGeneratePost={jest.fn()} onUploadDocument={jest.fn()} />
+      <PropertyDetailPanel property={mockProperty} onClose={jest.fn()} onChat={jest.fn()} onGeneratePost={jest.fn()} onUploadDocument={jest.fn()} />
     );
-    expect(screen.getByRole('button', { name: /chat/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /chat/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /upload docs/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /generate/i })).toBeInTheDocument();
+  });
+
+  it('calls onChat with the property when Chat is clicked', () => {
+    const onChat = jest.fn();
+    render(
+      <PropertyDetailPanel property={mockProperty} onClose={jest.fn()} onChat={onChat} onGeneratePost={jest.fn()} onUploadDocument={jest.fn()} />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /chat/i }));
+    expect(onChat).toHaveBeenCalledWith(mockProperty);
   });
 
   it('shows documents list with filenames when property has documents', () => {
@@ -64,15 +73,23 @@ describe('PropertyDetailPanel', () => {
     expect(onGeneratePost).toHaveBeenCalledWith(mockProperty);
   });
 
-  it('calls onUploadDocument with property and file when a file is selected', () => {
+  it('calls onUploadDocument with property and all selected files', () => {
     const onUploadDocument = jest.fn();
     render(
       <PropertyDetailPanel property={mockProperty} onClose={jest.fn()} onGeneratePost={jest.fn()} onUploadDocument={onUploadDocument} />
     );
-    const file = new File(['content'], 'listing.pdf', { type: 'application/pdf' });
+    const file1 = new File(['content'], 'listing.pdf', { type: 'application/pdf' });
+    const file2 = new File(['content'], 'disclosure.pdf', { type: 'application/pdf' });
     const input = document.querySelector('input[type="file"]');
-    fireEvent.change(input, { target: { files: [file] } });
-    expect(onUploadDocument).toHaveBeenCalledWith(mockProperty, file);
+    fireEvent.change(input, { target: { files: [file1, file2] } });
+    expect(onUploadDocument).toHaveBeenCalledWith(mockProperty, [file1, file2]);
+  });
+
+  it('the file input accepts multiple files', () => {
+    render(
+      <PropertyDetailPanel property={mockProperty} onClose={jest.fn()} onGeneratePost={jest.fn()} onUploadDocument={jest.fn()} />
+    );
+    expect(document.querySelector('input[type="file"]')).toHaveAttribute('multiple');
   });
 
   it('disables Upload Docs button and shows uploading text while uploading', () => {

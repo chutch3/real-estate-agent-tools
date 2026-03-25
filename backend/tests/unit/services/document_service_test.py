@@ -50,28 +50,20 @@ class TestDocumentService:
         mock_embedding_repository: AsyncMock,
         mock_openai_client: AsyncMock,
     ):
-        mock_openai_client.create_embeddings.return_value = [
-            0.1,
-            0.2,
-            0.3,
-            0.4,
-            0.5,
-            0.6,
-            0.7,
-            0.8,
-            0.9,
-            1.0,
-        ]
+        mock_openai_client.create_embeddings.return_value = [0.1] * 10
 
-        pdf_content = generate_fake_pdf_content()
+        pdf_content = generate_fake_pdf_content(num_pages=2)
         actual = await subject.process_pdf(pdf_content)
         assert actual is not None
         assert isinstance(actual, str)
 
-        mock_embedding_repository.insert_embeddings.assert_called_once_with(
+        assert mock_openai_client.create_embeddings.await_count == 2
+        mock_embedding_repository.batch_insert_embeddings.assert_awaited_once_with(
             actual,
-            "This is page 1 of 2\nThis is some fake content for testing purposes.\nThis is page 2 of 2\nThis is some fake content for testing purposes.\n",
-            [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+            [
+                ("This is page 1 of 2\nThis is some fake content for testing purposes.\n", [0.1] * 10),
+                ("This is page 2 of 2\nThis is some fake content for testing purposes.\n", [0.1] * 10),
+            ],
         )
 
     @pytest.mark.asyncio

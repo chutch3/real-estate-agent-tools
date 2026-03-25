@@ -109,6 +109,27 @@ class ApiClient {
     }
   }
 
+  async getChatHistory(propertyId) {
+    const response = await this.client.get(`/properties/${propertyId}/chat`);
+    return response.data;
+  }
+
+  async sendChatMessage(propertyId, message, onChunk) {
+    const response = await fetch(`${this.baseURL}/properties/${propertyId}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message }),
+    });
+    if (!response.ok) throw new Error(`Chat request failed: ${response.status}`);
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      onChunk(decoder.decode(value, { stream: true }));
+    }
+  }
+
   async geocodeAddress(address) {
     try {
       const response = await this.client.post('/geocode', { address });

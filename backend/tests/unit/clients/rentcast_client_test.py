@@ -1,23 +1,19 @@
 import pytest
+import pytest_asyncio
 from pytest_httpserver import HTTPServer
 
-from backend.container import init_rentcast_client
+from rentcast_client.api.default_api import DefaultApi
+from rentcast_client.api_client import ApiClient
+from rentcast_client.configuration import Configuration
 
 
 class TestRentcastClient:
     @pytest.mark.asyncio
-    async def test_uses_default_base_url_when_none_provided(self):
-        client = next(init_rentcast_client(api_key="fake-key", base_url=None))
-        assert client.api_client.configuration.host == "https://api.rentcast.io/v1"
+    async def test_defaults_to_rentcast_api_host(self, default_subject: DefaultApi):
+        assert default_subject.api_client.configuration.host == "https://api.rentcast.io/v1"
 
     @pytest.mark.asyncio
-    async def test_uses_provided_base_url(self, httpserver: HTTPServer):
-        base_url = httpserver.url_for("").rstrip("/")
-        client = next(init_rentcast_client(api_key="fake-key", base_url=base_url))
-        assert client.api_client.configuration.host == base_url
-
-    @pytest.mark.asyncio
-    async def test_property_records_calls_configured_host(self, httpserver: HTTPServer):
+    async def test_property_records_calls_configured_host(self, subject: DefaultApi, httpserver: HTTPServer):
         httpserver.expect_request("/properties").respond_with_json([
             {
                 "id": "prop-1",
@@ -31,10 +27,29 @@ class TestRentcastClient:
             }
         ])
 
-        base_url = httpserver.url_for("").rstrip("/")
-        client = next(init_rentcast_client(api_key="fake-key", base_url=base_url))
-        results = await client.property_records(address="1600 Amphitheatre Pkwy, Mountain View, CA 94043")
+        results = await subject.property_records(address="1600 Amphitheatre Pkwy, Mountain View, CA 94043")
 
         assert len(results) == 1
         assert results[0].id == "prop-1"
         assert results[0].formatted_address == "1600 Amphitheatre Pkwy, Mountain View, CA 94043"
+
+    @pytest_asyncio.fixture
+    async def default_subject(self) -> DefaultApi:
+        api_client = ApiClient(
+            configuration=Configuration(),
+            header_name="X-Api-Key",
+            header_value="fake-key",
+        )
+        yield DefaultApi(api_client=api_client)
+        await api_client.close()
+
+    @pytest_asyncio.fixture
+    async def subject(self, httpserver: HTTPServer) -> DefaultApi:
+        base_url = httpserver.url_for("").rstrip("/")
+        api_client = ApiClient(
+            configuration=Configuration(host=base_url),
+            header_name="X-Api-Key",
+            header_value="fake-key",
+        )
+        yield DefaultApi(api_client=api_client)
+        await api_client.close()

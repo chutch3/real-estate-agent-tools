@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { GoogleMap, Marker, useLoadScript } from '@react-google-maps/api';
 
 const defaultCenter = { lat: 37.7749, lng: -122.4194 };
@@ -7,12 +7,15 @@ const libraries = ['places'];
 
 function PropertyMap({ properties, onPropertySelect }) {
   const [center, setCenter] = useState(defaultCenter);
+  const mapRef = useRef(null);
 
   useEffect(() => {
     if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => setCenter({ lat: position.coords.latitude, lng: position.coords.longitude }),
-      );
+      navigator.geolocation.getCurrentPosition((position) => {
+        const location = { lat: position.coords.latitude, lng: position.coords.longitude };
+        setCenter(location);
+        mapRef.current?.panTo(location);
+      });
     }
   }, []);
 
@@ -29,6 +32,7 @@ function PropertyMap({ properties, onPropertySelect }) {
       mapContainerStyle={mapContainerStyle}
       center={center}
       zoom={10}
+      onLoad={(map) => { mapRef.current = map; }}
     >
       {properties
         .filter((property) => property.latitude !== 0 || property.longitude !== 0)
