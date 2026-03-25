@@ -1,29 +1,53 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import App from '../../src/App';
+import apiClient from '../../src/apiClient';
+
+jest.mock('../../src/apiClient', () => ({
+  listProperties: jest.fn(),
+  addProperty: jest.fn(),
+  geocodeAddress: jest.fn(),
+  generatePost: jest.fn(),
+  uploadDocument: jest.fn(),
+  getDefaultTemplate: jest.fn(),
+}));
+
+jest.mock('@react-google-maps/api', () => ({
+  useLoadScript: () => ({ isLoaded: true, loadError: null }),
+  GoogleMap: ({ children }) => <div data-testid="google-map">{children}</div>,
+  Marker: ({ position, onClick }) => (
+    <button data-testid={`marker-${position.lat}-${position.lng}`} onClick={onClick} />
+  ),
+}));
 
 describe('App E2E', () => {
-  it('should generate a post and post to Instagram', async () => {
-    const mockApiClient = {
-      generatePost: jest.fn().mockResolvedValue('Generated post for 123 Main St'),
-      postToInstagram: jest.fn().mockResolvedValue({ message: 'Posted successfully to Instagram' }),
-    };
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
 
-    render(<App apiClient={mockApiClient} />);
+  it('shows map markers for loaded properties and opens detail panel on click', async () => {
+    const properties = [
+      {
+        id: 'prop-1',
+        latitude: 37.4225,
+        longitude: -122.0847,
+        formatted_address: '1600 Amphitheatre Pkwy, Mountain View, CA 94043',
+      },
+    ];
+    apiClient.listProperties.mockResolvedValue(properties);
 
-    // Enter address and generate post
-    fireEvent.change(screen.getByPlaceholderText('Enter address'), { target: { value: '123 Main St' } });
-    fireEvent.click(screen.getByText('Generate Post'));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('post-textarea')).toHaveValue('Generated post for 123 Main St');
-    });
-
-    // Post to Instagram
-    fireEvent.click(screen.getByTestId('post-to-instagram-button'));
+    render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByTestId('post-status')).toHaveTextContent('Posted successfully to Instagram');
+      expect(screen.getByTestId('marker-37.4225--122.0847')).toBeInTheDocument();
     });
+
+    fireEvent.click(screen.getByTestId('marker-37.4225--122.0847'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('property-detail-panel')).toBeInTheDocument();
+    });
+    const panel = screen.getByTestId('property-detail-panel');
+    expect(within(panel).getByText('1600 Amphitheatre Pkwy, Mountain View, CA 94043')).toBeInTheDocument();
   });
 });

@@ -6,7 +6,7 @@ const defaultCenter = {
   lng: -74.0060,
 };
 
-const defaultZoom = 15;
+const defaultZoom = 18;
 
 const MapComponent = ({ center }) => {
   const mapContainerStyle = {

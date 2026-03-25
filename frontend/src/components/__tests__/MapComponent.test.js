@@ -4,7 +4,8 @@ import { GoogleMap, Marker } from '@react-google-maps/api';
 import MapComponent from '../MapComponent';
 
 jest.mock('@react-google-maps/api', () => ({
-  GoogleMap: jest.fn(() => null),
+  useLoadScript: () => ({ isLoaded: true, loadError: null }),
+  GoogleMap: jest.fn(({ children }) => <div>{children}</div>),
   Marker: jest.fn(() => null),
 }));
 

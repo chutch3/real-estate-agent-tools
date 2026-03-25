@@ -1,6 +1,7 @@
 import logging
+from typing import List
 
-from backend.models import PropertyFeatures, PropertyInfo
+from backend.models import DocumentInfo, PropertyFeatures, PropertyInfo
 from backend.repositories.properties import PropertyRepository
 from backend.services.document import DocumentService
 from rentcast_client.api.default_api import DefaultApi
@@ -44,8 +45,6 @@ class PropertyService:
         if len(properties) > 1:
             self._logger.warning("Found multiple properties for address: %s", address)
 
-        print(properties[0])
-
         return PropertyInfo(
             rentcast_id=properties[0].id,
             formatted_address=properties[0].formatted_address,
@@ -77,6 +76,9 @@ class PropertyService:
             owner_occupied=properties[0].owner_occupied,
         )
 
+    async def list_properties(self) -> List[PropertyInfo]:
+        return await self._property_repository.list_properties()
+
     async def create_property(
         self,
         property_data: PropertyInfo,
@@ -96,7 +98,14 @@ class PropertyService:
             DocumentNotFoundError: If the document does not exist.
         """
 
-        if not await self._document_service.exists(property_data.rentcast_id):
-            raise DocumentNotFoundError
+        for doc in (property_data.documents or []):
+            doc_id = doc['id'] if isinstance(doc, dict) else doc.id
+            if not await self._document_service.exists(doc_id):
+                raise DocumentNotFoundError
 
         return await self._property_repository.insert_property(property_data)
+
+    async def append_document(self, property_id: str, document: DocumentInfo) -> PropertyInfo:
+        if not await self._document_service.exists(document.id):
+            raise DocumentNotFoundError
+        return await self._property_repository.append_document(property_id, document)

@@ -79,16 +79,19 @@ class ApiClient {
     }
   }
 
+  async listProperties() {
+    try {
+      const response = await this.client.get('/properties/list');
+      return response.data;
+    } catch (error) {
+      console.error('Error listing properties:', error);
+      throw error;
+    }
+  }
+
   async addProperty(propertyData) {
     try {
-      const formData = new FormData();
-      // Convert JSON object to form data string
-      formData.append('data', JSON.stringify(propertyData));
-      const response = await this.client.post('/properties', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      const response = await this.client.post('/properties', propertyData);
       return response.data;
     } catch (error) {
       console.error('Error adding property:', error);
@@ -96,9 +99,19 @@ class ApiClient {
     }
   }
 
+  async addDocumentToProperty(propertyId, docId, filename) {
+    try {
+      const response = await this.client.patch(`/properties/${propertyId}/documents`, { id: docId, filename });
+      return response.data;
+    } catch (error) {
+      console.error('Error adding document to property:', error);
+      throw error;
+    }
+  }
+
   async geocodeAddress(address) {
     try {
-      const response = await this.client.get('/geocode', { params: { address } });
+      const response = await this.client.post('/geocode', { address });
       return response.data;
     } catch (error) {
       console.error('Error geocoding address:', error);
@@ -120,5 +133,6 @@ class ApiClient {
   }
 }
 
+export { ApiClient };
 const apiClient = new ApiClient();
 export default apiClient;

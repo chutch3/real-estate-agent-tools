@@ -1,53 +1,39 @@
 import React, { useState } from 'react';
-import { Stepper, Step, StepLabel, Button, Typography, Box, Modal } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
+import { Check, Loader2, CheckCircle } from 'lucide-react';
 import LookupProperty from './AddProperty/LookupProperty';
 import MissingDetails from './AddProperty/MissingDetails';
-import AddPictures from './AddProperty/AddPictures';
 import SupportingDocumentation from './AddProperty/SupportingDocumentation';
 import PropertySummary from './AddProperty/PropertySummary';
 import apiClient from '../apiClient';
-import { CircularProgress } from '@mui/material';
-import { CheckCircleOutline } from '@mui/icons-material';
 
-const propertySteps = ['Look up property', 'Missing Details', 'Add Supporting Documentation', 'Summary'];
+const STEPS = ['Look up', 'Details', 'Documents', 'Summary'];
 
 function AddProperty() {
+  const navigate = useNavigate();
   const [activeStep, setActiveStep] = useState(0);
   const [propertyData, setPropertyData] = useState({});
-  const [selectedImages, setSelectedImages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [supportingDocs, setSupportingDocs] = useState([]);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-
-  const handleNext = () => {
-    setActiveStep((prevActiveStep) => prevActiveStep + 1);
-  };
-
-  const handleBack = () => {
-    setActiveStep((prevActiveStep) => prevActiveStep - 1);
-  };
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const handlePropertyDataChange = (newData) => {
-    setPropertyData((prevData) => ({ ...prevData, ...newData }));
-  };
-
-  const handleImagesSelected = (files) => {
-    setSelectedImages(files);
+    setPropertyData((prev) => ({ ...prev, ...newData }));
   };
 
   const handleFinish = async () => {
     try {
       setIsLoading(true);
       setError('');
-      await apiClient.addProperty({ ...propertyData, documents_ids: supportingDocs.map(doc => doc.id) });
-      setShowSuccessModal(true);
-      // Reset form
+      await apiClient.addProperty({
+        ...propertyData,
+        documents: propertyData.documents || [],
+      });
+      setShowSuccess(true);
       setActiveStep(0);
       setPropertyData({});
-      setSupportingDocs([]);
-    } catch (error) {
-      console.error('Error adding property:', error);
+    } catch (err) {
+      console.error('Error adding property:', err);
       setError('Failed to add property. Please try again.');
     } finally {
       setIsLoading(false);
@@ -56,81 +42,141 @@ function AddProperty() {
 
   const getStepContent = (step) => {
     switch (step) {
-      case 0:
-        return <LookupProperty onDataChange={handlePropertyDataChange} />;
-      case 1:
-        return <MissingDetails propertyData={propertyData} onDataChange={handlePropertyDataChange} />;
-      case 2:
-        return <SupportingDocumentation onDataChange={handlePropertyDataChange} />;
-      case 3:
-        return <PropertySummary 
-          propertyData={propertyData} 
-        />;
-      default:
-        return 'Unknown step';
+      case 0: return <LookupProperty onDataChange={handlePropertyDataChange} />;
+      case 1: return <MissingDetails propertyData={propertyData} onDataChange={handlePropertyDataChange} />;
+      case 2: return <SupportingDocumentation onDataChange={handlePropertyDataChange} />;
+      case 3: return <PropertySummary propertyData={propertyData} />;
+      default: return null;
     }
   };
 
   return (
-    <Box sx={{ width: '100%', maxWidth: '800px', margin: '0 auto', padding: '20px' }}>
-      <Stepper activeStep={activeStep}>
-        {propertySteps.map((label) => (
-          <Step key={label}>
-            <StepLabel>{label}</StepLabel>
-          </Step>
-        ))}
-      </Stepper>
-      <Box sx={{ mt: 2, mb: 1 }}>
-        <Typography>Step {activeStep + 1}</Typography>
-        {getStepContent(activeStep)}
-      </Box>
-      <Box sx={{ display: 'flex', flexDirection: 'row', pt: 2 }}>
-        <Button
-          color="inherit"
-          disabled={activeStep === 0 || isLoading}
-          onClick={handleBack}
-          sx={{ mr: 1 }}
-        >
-          Back
-        </Button>
-        <Box sx={{ flex: '1 1 auto' }} />
-        {activeStep === propertySteps.length - 1 ? (
-          <Button onClick={handleFinish} disabled={isLoading}>
-            {isLoading ? <CircularProgress size={24} /> : 'Finish'}
-          </Button>
-        ) : (
-          <Button onClick={handleNext}>Next</Button>
-        )}
-      </Box>
-      {error && <Typography color="error" sx={{ mt: 2 }}>{error}</Typography>}
+    <main className="min-h-screen bg-linen-100 pt-14">
+      <div className="max-w-3xl mx-auto px-6 py-10">
+        {/* Page heading */}
+        <div className="mb-8 animate-fade-up" style={{ animationFillMode: 'both' }}>
+          <h1 className="font-serif text-4xl text-ink-900">Add Property</h1>
+        </div>
 
-      <Modal
-        open={showSuccessModal}
-        onClose={() => setShowSuccessModal(false)}
-        aria-labelledby="success-modal-title"
-        aria-describedby="success-modal-description"
-      >
-        <Box sx={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: 400,
-          bgcolor: 'background.paper',
-          boxShadow: 24,
-          p: 4,
-          textAlign: 'center',
-        }}>
-          <CheckCircleOutline sx={{ fontSize: 60, color: 'success.main', mb: 2 }} />
-          <Typography id="success-modal-title" variant="h5" component="h2">
-            Added!
-          </Typography>
-          <Typography id="success-modal-description" sx={{ mt: 2 }}>
-            Property has been successfully added.
-          </Typography>
-        </Box>
-      </Modal>
-    </Box>
+        {/* Step indicator */}
+        <nav
+          aria-label="Progress steps"
+          className="flex items-center mb-8 animate-fade-up"
+          style={{ animationDelay: '40ms', animationFillMode: 'both' }}
+        >
+          {STEPS.map((step, i) => (
+            <React.Fragment key={step}>
+              <div className="flex flex-col items-center">
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-sans font-medium transition-all duration-300
+                    ${i < activeStep
+                      ? 'bg-bronze-500 text-white'
+                      : i === activeStep
+                        ? 'bg-ink-900 text-white'
+                        : 'bg-linen-200 text-ink-400'
+                    }`}
+                  aria-current={i === activeStep ? 'step' : undefined}
+                >
+                  {i < activeStep ? <Check size={14} strokeWidth={2.5} /> : i + 1}
+                </div>
+                <span
+                  className={`mt-1.5 font-sans text-xs transition-colors ${
+                    i === activeStep ? 'text-ink-900 font-medium' : 'text-ink-400'
+                  }`}
+                >
+                  {step}
+                </span>
+              </div>
+              {i < STEPS.length - 1 && (
+                <div
+                  className={`flex-1 h-px mx-3 mb-5 transition-colors duration-300 ${
+                    i < activeStep ? 'bg-bronze-400' : 'bg-linen-300'
+                  }`}
+                />
+              )}
+            </React.Fragment>
+          ))}
+        </nav>
+
+        {/* Step content */}
+        <div
+          className="bg-white rounded-lg border border-linen-200 p-6 mb-6 animate-fade-up"
+          style={{ animationDelay: '80ms', animationFillMode: 'both' }}
+        >
+          {getStepContent(activeStep)}
+        </div>
+
+        {/* Navigation */}
+        <div className="flex items-center justify-between">
+          <button
+            disabled={activeStep === 0 || isLoading}
+            onClick={() => setActiveStep((s) => s - 1)}
+            className="font-sans text-sm text-ink-500 hover:text-ink-900 disabled:text-ink-200 disabled:cursor-not-allowed transition-colors focus:outline-none"
+          >
+            Back
+          </button>
+
+          {activeStep === STEPS.length - 1 ? (
+            <button
+              onClick={handleFinish}
+              disabled={isLoading}
+              className="flex items-center gap-2 bg-bronze-500 hover:bg-bronze-600 disabled:bg-linen-300 text-white font-sans text-sm font-medium py-2.5 px-6 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-bronze-400"
+            >
+              {isLoading ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : null}
+              {isLoading ? 'Saving…' : 'Add Property'}
+            </button>
+          ) : (
+            <button
+              onClick={() => setActiveStep((s) => s + 1)}
+              className="bg-ink-900 hover:bg-ink-700 text-white font-sans text-sm font-medium py-2.5 px-6 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-ink-700"
+            >
+              Next
+            </button>
+          )}
+        </div>
+
+        {error && (
+          <p className="font-sans text-sm text-red-700 mt-4" role="alert">
+            {error}
+          </p>
+        )}
+      </div>
+
+      {/* Success modal */}
+      {showSuccess && (
+        <div
+          className="fixed inset-0 bg-ink-900/30 flex items-center justify-center z-50 px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="success-title"
+        >
+          <div className="bg-white rounded-xl p-8 text-center shadow-2xl max-w-sm w-full animate-fade-up" style={{ animationFillMode: 'both' }}>
+            <CheckCircle
+              size={48}
+              className="text-bronze-500 mx-auto mb-4"
+              strokeWidth={1.5}
+            />
+            <h2 id="success-title" className="font-serif text-2xl text-ink-900 mb-2">
+              Added!
+            </h2>
+            <p className="font-sans text-sm text-ink-500 mb-6">
+              Property has been successfully added.
+            </p>
+            <button
+              onClick={() => {
+                setShowSuccess(false);
+                navigate('/');
+              }}
+              className="w-full bg-bronze-500 hover:bg-bronze-600 text-white font-sans text-sm font-medium py-2.5 px-6 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-bronze-400"
+            >
+              Back to Map
+            </button>
+          </div>
+        </div>
+      )}
+    </main>
   );
 }
 

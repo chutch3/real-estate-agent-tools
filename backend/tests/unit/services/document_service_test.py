@@ -84,6 +84,21 @@ class TestDocumentService:
             await subject.process_pdf(pdf_content)
 
     @pytest.mark.asyncio
+    async def test_exists_returns_true_when_document_found(
+        self, subject, mock_embedding_repository: AsyncMock
+    ):
+        mock_embedding_repository.exists.return_value = True
+        assert await subject.exists("doc-123") is True
+        mock_embedding_repository.exists.assert_called_once_with("doc-123")
+
+    @pytest.mark.asyncio
+    async def test_exists_returns_false_when_document_not_found(
+        self, subject, mock_embedding_repository: AsyncMock
+    ):
+        mock_embedding_repository.exists.return_value = False
+        assert await subject.exists("nonexistent-id") is False
+
+    @pytest.mark.asyncio
     async def test_process_pdf_with_invalid_pdf(
         self,
         subject,

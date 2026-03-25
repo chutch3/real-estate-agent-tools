@@ -1,3 +1,4 @@
+import logging
 from http import HTTPStatus
 from http.client import HTTPException
 from typing import Annotated, List
@@ -17,6 +18,7 @@ from .exceptions import (
     PropertyNotFoundError,
 )
 from .models import (
+    DocumentInfo,
     DocumentUploadResponse,
     GeocodeRequest,
     GeocodeResponse,
@@ -145,6 +147,14 @@ async def upload_pdf(
         raise HTTPException(status_code=500, detail=f"Error processing PDF: {str(e)}")
 
 
+@router.get("/properties/list", status_code=HTTPStatus.OK)
+@inject
+async def list_properties(
+    property_service: PropertyService = Depends(Provide[Container.property_service]),
+):
+    return await property_service.list_properties()
+
+
 @router.get("/properties", status_code=HTTPStatus.OK)
 @inject
 async def search_properties(
@@ -170,10 +180,26 @@ async def search_properties(
             status_code=HTTPStatus.NOT_FOUND, detail="Property not found"
         )
     except Exception as e:
-        print(e)
+        logging.getLogger(__name__).exception("Error searching property")
         raise HTTPException(
             status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
             detail="Unable to get property details",
+        )
+
+
+@router.patch("/properties/{property_id}/documents", status_code=HTTPStatus.OK)
+@inject
+async def append_document(
+    property_id: str,
+    document: DocumentInfo,
+    property_service: PropertyService = Depends(Provide[Container.property_service]),
+):
+    try:
+        return await property_service.append_document(property_id, document)
+    except DocumentNotFoundError:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail="No documents found with the provided IDs",
         )
 
 

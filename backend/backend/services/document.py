@@ -11,8 +11,7 @@ class DocumentService:
         self._client = client
 
     async def exists(self, doc_id: str) -> bool:
-        pass
-        # return await self._repository.exists(doc_id)
+        return await self._repository.exists(doc_id)
 
     async def process_pdf(self, content: bytes) -> str:
         if not content:

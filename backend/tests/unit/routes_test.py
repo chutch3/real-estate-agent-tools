@@ -16,6 +16,7 @@ from backend.exceptions import (
 )
 from backend.models import (
     AgentInfo,
+    DocumentInfo,
     DocumentUploadResponse,
     GeocodeLocation,
     GeocodeRequest,
@@ -198,6 +199,21 @@ class TestRoutes:
             address="123 Main St, Anytown, USA"
         )
 
+    def test_list_properties(
+        self,
+        subject,
+        mock_property_service: AsyncMock,
+        property_info_factory: PropertyInfoFactory,
+    ):
+        expected = [property_info_factory.build(), property_info_factory.build()]
+        mock_property_service.list_properties.return_value = expected
+
+        response = subject.get("/properties/list")
+
+        assert response.status_code == HTTPStatus.OK
+        assert response.json() == [p.model_dump(by_alias=True) for p in expected]
+        mock_property_service.list_properties.assert_awaited_once()
+
     def test_create_property(self, subject, mock_property_service):
         property_data = PropertyInfo(
             rentcast_id="some-rentcast-id",
@@ -210,7 +226,7 @@ class TestRoutes:
             year_built=0,
             last_sale_price=0,
             owner_occupied=True,
-            documents_ids=["123"],
+            documents=[DocumentInfo(id="123", filename="listing.pdf")],
         )
         expected_result = property_data.model_copy(update={"id": "123"})
         mock_property_service.create_property.return_value = expected_result
@@ -222,7 +238,27 @@ class TestRoutes:
 
         mock_property_service.create_property.assert_called_once()
         call_args = mock_property_service.create_property.call_args
-        assert call_args.kwargs["property_data"] == property_data
+        assert call_args.kwargs["property_data"].model_dump() == property_data.model_dump()
+
+    def test_append_document_to_property(self, subject, mock_property_service, property_info_factory):
+        doc = DocumentInfo(id="doc-1", filename="listing.pdf")
+        expected = property_info_factory.build()
+        mock_property_service.append_document.return_value = expected
+
+        response = subject.patch("/properties/prop-1/documents", json=doc.model_dump())
+
+        assert response.status_code == HTTPStatus.OK
+        assert response.json() == expected.model_dump(by_alias=True)
+        mock_property_service.append_document.assert_awaited_once_with("prop-1", doc)
+
+    def test_append_document_to_property_when_document_not_found(self, subject, mock_property_service):
+        mock_property_service.append_document.side_effect = DocumentNotFoundError()
+        doc = DocumentInfo(id="missing", filename="missing.pdf")
+
+        response = subject.patch("/properties/prop-1/documents", json=doc.model_dump())
+
+        assert response.status_code == HTTPStatus.BAD_REQUEST
+        assert response.json() == {"detail": "No documents found with the provided IDs"}
 
     def test_create_property_document_not_found(
         self, subject, mock_property_service, property_info_factory
