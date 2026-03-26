@@ -1,4 +1,3 @@
-import json
 import logging
 from typing import AsyncGenerator, List
 
@@ -27,9 +26,9 @@ class ChatService:
         self._max_tokens = max_tokens
         self._logger = logging.getLogger(self.__class__.__name__)
 
-    async def stream_chat(
+    async def prepare_chat_messages(
         self, property_id: str, user_message: str
-    ) -> AsyncGenerator[str, None]:
+    ) -> List[dict]:
         await self._chat_message_repository.save_message(property_id, "user", user_message)
 
         property_info = await self._property_repository.get_property(property_id)
@@ -49,12 +48,15 @@ class ChatService:
         messages = [{"role": "system", "content": system_prompt}]
         for msg in history:
             messages.append({"role": msg.role, "content": msg.content})
+        return messages
 
+    async def stream_response(
+        self, property_id: str, messages: List[dict]
+    ) -> AsyncGenerator[str, None]:
         full_response = ""
         async for chunk in self._openai_client.stream_completion(messages, max_tokens=self._max_tokens):
             full_response += chunk
             yield chunk
-
         await self._chat_message_repository.save_message(
             property_id, "assistant", full_response
         )

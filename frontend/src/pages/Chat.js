@@ -12,6 +12,7 @@ function Chat() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [isDisabled, setIsDisabled] = useState(false);
   const [error, setError] = useState('');
   const bottomRef = useRef(null);
 
@@ -51,7 +52,8 @@ function Chat() {
         );
       });
     } catch {
-      setError('Failed to send message. Please try again.');
+      setError('Chat is currently unavailable. Please try again later.');
+      setIsDisabled(true);
       setMessages((prev) => prev.filter((m) => m.id !== assistantId));
     } finally {
       setIsSending(false);
@@ -141,11 +143,12 @@ function Chat() {
             placeholder="Ask about this property…"
             rows={1}
             aria-label="Message input"
-            className="flex-1 px-3 py-2.5 border border-linen-300 rounded-md bg-white font-sans text-sm text-ink-900 placeholder-ink-300 focus:outline-none focus:border-bronze-400 transition-colors resize-none"
+            disabled={isDisabled}
+            className="flex-1 px-3 py-2.5 border border-linen-300 rounded-md bg-white font-sans text-sm text-ink-900 placeholder-ink-300 focus:outline-none focus:border-bronze-400 transition-colors resize-none disabled:bg-linen-100 disabled:cursor-not-allowed"
           />
           <button
             onClick={handleSend}
-            disabled={isSending || !input.trim()}
+            disabled={isSending || !input.trim() || isDisabled}
             aria-label="Send message"
             className="p-2.5 bg-bronze-500 hover:bg-bronze-600 disabled:bg-linen-300 disabled:cursor-not-allowed text-white rounded-md transition-colors flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-bronze-400 focus:ring-offset-1"
           >

@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from pymilvus.exceptions import MilvusException
 
 from backend.clients.openai import OpenAIClient
 from backend.models import ChatMessage, PropertyInfo
@@ -12,77 +13,42 @@ from backend.services.chat import ChatService
 
 class TestChatService:
     @pytest.mark.asyncio
-    async def test_stream_chat_saves_user_message_and_streams_response(
+    async def test_prepare_chat_messages_saves_user_message(
         self, subject, mock_chat_message_repository, mock_property_repository, mock_openai_client
     ):
         mock_property_repository.get_property.return_value = PropertyInfo(
             id="prop-1", latitude=37.4, longitude=-122.0
         )
         mock_openai_client.create_embeddings.return_value = [0.1] * 1536
-
-        async def mock_stream(*args, **kwargs):
-            yield "Hello "
-            yield "World"
-
-        mock_openai_client.stream_completion.side_effect = mock_stream
-        mock_chat_message_repository.get_history.return_value = [
-            ChatMessage(id="msg-1", property_id="prop-1", role="user", content="Tell me about this property", created_at="2026-01-01T00:00:00")
-        ]
-
-        chunks = [chunk async for chunk in subject.stream_chat("prop-1", "Tell me about this property")]
-
-        assert chunks == ["Hello ", "World"]
-        mock_chat_message_repository.save_message.assert_any_call("prop-1", "user", "Tell me about this property")
-
-    @pytest.mark.asyncio
-    async def test_stream_chat_saves_assistant_message_after_streaming(
-        self, subject, mock_chat_message_repository, mock_property_repository, mock_openai_client
-    ):
-        mock_property_repository.get_property.return_value = PropertyInfo(
-            id="prop-1", latitude=37.4, longitude=-122.0
-        )
-        mock_openai_client.create_embeddings.return_value = [0.1] * 1536
-
-        async def mock_stream(*args, **kwargs):
-            yield "The assistant response"
-
-        mock_openai_client.stream_completion.side_effect = mock_stream
         mock_chat_message_repository.get_history.return_value = []
 
-        [chunk async for chunk in subject.stream_chat("prop-1", "Hi")]
+        await subject.prepare_chat_messages("prop-1", "Tell me about this property")
 
-        mock_chat_message_repository.save_message.assert_any_call("prop-1", "assistant", "The assistant response")
+        mock_chat_message_repository.save_message.assert_awaited_once_with(
+            "prop-1", "user", "Tell me about this property"
+        )
 
     @pytest.mark.asyncio
-    async def test_stream_chat_filters_rag_by_property_doc_ids(
+    async def test_prepare_chat_messages_filters_rag_by_property_doc_ids(
         self, subject, mock_chat_message_repository, mock_property_repository, mock_openai_client, mock_document_embedding_repository
     ):
         mock_property_repository.get_property.return_value = PropertyInfo(
             id="prop-1",
             latitude=37.4,
             longitude=-122.0,
-            documents=[
-                MagicMock(id="doc-1"),
-                MagicMock(id="doc-2"),
-            ],
+            documents=[MagicMock(id="doc-1"), MagicMock(id="doc-2")],
         )
         mock_openai_client.create_embeddings.return_value = [0.1] * 1536
         mock_document_embedding_repository.query_embeddings.return_value = []
-
-        async def mock_stream(*args, **kwargs):
-            yield "response"
-
-        mock_openai_client.stream_completion.side_effect = mock_stream
         mock_chat_message_repository.get_history.return_value = []
 
-        [chunk async for chunk in subject.stream_chat("prop-1", "Hi")]
+        await subject.prepare_chat_messages("prop-1", "Hi")
 
-        mock_document_embedding_repository.query_embeddings.assert_awaited_once()
         call_kwargs = mock_document_embedding_repository.query_embeddings.call_args.kwargs
         assert call_kwargs["filter_ids"] == ["doc-1", "doc-2"]
 
     @pytest.mark.asyncio
-    async def test_stream_chat_does_not_filter_rag_when_no_documents(
+    async def test_prepare_chat_messages_does_not_filter_rag_when_no_documents(
         self, subject, mock_chat_message_repository, mock_property_repository, mock_openai_client, mock_document_embedding_repository
     ):
         mock_property_repository.get_property.return_value = PropertyInfo(
@@ -90,34 +56,55 @@ class TestChatService:
         )
         mock_openai_client.create_embeddings.return_value = [0.1] * 1536
         mock_document_embedding_repository.query_embeddings.return_value = []
-
-        async def mock_stream(*args, **kwargs):
-            yield "response"
-
-        mock_openai_client.stream_completion.side_effect = mock_stream
         mock_chat_message_repository.get_history.return_value = []
 
-        [chunk async for chunk in subject.stream_chat("prop-1", "Hi")]
+        await subject.prepare_chat_messages("prop-1", "Hi")
 
         call_kwargs = mock_document_embedding_repository.query_embeddings.call_args.kwargs
         assert call_kwargs["filter_ids"] is None
 
     @pytest.mark.asyncio
-    async def test_stream_chat_passes_max_tokens_to_stream_completion(
-        self, subject, mock_chat_message_repository, mock_property_repository, mock_openai_client
+    async def test_prepare_chat_messages_raises_when_milvus_unavailable(
+        self, subject, mock_chat_message_repository, mock_property_repository, mock_openai_client, mock_document_embedding_repository
     ):
         mock_property_repository.get_property.return_value = PropertyInfo(
             id="prop-1", latitude=37.4, longitude=-122.0
         )
         mock_openai_client.create_embeddings.return_value = [0.1] * 1536
+        mock_document_embedding_repository.query_embeddings.side_effect = MilvusException("connection refused")
 
+        with pytest.raises(MilvusException):
+            await subject.prepare_chat_messages("prop-1", "Hi")
+
+    @pytest.mark.asyncio
+    async def test_stream_response_yields_chunks_and_saves_assistant_message(
+        self, subject, mock_chat_message_repository, mock_openai_client
+    ):
+        async def mock_stream(*args, **kwargs):
+            yield "Hello "
+            yield "World"
+
+        mock_openai_client.stream_completion.side_effect = mock_stream
+
+        messages = [{"role": "user", "content": "Hi"}]
+        chunks = [chunk async for chunk in subject.stream_response("prop-1", messages)]
+
+        assert chunks == ["Hello ", "World"]
+        mock_chat_message_repository.save_message.assert_awaited_once_with(
+            "prop-1", "assistant", "Hello World"
+        )
+
+    @pytest.mark.asyncio
+    async def test_stream_response_passes_max_tokens_to_stream_completion(
+        self, subject, mock_chat_message_repository, mock_openai_client
+    ):
         async def mock_stream(*args, **kwargs):
             yield "response"
 
         mock_openai_client.stream_completion.side_effect = mock_stream
-        mock_chat_message_repository.get_history.return_value = []
 
-        [chunk async for chunk in subject.stream_chat("prop-1", "Hi")]
+        messages = [{"role": "user", "content": "Hi"}]
+        [chunk async for chunk in subject.stream_response("prop-1", messages)]
 
         call_kwargs = mock_openai_client.stream_completion.call_args.kwargs
         assert call_kwargs.get("max_tokens") == 500

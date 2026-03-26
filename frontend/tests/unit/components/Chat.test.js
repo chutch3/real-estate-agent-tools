@@ -133,7 +133,22 @@ describe('Chat', () => {
     fireEvent.click(screen.getByLabelText('Send message'));
 
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent('Failed to send message. Please try again.');
+      expect(screen.getByRole('alert')).toHaveTextContent('Chat is currently unavailable. Please try again later.');
+    });
+  });
+
+  it('disables input and send button after a failed request', async () => {
+    apiClient.sendChatMessage.mockRejectedValue(new Error('503'));
+
+    renderWithProperty(mockProperty);
+
+    const input = screen.getByLabelText('Message input');
+    fireEvent.change(input, { target: { value: 'Hi' } });
+    fireEvent.click(screen.getByLabelText('Send message'));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Message input')).toBeDisabled();
+      expect(screen.getByLabelText('Send message')).toBeDisabled();
     });
   });
 });
