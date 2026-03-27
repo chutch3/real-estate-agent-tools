@@ -132,6 +132,30 @@ class TestChatService:
         assert "Closing date is May 1st." in prompt
         assert "123 Main St" in prompt
 
+    def test_build_system_prompt_omits_relevant_documents_section_when_no_rag_results(self, subject):
+        property_info = PropertyInfo(id="prop-1", latitude=37.4, longitude=-122.0)
+
+        prompt = subject._build_system_prompt(property_info, [])
+
+        assert "Relevant Documents:" not in prompt
+
+    @pytest.mark.parametrize("property_kwargs,expected", [
+        ({"formatted_address": "123 Main St"}, "Address: 123 Main St"),
+        ({"city": "Sellersburg", "state": "IN"}, "Location: Sellersburg, IN"),
+        ({"property_type": "Single Family"}, "Type: Single Family"),
+        ({"bedrooms": 3}, "Bedrooms: 3"),
+        ({"bathrooms": 2}, "Bathrooms: 2"),
+        ({"square_footage": 1800}, "Square Footage: 1800"),
+        ({"year_built": 1995}, "Year Built: 1995"),
+        ({}, "No details available."),
+    ])
+    def test_build_system_prompt_includes_property_fields(self, subject, property_kwargs, expected):
+        property_info = PropertyInfo(id="prop-1", **property_kwargs)
+
+        prompt = subject._build_system_prompt(property_info, [])
+
+        assert expected in prompt
+
     @pytest.fixture
     def mock_chat_message_repository(self):
         yield AsyncMock(spec=ChatMessageRepository)

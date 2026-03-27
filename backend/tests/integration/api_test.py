@@ -1,6 +1,6 @@
 import os
 from http import HTTPStatus
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from backend.container import Container
@@ -19,7 +19,9 @@ from backend.schema import create_document_embeddings_schema, drop_document_embe
 from backend.template_loader import TEMPLATE_DIR
 from fastapi.testclient import TestClient
 from pymilvus import MilvusClient
+from pymilvus.exceptions import MilvusException
 from pytest_httpserver import HTTPServer
+from werkzeug.wrappers import Response as WerkzeugResponse
 
 MILVUS_URI = "http://localhost:19530"
 
@@ -305,7 +307,6 @@ class TestApp:
         assert "Mountain View" in assistant_msg["content"]
 
     def test_chat_with_document_context(self, subject, httpserver: HTTPServer):
-        # 1. Mock embeddings for document upload
         httpserver.expect_request("/v1/embeddings").respond_with_json({
             "data": [{"embedding": [0.1] * 1536, "index": 0, "object": "embedding"}],
             "model": "text-embedding-ada-002",
@@ -313,14 +314,12 @@ class TestApp:
             "usage": {"prompt_tokens": 5, "total_tokens": 5},
         })
 
-        # 2. Upload a document
         upload_response = subject.post(
             "/api/documents",
             files={"file": open("tests/integration/fixtures/mls_sheet.pdf", "rb")},
         )
         doc_id = upload_response.json()["id"]
 
-        # 3. Create property with the document
         property_data = PropertyInfo(
             latitude=37.4225103,
             longitude=-122.0847089,
@@ -329,31 +328,51 @@ class TestApp:
         create_response = subject.post("/api/properties", json=property_data.model_dump())
         property_id = create_response.json()["id"]
 
-        # 4. Mock chat completion to echo the context (if we can) or just succeed
-        # In the real code, we'd want to verify the system prompt contains the doc text.
-        # Since we can't easily peek into the OpenAI client call here without more patching,
-        # we'll rely on the fact that if it doesn't crash and returns a response, 
-        # the wiring is at least partially there.
-        # However, to be "Red", we want a test that fails if RAG isn't working.
-        
-        # Let's mock the chat completion to return a specific string if it sees the context.
-        # This is hard because the context is in the system prompt.
-        
+        captured = {}
         sse_body = (
             'data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"I see the MLS sheet"},"finish_reason":null}]}\n\n'
             "data: [DONE]\n\n"
         )
-        httpserver.expect_request("/v1/chat/completions").respond_with_data(
-            sse_body, content_type="text/event-stream"
-        )
+
+        def capture_and_respond(request):
+            captured["body"] = request.get_json()
+            return WerkzeugResponse(sse_body, content_type="text/event-stream")
+
+        httpserver.expect_request("/v1/chat/completions").respond_with_handler(capture_and_respond)
 
         chat_response = subject.post(
             f"/api/properties/{property_id}/chat",
             json={"message": "What does the MLS sheet say?"},
         )
-        
+
         assert chat_response.status_code == HTTPStatus.OK
-        assert "I see the MLS sheet" in chat_response.text
+        messages = captured["body"]["messages"]
+        system_message = next(m for m in messages if m["role"] == "system")
+        assert "Buyers Brokers Only, LLC" in system_message["content"]
+
+    def test_chat_returns_503_when_milvus_unavailable(self, subject, httpserver: HTTPServer, test_container: Container):
+        httpserver.expect_request("/v1/embeddings").respond_with_json({
+            "data": [{"embedding": [0.1] * 1536, "index": 0, "object": "embedding"}],
+            "model": "text-embedding-ada-002",
+            "object": "list",
+            "usage": {"prompt_tokens": 5, "total_tokens": 5},
+        })
+
+        property_data = PropertyInfo(latitude=37.4225103, longitude=-122.0847089)
+        create_response = subject.post("/api/properties", json=property_data.model_dump())
+        property_id = create_response.json()["id"]
+
+        with patch.object(
+            test_container.document_embedding_repository(),
+            "query_embeddings",
+            new=AsyncMock(side_effect=MilvusException("unavailable")),
+        ):
+            response = subject.post(
+                f"/api/properties/{property_id}/chat",
+                json={"message": "Tell me about this property"},
+            )
+
+        assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
 
     @pytest.fixture
     def milvus_client(self, subject, test_container: Container) -> MilvusClient:
