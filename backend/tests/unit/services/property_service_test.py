@@ -9,8 +9,8 @@ import pytest
 from backend.exceptions import DocumentNotFoundError, PropertyNotFoundError
 from backend.services.property import PropertyService
 from faker import Faker
-from rentcast_client.api.default_api import DefaultApi
-from rentcast_client.models import PropertyRecords200ResponseInner
+from rentcast_client.api.default_rentcast import DefaultRentcast
+from rentcast_client.models import RentcastPropertyRecords200ResponseInner
 from tests.factories import PropertyInfoFactory
 
 
@@ -29,7 +29,7 @@ def fake_property_record(
             "has_water_view": fake.boolean(),
         }
 
-    return PropertyRecords200ResponseInner(
+    return RentcastPropertyRecords200ResponseInner(
         formatted_address=fake.address(),
         city=fake.city(),
         state=fake.state_abbr(),
@@ -83,7 +83,7 @@ class TestPropertyService:
         subject: PropertyService,
         mock_client: AsyncMock,
         address: str,
-        property_records: list[PropertyRecords200ResponseInner],
+        property_records: list[RentcastPropertyRecords200ResponseInner],
     ):
         mock_client.property_records.return_value = property_records
 
@@ -303,7 +303,7 @@ class TestPropertyService:
 
     @pytest.fixture
     def mock_client(self):
-        mock = AsyncMock(spec=DefaultApi)
+        mock = AsyncMock(spec=DefaultRentcast)
         mock.property_records = AsyncMockWithValidateCall()
         yield mock
 

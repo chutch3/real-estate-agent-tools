@@ -299,3 +299,5 @@ dist
 
 # User-specific files
 volumes
+uv.lock
+openapitools.json

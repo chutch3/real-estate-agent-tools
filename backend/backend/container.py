@@ -16,7 +16,7 @@ from backend.services.property import PropertyService
 from backend.template_loader import TemplateLoader
 from dependency_injector import containers, providers
 
-from rentcast_client.api.default_api import DefaultApi
+from rentcast_client.api.default_rentcast import DefaultRentcast
 from rentcast_client.api_client import ApiClient
 from rentcast_client.configuration import Configuration
 from pymilvus import MilvusClient
@@ -29,7 +29,7 @@ async def init_rentcast_client(api_key: str, base_url: str = None):
         header_name="X-Api-Key",
         header_value=api_key,
     )
-    yield DefaultApi(api_client=api_client)
+    yield DefaultRentcast(api_client=api_client)
     await api_client.close()
 
 

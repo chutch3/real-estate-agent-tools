@@ -4,14 +4,14 @@ from typing import List
 from backend.models import DocumentInfo, PropertyFeatures, PropertyInfo
 from backend.repositories.properties import PropertyRepository
 from backend.services.document import DocumentService
-from rentcast_client.api.default_api import DefaultApi
+from rentcast_client.api.default_rentcast import DefaultRentcast
 from backend.exceptions import DocumentNotFoundError, PropertyNotFoundError
 
 
 class PropertyService:
     def __init__(
         self,
-        client: DefaultApi,
+        client: DefaultRentcast,
         property_repository: PropertyRepository,
         document_service: DocumentService,
     ):
