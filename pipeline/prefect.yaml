@@ -1,0 +1,33 @@
+name: crime-heatmap-pipeline
+prefect-version: 3.6.0
+
+build: []
+
+push: []
+
+pull:
+  - prefect.deployments.steps.set_working_directory:
+      directory: /app
+
+deployments:
+  - name: louisville-metro
+    version: "1.0.0"
+    tags: ["crime", "louisville"]
+    description: "Crime heatmap pipeline for Louisville Metro"
+    schedule: {}
+
+    entrypoint: pipeline/flows/crime_heatmap.py:crime_heatmap_pipeline
+    parameters:
+      region_slug: louisville-metro
+
+    work_pool:
+      name: crime-pipeline-docker
+      job_variables:
+        image: ghcr.io/chutch3/prefect-pipeline-base:latest
+        mem_limit: "4g"
+        env:
+          PREFECT_API_URL: "https://prefect.diyhub.dev/api"
+          AWS_ENDPOINT_URL_S3: "https://nas.diyhub.dev:9000"
+          CRIME_DATA_S3_BUCKET: real-estate-agent-tools
+          AWS_ACCESS_KEY_ID: "admin"
+          AWS_SECRET_ACCESS_KEY: "openmediaserver"

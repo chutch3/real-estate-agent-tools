@@ -1,0 +1,11 @@
+sources:
+  - name: louisville-metro-pd
+    type: arcgis
+    service_url: https://services1.arcgis.com/79kfd2K6fskCAkyg/arcgis/rest/services/crime_data_2025/FeatureServer/0
+    date_field: date_occurred
+    category_field: offense_classification
+    address_field: block_address
+    city_field: city
+    zip_field: zip_code
+    state_code: KY
+    status: active

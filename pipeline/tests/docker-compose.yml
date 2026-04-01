@@ -1,0 +1,6 @@
+services:
+  motoserver:
+    container_name: pipeline-test-motoserver
+    image: motoserver/moto
+    ports:
+      - "5006:5000"
