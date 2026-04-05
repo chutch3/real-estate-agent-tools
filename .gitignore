@@ -301,3 +301,6 @@ dist
 volumes
 uv.lock
 openapitools.json
+
+# Planning documents
+.plan/
