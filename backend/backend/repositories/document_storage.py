@@ -15,7 +15,7 @@ class DocumentStorageRepository:
         self._logger.info(f"Saving document {doc_id} to S3")
         self._client.put_object(
             Bucket=self._bucket_name,
-            Key=f"{doc_id}.pdf",
+            Key=f"documents/{doc_id}.pdf",
             Body=content,
             ContentType="application/pdf",
         )
@@ -24,7 +24,7 @@ class DocumentStorageRepository:
         try:
             response = self._client.get_object(
                 Bucket=self._bucket_name,
-                Key=f"{doc_id}.pdf",
+                Key=f"documents/{doc_id}.pdf",
             )
             return response["Body"].read()
         except ClientError as e:
@@ -36,7 +36,7 @@ class DocumentStorageRepository:
         self._logger.info(f"Deleting document {doc_id} from S3")
         self._client.delete_object(
             Bucket=self._bucket_name,
-            Key=f"{doc_id}.pdf",
+            Key=f"documents/{doc_id}.pdf",
         )
 
     def ensure_bucket_exists(self) -> None:

@@ -8,3 +8,7 @@ class AddressNotFoundError(Exception):
 
 class DocumentNotFoundError(Exception):
     pass
+
+
+class LayerNotFoundError(Exception):
+    pass

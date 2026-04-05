@@ -100,6 +100,13 @@ class DocumentInfoListType(TypeDecorator):
         return [DocumentInfo.model_validate(doc) for doc in value]
 
 
+class CountyBoundary(SQLModel, table=True):
+    __tablename__ = "county_boundary"
+
+    fips: str = Field(primary_key=True)
+    geometry: Optional[dict] = Field(default=None, sa_column=Column(JSON))
+
+
 class PropertyInfo(SQLModel, table=True):
     __tablename__ = "property_info"
 
@@ -115,6 +122,7 @@ class PropertyInfo(SQLModel, table=True):
     state: Optional[str] = None
     zip_code: Optional[str] = Field(None, alias="zipCode")
     county: Optional[str] = None
+    county_fips: Optional[str] = None
     latitude: Optional[float] = 0
     longitude: Optional[float] = 0
     property_type: Optional[str] = Field(None, alias="propertyType")
@@ -152,6 +160,39 @@ class PropertyInfo(SQLModel, table=True):
         return v
 
     model_config = {"populate_by_name": True}
+
+
+class PropertyResponse(BaseModel):
+    model_config = {"populate_by_name": True}
+
+    id: Optional[str] = None
+    rentcast_id: Optional[str] = Field(None, alias="rentcastID")
+    formatted_address: Optional[str] = Field(None, alias="formattedAddress")
+    address_line1: Optional[str] = Field(None, alias="addressLine1")
+    address_line2: Optional[str] = Field(None, alias="addressLine2")
+    city: Optional[str] = None
+    state: Optional[str] = None
+    zip_code: Optional[str] = Field(None, alias="zipCode")
+    county: Optional[str] = None
+    county_fips: Optional[str] = None
+    county_polygon: Optional[dict] = None
+    latitude: Optional[float] = 0
+    longitude: Optional[float] = 0
+    property_type: Optional[str] = Field(None, alias="propertyType")
+    bedrooms: Optional[float] = 0
+    bathrooms: Optional[float] = 0
+    square_footage: Optional[int] = Field(0, alias="squareFootage")
+    lot_size: Optional[int] = Field(0, alias="lotSize")
+    year_built: Optional[int] = Field(0, alias="yearBuilt")
+    assessor_id: Optional[str] = Field(None, alias="assessorID")
+    legal_description: Optional[str] = Field(None, alias="legalDescription")
+    subdivision: Optional[str] = None
+    zoning: Optional[str] = None
+    last_sale_date: Optional[str] = Field(None, alias="lastSaleDate")
+    last_sale_price: Optional[int] = Field(0, alias="lastSalePrice")
+    features: Optional[PropertyFeatures] = None
+    owner_occupied: Optional[bool] = Field(True, alias="ownerOccupied")
+    documents: Optional[List[DocumentInfo]] = None
 
 
 class DocumentUploadResponse(BaseModel):

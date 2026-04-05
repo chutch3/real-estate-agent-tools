@@ -23,6 +23,23 @@ class TestPropertyRepository:
             assert session.exec(select(PropertyInfo)).first() == property_data
 
     @pytest.mark.asyncio
+    async def test_insert_property_persists_county_fips(
+        self,
+        subject: PropertyRepository,
+        property_info_factory,
+        db: Database,
+    ):
+        property_data = property_info_factory.build()
+        property_data.county_fips = "18019"
+
+        await subject.insert_property(property_data)
+
+        with db.session() as session:
+            result = session.exec(select(PropertyInfo)).first()
+            assert result.county_fips == "18019"
+
+
+    @pytest.mark.asyncio
     async def test_list_properties(
         self,
         subject: PropertyRepository,
@@ -39,6 +56,21 @@ class TestPropertyRepository:
         assert len(results) == 2
         assert first in results
         assert second in results
+
+    @pytest.mark.asyncio
+    async def test_list_county_fips_returns_distinct_fips(
+        self,
+        subject: PropertyRepository,
+        property_info_factory,
+    ):
+        await subject.insert_property(property_info_factory.build(county_fips="21111"))
+        await subject.insert_property(property_info_factory.build(county_fips="21111"))
+        await subject.insert_property(property_info_factory.build(county_fips="18019"))
+        await subject.insert_property(property_info_factory.build(county_fips=None))
+
+        result = await subject.list_county_fips()
+
+        assert set(result) == {"21111", "18019"}
 
     @pytest.fixture
     def db_url(self, tmp_path) -> str:

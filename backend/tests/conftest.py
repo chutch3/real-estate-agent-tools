@@ -64,6 +64,10 @@ def _create_test_s3_bucket():
 @pytest.fixture(scope="session")
 def integration_services():
     subprocess.run(
+        ["docker", "compose", "-f", str(COMPOSE_FILE), "down", "-v"],
+        check=True,
+    )
+    subprocess.run(
         ["docker", "compose", "-f", str(COMPOSE_FILE), "up", "-d"],
         check=True,
     )

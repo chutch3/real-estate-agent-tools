@@ -1,15 +1,20 @@
 import boto3
 
+from backend.clients.census_geocoder import CensusGeocoderClient
 from backend.clients.google_maps import GoogleMapsClient
 from backend.clients.openai import OpenAIClient
+from backend.clients.tiger import TigerWebClient
 from backend.database import Database
 from backend.post_coordinator import PostCoordinator
 from backend.repositories.chat_messages import ChatMessageRepository
 from backend.repositories.document_embeddings import DocumentEmbeddingRepository
 from backend.repositories.document_storage import DocumentStorageRepository
 from backend.embeddings import collection_name as make_collection_name
+from backend.repositories.county_boundary import CountyBoundaryRepository
 from backend.repositories.properties import PropertyRepository
+from backend.repositories.layer import LayerRepository
 from backend.services.chat import ChatService
+from backend.services.layer import LayerService
 from backend.services.document import DocumentService
 from backend.services.post_generation import PostGenerationService
 from backend.services.property import PropertyService
@@ -20,6 +25,7 @@ from rentcast_client.api.default_rentcast import DefaultRentcast
 from rentcast_client.api_client import ApiClient
 from rentcast_client.configuration import Configuration
 from pymilvus import MilvusClient
+
 
 
 async def init_rentcast_client(api_key: str, base_url: str = None):
@@ -69,6 +75,14 @@ class Container(containers.DeclarativeContainer):
         api_key=config.google_maps.api_key,
         base_url=config.google_maps.base_url,
     )
+    census_geocoder_client = providers.Singleton(
+        CensusGeocoderClient,
+        base_url=config.census_geocoder.base_url,
+    )
+    tiger_web_client = providers.Singleton(
+        TigerWebClient,
+        base_url=config.tiger.base_url,
+    )
     template_loader = providers.Singleton(TemplateLoader)
 
     embeddings_collection_name = providers.Callable(
@@ -106,11 +120,19 @@ class Container(containers.DeclarativeContainer):
         session_factory=db.provided.session,
     )
 
+    county_boundary_repository = providers.Singleton(
+        CountyBoundaryRepository,
+        session_factory=db.provided.session,
+    )
+
     property_service = providers.Singleton(
         PropertyService,
         client=rentcast_client,
         property_repository=property_repository,
         document_service=document_service,
+        census_geocoder_client=census_geocoder_client,
+        tiger_web_client=tiger_web_client,
+        county_boundary_repository=county_boundary_repository,
     )
     post_generation_service = providers.Singleton(
         PostGenerationService,
@@ -138,4 +160,16 @@ class Container(containers.DeclarativeContainer):
         openai_client=openai_client,
         rag_top_k=config.rag.top_k,
         max_tokens=config.chat.max_tokens,
+    )
+
+    layer_repository = providers.Singleton(
+        LayerRepository,
+        client=s3_client,
+        bucket_name=config.s3.bucket,
+    )
+
+    layer_service = providers.Singleton(
+        LayerService,
+        repository=layer_repository,
+        bucket_name=config.s3.bucket,
     )

@@ -27,13 +27,13 @@ class TestDocumentStorageRepository:
         content = b"%PDF-1.4 fake pdf content"
         subject.save("doc-1", content)
 
-        response = s3_client.get_object(Bucket="test-documents", Key="doc-1.pdf")
+        response = s3_client.get_object(Bucket="test-documents", Key="documents/doc-1.pdf")
         assert response["Body"].read() == content
 
     def test_save_sets_pdf_content_type(self, subject, s3_client):
         subject.save("doc-1", b"%PDF fake")
 
-        response = s3_client.head_object(Bucket="test-documents", Key="doc-1.pdf")
+        response = s3_client.head_object(Bucket="test-documents", Key="documents/doc-1.pdf")
         assert response["ContentType"] == "application/pdf"
 
     def test_get_retrieves_stored_pdf(self, subject):

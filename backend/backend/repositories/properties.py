@@ -1,6 +1,6 @@
 from typing import Callable, List
 
-from sqlmodel import select
+from sqlmodel import select, distinct
 
 from backend.exceptions import DocumentNotFoundError, PropertyNotFoundError
 from backend.models import DocumentInfo, PropertyInfo
@@ -20,6 +20,15 @@ class PropertyRepository:
     async def list_properties(self) -> List[PropertyInfo]:
         with self._session_factory() as session:
             return list(session.exec(select(PropertyInfo)).all())
+
+    async def list_county_fips(self) -> List[str]:
+        with self._session_factory() as session:
+            rows = session.exec(
+                select(distinct(PropertyInfo.county_fips)).where(
+                    PropertyInfo.county_fips.is_not(None)
+                )
+            ).all()
+            return list(rows)
 
     async def get_property(self, property_id: str) -> PropertyInfo:
         with self._session_factory() as session:

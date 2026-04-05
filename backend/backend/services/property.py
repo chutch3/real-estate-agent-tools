@@ -1,7 +1,10 @@
 import logging
-from typing import List
+from typing import List, Optional
 
-from backend.models import DocumentInfo, PropertyFeatures, PropertyInfo
+from backend.clients.census_geocoder import CensusGeocoderClient
+from backend.clients.tiger import TigerWebClient
+from backend.models import CountyBoundary, DocumentInfo, PropertyFeatures, PropertyInfo, PropertyResponse
+from backend.repositories.county_boundary import CountyBoundaryRepository
 from backend.repositories.properties import PropertyRepository
 from backend.services.document import DocumentService
 from rentcast_client.api.default_rentcast import DefaultRentcast
@@ -14,29 +17,19 @@ class PropertyService:
         client: DefaultRentcast,
         property_repository: PropertyRepository,
         document_service: DocumentService,
+        census_geocoder_client: CensusGeocoderClient,
+        tiger_web_client: TigerWebClient,
+        county_boundary_repository: CountyBoundaryRepository,
     ):
         self._client = client
         self._property_repository = property_repository
         self._document_service = document_service
+        self._census_geocoder_client = census_geocoder_client
+        self._tiger_web_client = tiger_web_client
+        self._county_boundary_repository = county_boundary_repository
         self._logger = logging.getLogger(self.__class__.__name__)
 
     async def search_property(self, address: str) -> PropertyInfo:
-        """
-        Get the property for the given address.
-
-        Args:
-            address (str): The address of the property to search for.
-
-        Returns:
-            PropertyInfo: The property details.
-
-        Raises:
-            PropertyNotFoundError: If no properties are found for the given address.
-
-        Note:
-            If multiple properties are found for the given address, a warning is logged and the first property is returned.
-        """
-
         properties = await self._client.property_records(address)
 
         if not properties:
@@ -76,41 +69,82 @@ class PropertyService:
             owner_occupied=properties[0].owner_occupied,
         )
 
-    async def list_properties(self) -> List[PropertyInfo]:
-        return await self._property_repository.list_properties()
+    async def list_properties(self) -> List[PropertyResponse]:
+        properties = await self._property_repository.list_properties()
+        result = []
+        for prop in properties:
+            boundary = None
+            if prop.county_fips:
+                boundary = self._county_boundary_repository.get_by_fips(prop.county_fips)
+            result.append(self._to_response(prop, boundary))
+        return result
 
-    async def create_property(
-        self,
-        property_data: PropertyInfo,
-    ) -> PropertyInfo:
-        """
-        Create a new property.
+    async def list_county_fips(self) -> List[str]:
+        return await self._property_repository.list_county_fips()
 
-        Args:
-            property_data (PropertyInfo): The property data.
-            images (List[UploadFile]): The images.
-            supporting_docs (List[UploadFile]): The supporting documents.
+    async def _enrich_with_county(self, property_data: PropertyInfo) -> Optional[CountyBoundary]:
+        try:
+            county_fips = await self._census_geocoder_client.get_county_fips(
+                property_data.latitude, property_data.longitude
+            )
+        except Exception:
+            self._logger.warning(
+                "Failed to fetch county FIPS for lat=%s lon=%s",
+                property_data.latitude,
+                property_data.longitude,
+            )
+            return None
 
-        Returns:
-            PropertyInfo: The created property.
+        property_data.county_fips = county_fips
 
-        Raises:
-            DocumentNotFoundError: If the document does not exist.
-        """
+        if county_fips is None:
+            return None
 
+        existing = self._county_boundary_repository.get_by_fips(county_fips)
+        if existing:
+            return existing
+
+        try:
+            polygon = await self._tiger_web_client.get_county_polygon(county_fips)
+        except Exception:
+            self._logger.warning("Failed to fetch county polygon for FIPS %s", county_fips)
+            return None
+
+        if polygon is None:
+            return None
+
+        boundary = CountyBoundary(fips=county_fips, geometry=polygon)
+        return self._county_boundary_repository.upsert(boundary)
+
+    async def create_property(self, property_data: PropertyInfo) -> PropertyResponse:
         for doc in (property_data.documents or []):
             doc_id = doc['id'] if isinstance(doc, dict) else doc.id
             if not await self._document_service.exists(doc_id):
                 raise DocumentNotFoundError
 
-        return await self._property_repository.insert_property(property_data)
+        boundary = await self._enrich_with_county(property_data)
+        saved = await self._property_repository.insert_property(property_data)
+        return self._to_response(saved, boundary)
 
-    async def append_document(self, property_id: str, document: DocumentInfo) -> PropertyInfo:
+    async def append_document(self, property_id: str, document: DocumentInfo) -> PropertyResponse:
         if not await self._document_service.exists(document.id):
             raise DocumentNotFoundError
-        return await self._property_repository.append_document(property_id, document)
+        prop = await self._property_repository.append_document(property_id, document)
+        boundary = None
+        if prop.county_fips:
+            boundary = self._county_boundary_repository.get_by_fips(prop.county_fips)
+        return self._to_response(prop, boundary)
 
-    async def remove_document(self, property_id: str, doc_id: str) -> PropertyInfo:
-        updated_property = await self._property_repository.remove_document(property_id, doc_id)
+    async def remove_document(self, property_id: str, doc_id: str) -> PropertyResponse:
+        prop = await self._property_repository.remove_document(property_id, doc_id)
         await self._document_service.delete(doc_id)
-        return updated_property
+        boundary = None
+        if prop.county_fips:
+            boundary = self._county_boundary_repository.get_by_fips(prop.county_fips)
+        return self._to_response(prop, boundary)
+
+    def _to_response(self, property_info: PropertyInfo, boundary: Optional[CountyBoundary]) -> PropertyResponse:
+        return PropertyResponse(
+            **property_info.model_dump(),
+            county_polygon=boundary.geometry if boundary else None,
+        )

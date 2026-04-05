@@ -1,7 +1,10 @@
+import json
 import os
 from http import HTTPStatus
 from unittest.mock import AsyncMock, patch
 
+import boto3
+import numpy as np
 import pytest
 from backend.container import Container
 from backend.main import create_app
@@ -24,6 +27,30 @@ from pytest_httpserver import HTTPServer
 from werkzeug.wrappers import Response as WerkzeugResponse
 
 MILVUS_URI = "http://localhost:19530"
+_MOTO_URL = "http://localhost:5005"
+_S3_BUCKET = "test-documents"
+
+
+def _make_test_cog() -> bytes:
+    """Minimal valid GeoTIFF in EPSG:3857 covering full web-mercator extent."""
+    from rasterio.crs import CRS
+    from rasterio.io import MemoryFile
+    from rasterio.transform import from_bounds
+
+    with MemoryFile() as mem:
+        with mem.open(
+            driver="GTiff",
+            height=10,
+            width=10,
+            count=1,
+            dtype="float32",
+            crs=CRS.from_epsg(3857),
+            transform=from_bounds(
+                -20037508.34, -20037508.34, 20037508.34, 20037508.34, 10, 10
+            ),
+        ) as dst:
+            dst.write(np.ones((1, 10, 10), dtype="float32"))
+        return mem.read()
 
 
 class TestApp:
@@ -374,9 +401,239 @@ class TestApp:
 
         assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
 
+    def test_get_layers_returns_groups_with_categories_when_data_exists(self, subject, s3_client):
+        for layer_id in ("crime-violent", "crime-property"):
+            s3_client.put_object(
+                Bucket=_S3_BUCKET,
+                Key=f"layers/{layer_id}/louisville-metro/latest.tif",
+                Body=_make_test_cog(),
+                ContentType="image/tiff",
+            )
+            s3_client.put_object(
+                Bucket=_S3_BUCKET,
+                Key=f"layers/{layer_id}/louisville-metro/meta.json",
+                Body=json.dumps({
+                    "region_slug": "louisville-metro",
+                    "date_from": "2025-04-01",
+                    "date_to": "2026-04-01",
+                    "record_count": 42,
+                    "bbox": [-86.035, 37.997, -85.404, 38.375],
+                }).encode(),
+                ContentType="application/json",
+            )
+
+        response = subject.get("/api/layers")
+
+        assert response.status_code == HTTPStatus.OK
+        body = response.json()
+        assert "groups" in body
+        assert len(body["groups"]) == 1
+        group = body["groups"][0]
+        assert group["id"] == "crime"
+        assert group["label"] == "Crime"
+        assert len(group["categories"]) == 2
+        ids = {c["id"] for c in group["categories"]}
+        assert ids == {"crime-violent", "crime-property"}
+        violent = next(c for c in group["categories"] if c["id"] == "crime-violent")
+        assert violent["label"] == "Violent Crime"
+        assert violent["date_from"] == "2025-04-01"
+        assert violent["date_to"] == "2026-04-01"
+        assert violent["record_count"] == 42
+        assert violent["bbox"] == [-86.035, 37.997, -85.404, 38.375]
+
+    def test_get_layers_returns_empty_groups_when_no_data(self, subject, s3_client):
+        response = subject.get("/api/layers")
+
+        assert response.status_code == HTTPStatus.OK
+        body = response.json()
+        assert body["groups"] == []
+
+    def test_get_layer_tile_returns_png_when_cog_exists(self, subject, s3_client):
+        s3_client.put_object(
+            Bucket=_S3_BUCKET,
+            Key="layers/crime-violent/louisville-metro/latest.tif",
+            Body=_make_test_cog(),
+            ContentType="image/tiff",
+        )
+
+        response = subject.get("/api/layers/crime-violent/tiles/0/0/0")
+
+        assert response.status_code == HTTPStatus.OK
+        assert response.headers["content-type"] == "image/png"
+        assert response.content[:4] == b"\x89PNG"
+
+    def test_get_layer_tile_returns_transparent_png_when_no_data(self, subject, s3_client):
+        response = subject.get("/api/layers/crime-violent/tiles/0/0/0")
+
+        assert response.status_code == HTTPStatus.OK
+        assert response.headers["content-type"] == "image/png"
+        assert response.content[:4] == b"\x89PNG"
+
+    @pytest.fixture
+    def s3_client(self, integration_services):
+        client = boto3.client(
+            "s3",
+            endpoint_url=_MOTO_URL,
+            aws_access_key_id="test",
+            aws_secret_access_key="test",
+            region_name="us-east-1",
+        )
+        yield client
+        response = client.list_objects_v2(Bucket=_S3_BUCKET, Prefix="layers/")
+        for obj in response.get("Contents", []):
+            client.delete_object(Bucket=_S3_BUCKET, Key=obj["Key"])
+
     @pytest.fixture
     def milvus_client(self, subject, test_container: Container) -> MilvusClient:
         yield test_container.milvus_client()
+
+    def test_create_property_enriches_with_county_polygon(self, subject, httpserver: HTTPServer):
+        httpserver.expect_request(
+            "/geocoder/geographies/coordinates",
+        ).respond_with_json({
+            "result": {
+                "geographies": {
+                    "Counties": [{"GEOID": "21111", "NAME": "Jefferson", "STATE": "21"}]
+                }
+            }
+        })
+        httpserver.expect_request(
+            "/arcgis/rest/services/TIGERweb/State_County/MapServer/1/query",
+        ).respond_with_json({
+            "features": [{
+                "geometry": {
+                    "rings": [[
+                        [-86.035, 37.997], [-85.404, 37.997],
+                        [-85.404, 38.375], [-86.035, 38.375],
+                        [-86.035, 37.997],
+                    ]],
+                    "spatialReference": {"wkid": 4326},
+                }
+            }]
+        })
+
+        response = subject.post(
+            "/api/properties",
+            json=PropertyInfo(latitude=38.254, longitude=-85.759).model_dump(),
+        )
+
+        assert response.status_code == HTTPStatus.CREATED
+        body = response.json()
+        assert body["county_fips"] == "21111"
+        assert body["county_polygon"] == {
+            "type": "Polygon",
+            "coordinates": [[
+                [-86.035, 37.997], [-85.404, 37.997],
+                [-85.404, 38.375], [-86.035, 38.375],
+                [-86.035, 37.997],
+            ]],
+        }
+
+    def test_create_property_reuses_county_boundary_for_same_fips(self, subject, httpserver: HTTPServer):
+        polygon = {
+            "type": "Polygon",
+            "coordinates": [[[-86.035, 37.997], [-85.404, 37.997], [-85.404, 38.375], [-86.035, 37.997]]],
+        }
+        httpserver.expect_request(
+            "/geocoder/geographies/coordinates",
+        ).respond_with_json({
+            "result": {
+                "geographies": {
+                    "Counties": [{"GEOID": "21111", "NAME": "Jefferson", "STATE": "21"}]
+                }
+            }
+        })
+        # oneshot — only handles one request; a second call would return 500
+        httpserver.expect_oneshot_request(
+            "/arcgis/rest/services/TIGERweb/State_County/MapServer/1/query",
+        ).respond_with_json({
+            "features": [{
+                "geometry": {
+                    "rings": [[[-86.035, 37.997], [-85.404, 37.997], [-85.404, 38.375], [-86.035, 37.997]]],
+                    "spatialReference": {"wkid": 4326},
+                }
+            }]
+        })
+
+        responses = []
+        for _ in range(2):
+            responses.append(subject.post(
+                "/api/properties",
+                json=PropertyInfo(latitude=38.254, longitude=-85.759).model_dump(),
+            ))
+
+        assert all(r.status_code == HTTPStatus.CREATED for r in responses)
+        assert responses[0].json()["county_polygon"] == polygon
+        assert responses[1].json()["county_polygon"] == polygon
+
+    def test_get_internal_counties_returns_distinct_fips(self, subject, httpserver: HTTPServer):
+        httpserver.expect_request(
+            "/geocoder/geographies/coordinates",
+        ).respond_with_json({
+            "result": {
+                "geographies": {
+                    "Counties": [{"GEOID": "21111", "NAME": "Jefferson", "STATE": "21"}]
+                }
+            }
+        })
+        httpserver.expect_request(
+            "/arcgis/rest/services/TIGERweb/State_County/MapServer/1/query",
+        ).respond_with_json({
+            "features": [{
+                "geometry": {
+                    "rings": [[
+                        [-86.035, 37.997], [-85.404, 37.997],
+                        [-85.404, 38.375], [-86.035, 38.375],
+                        [-86.035, 37.997],
+                    ]],
+                    "spatialReference": {"wkid": 4326},
+                }
+            }]
+        })
+
+        for _ in range(2):
+            subject.post(
+                "/api/properties",
+                json=PropertyInfo(latitude=38.254, longitude=-85.759).model_dump(),
+            )
+
+        response = subject.get("/api/internal/counties")
+
+        assert response.status_code == HTTPStatus.OK
+        body = response.json()
+        assert body["county_fips"] == ["21111"]
+
+    def test_get_layers_filters_by_county_fips(self, subject, s3_client):
+        county_fips = "21111"
+        for layer_id in ("crime-violent", "crime-property"):
+            s3_client.put_object(
+                Bucket=_S3_BUCKET,
+                Key=f"layers/{layer_id}/{county_fips}/latest.tif",
+                Body=_make_test_cog(),
+                ContentType="image/tiff",
+            )
+            s3_client.put_object(
+                Bucket=_S3_BUCKET,
+                Key=f"layers/{layer_id}/{county_fips}/meta.json",
+                Body=json.dumps({
+                    "county_fips": county_fips,
+                    "date_from": "2025-04-01",
+                    "date_to": "2026-04-01",
+                    "record_count": 42,
+                    "bbox": [-86.035, 37.997, -85.404, 38.375],
+                }).encode(),
+                ContentType="application/json",
+            )
+
+        matching_response = subject.get(f"/api/layers?county_fips={county_fips}")
+        assert matching_response.status_code == HTTPStatus.OK
+        body = matching_response.json()
+        assert len(body["groups"]) == 1
+        assert len(body["groups"][0]["categories"]) == 2
+
+        empty_response = subject.get("/api/layers?county_fips=18019")
+        assert empty_response.status_code == HTTPStatus.OK
+        assert empty_response.json()["groups"] == []
 
     @pytest.fixture
     def subject(self, test_container: Container, tmp_path, httpserver: HTTPServer, integration_services):
@@ -398,6 +655,8 @@ class TestApp:
             "S3_ACCESS_KEY": "test",
             "S3_SECRET_KEY": "test",
             "S3_ENDPOINT_URL": "http://localhost:5005",
+            "CENSUS_GEOCODER_BASE_URL": base_url,
+            "TIGER_BASE_URL": base_url,
         }
         with patch.dict(os.environ, env_overrides):
             with TestClient(create_app(test_container)) as client:

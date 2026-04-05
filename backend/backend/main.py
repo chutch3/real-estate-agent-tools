@@ -48,6 +48,12 @@ def create_app(container: Optional[Container] = None):
     container.config.s3.bucket.from_env("S3_BUCKET")
     container.config.s3.access_key.from_env("S3_ACCESS_KEY")
     container.config.s3.secret_key.from_env("S3_SECRET_KEY")
+    container.config.census_geocoder.base_url.from_env(
+        "CENSUS_GEOCODER_BASE_URL", default="https://geocoding.geo.census.gov"
+    )
+    container.config.tiger.base_url.from_env(
+        "TIGER_BASE_URL", default="https://tigerweb.geo.census.gov"
+    )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):

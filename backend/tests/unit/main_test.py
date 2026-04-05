@@ -1,7 +1,17 @@
+import os
 from unittest.mock import MagicMock, patch
 
+import pytest
 from backend.startup import _on_startup
 from backend.repositories.document_storage import DocumentStorageRepository
+
+
+@pytest.fixture(autouse=True)
+def isolate_os_environ():
+    snapshot = dict(os.environ)
+    yield
+    os.environ.clear()
+    os.environ.update(snapshot)
 
 
 def test_on_startup_creates_document_embeddings_schema(test_container):

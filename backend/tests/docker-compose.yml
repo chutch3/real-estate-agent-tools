@@ -9,12 +9,14 @@ services:
       - ETCD_AUTO_COMPACTION_RETENTION=1000
       - ETCD_QUOTA_BACKEND_BYTES=4294967296
       - ETCD_SNAPSHOT_COUNT=50000
+    volumes:
+      - test-milvus-etcd:/etcd
     command: etcd -advertise-client-urls=http://etcd:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
     healthcheck:
       test: ["CMD", "etcdctl", "endpoint", "health"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   milvus-minio:
     container_name: test-milvus-minio
@@ -22,12 +24,14 @@ services:
     environment:
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
+    volumes:
+      - test-milvus-minio:/minio_data
     command: minio server /minio_data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   milvus:
     container_name: test-milvus-standalone
@@ -36,18 +40,22 @@ services:
     environment:
       ETCD_ENDPOINTS: etcd:2379
       MINIO_ADDRESS: milvus-minio:9000
+    volumes:
+      - test-milvus-data:/var/lib/milvus
     ports:
       - "19530:19530"
       - "9091:9091"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
-      interval: 30s
+      interval: 10s
       start_period: 90s
-      timeout: 20s
-      retries: 3
+      timeout: 10s
+      retries: 6
     depends_on:
-      - etcd
-      - milvus-minio
+      etcd:
+        condition: service_healthy
+      milvus-minio:
+        condition: service_healthy
 
   motoserver:
     container_name: test-motoserver
@@ -56,3 +64,8 @@ services:
       - "5005:5000"
     environment:
       MOTO_PORT: "5000"
+
+volumes:
+  test-milvus-etcd:
+  test-milvus-minio:
+  test-milvus-data:

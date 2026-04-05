@@ -1,14 +1,14 @@
 import asyncio
 import logging
 from http import HTTPStatus
-from http.client import HTTPException
-from typing import Annotated, List
+from typing import Annotated, List, Optional
 
 from pymilvus.exceptions import MilvusException
 
 from backend.clients.google_maps import GoogleMapsClient
 from backend.repositories.document_storage import DocumentStorageRepository
 from backend.services.chat import ChatService
+from backend.services.layer import LayerService
 from backend.services.document import DocumentService
 from backend.services.property import PropertyService
 from backend.template_loader import TemplateLoader
@@ -33,6 +33,7 @@ from .models import (
     PostGenerationRequest,
     PostGenerationResponse,
     PropertyInfo,
+    PropertyResponse,
     TemplateResponse,
 )
 from .post_coordinator import PostCoordinator
@@ -270,6 +271,42 @@ async def get_chat_history(
     chat_service: ChatService = Depends(Provide[Container.chat_service]),
 ):
     return await chat_service.get_history(property_id)
+
+
+@router.get("/internal/counties", status_code=HTTPStatus.OK)
+@inject
+async def get_internal_counties(
+    property_service: PropertyService = Depends(Provide[Container.property_service]),
+):
+    fips_list = await property_service.list_county_fips()
+    return {"county_fips": fips_list}
+
+
+@router.get("/layers", status_code=HTTPStatus.OK)
+@inject
+async def get_layers(
+    county_fips: Optional[str] = None,
+    layer_service: LayerService = Depends(Provide[Container.layer_service]),
+):
+    return await layer_service.get_layers(county_fips=county_fips)
+
+
+@router.get("/layers/{layer_id}/tiles/{z}/{x}/{y}", status_code=HTTPStatus.OK)
+@inject
+async def get_layer_tile(
+    layer_id: str,
+    z: int,
+    x: int,
+    y: int,
+    layer_service: LayerService = Depends(Provide[Container.layer_service]),
+):
+    tile_bytes = await layer_service.get_tile(layer_id=layer_id, z=z, x=x, y=y)
+    return Response(
+        content=tile_bytes,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=604800"},
+    )
+
 
 
 @router.post("/properties", status_code=HTTPStatus.CREATED)
