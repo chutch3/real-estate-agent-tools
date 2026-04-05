@@ -1,6 +1,11 @@
 services:
-  motoserver:
-    container_name: pipeline-test-motoserver
-    image: motoserver/moto
+  minio:
+    container_name: pipeline-test-minio
+    image: minio/minio
     ports:
-      - "5006:5000"
+      - "5006:9000"
+      - "5007:9001"
+    environment:
+      MINIO_ROOT_USER: test
+      MINIO_ROOT_PASSWORD: testpassword
+    command: server /data --console-address ":9001"

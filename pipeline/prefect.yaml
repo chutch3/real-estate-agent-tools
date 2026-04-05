@@ -10,15 +10,13 @@ pull:
       directory: /app
 
 deployments:
-  - name: louisville-metro
-    version: "1.0.0"
-    tags: ["crime", "louisville"]
-    description: "Crime heatmap pipeline for Louisville Metro"
+  - name: fips-driven
+    version: "2.0.0"
+    tags: ["crime"]
+    description: "Crime heatmap pipeline — discovers counties from backend API"
     schedule: {}
 
     entrypoint: pipeline/flows/crime_heatmap.py:crime_heatmap_pipeline
-    parameters:
-      region_slug: louisville-metro
 
     work_pool:
       name: crime-pipeline-docker
@@ -30,4 +28,5 @@ deployments:
           AWS_ENDPOINT_URL_S3: "https://nas.diyhub.dev:9000"
           CRIME_DATA_S3_BUCKET: real-estate-agent-tools
           AWS_ACCESS_KEY_ID: "admin"
-          AWS_SECRET_ACCESS_KEY: "openmediaserver"
+          AWS_SECRET_ACCESS_KEY: "openmediavault"
+          BACKEND_URL: "http://192.168.86.24:3000"

@@ -26,11 +26,12 @@ class S3LayerStorage:
 
     def store_cog(
         self,
+        layer_id: str,
         region_slug: str,
         cog_bytes: bytes,
     ) -> None:
         client = self._client()
-        key = f"layers/crime/{region_slug}/latest.tif"
+        key = f"layers/{layer_id}/{region_slug}/latest.tif"
         client.put_object(
             Bucket=self.bucket,
             Key=key,
@@ -40,11 +41,12 @@ class S3LayerStorage:
 
     def store_meta(
         self,
+        layer_id: str,
         region_slug: str,
         meta_bytes: bytes,
     ) -> None:
         client = self._client()
-        key = f"layers/crime/{region_slug}/meta.json"
+        key = f"layers/{layer_id}/{region_slug}/meta.json"
         client.put_object(
             Bucket=self.bucket,
             Key=key,

@@ -1,18 +1,20 @@
 import json
 from datetime import date
-from unittest.mock import patch
+from pathlib import Path
 
 import pytest
-from prefect.testing.utilities import prefect_test_harness
+import yaml
 from pytest_httpserver import HTTPServer
 from rasterio.io import MemoryFile
 from shapely.geometry import box
 
 from pipeline.flows.crime_heatmap import crime_heatmap_pipeline, execute_heatmap
-from pipeline.regions.loader import Region, load_region
+from pipeline.regions.loader import Region
 from pipeline.sources.socrata import SocrataSource
 from pipeline.storage.s3 import S3LayerStorage
 from tests.conftest import _AWS_ACCESS_KEY, _AWS_REGION, _AWS_SECRET_KEY, _MOTO_URL, _TEST_BUCKET
+
+_LOUISVILLE_BBOX = (-86.035, 37.997, -85.404, 38.375)
 
 _LOUISVILLE_POLYGON = box(-86.035, 37.997, -85.404, 38.375)
 
@@ -57,12 +59,6 @@ def region(httpserver: HTTPServer) -> Region:
     )
 
 
-@pytest.fixture(scope="module")
-def prefect_harness():
-    with prefect_test_harness():
-        yield
-
-
 @pytest.fixture
 def storage() -> S3LayerStorage:
     return S3LayerStorage(
@@ -74,7 +70,7 @@ def storage() -> S3LayerStorage:
     )
 
 
-def test_execute_heatmap_produces_valid_cog_in_s3(
+def test_execute_heatmap_produces_cog_per_category(
     region: Region,
     storage: S3LayerStorage,
     s3_client,
@@ -89,14 +85,16 @@ def test_execute_heatmap_produces_valid_cog_in_s3(
         storage=storage,
     )
 
-    cog_response = s3_client.get_object(
-        Bucket=_TEST_BUCKET, Key="layers/crime/louisville-metro/latest.tif"
-    )
-    cog_bytes = cog_response["Body"].read()
-    with MemoryFile(cog_bytes) as memfile:
-        with memfile.open() as dataset:
-            assert dataset.count == 1
-            assert dataset.crs.to_epsg() == 3857
+    for layer_id in ("crime-violent", "crime-property"):
+        cog_response = s3_client.get_object(
+            Bucket=_TEST_BUCKET,
+            Key=f"layers/{layer_id}/louisville-metro/latest.tif",
+        )
+        cog_bytes = cog_response["Body"].read()
+        with MemoryFile(cog_bytes) as memfile:
+            with memfile.open() as dataset:
+                assert dataset.count == 1
+                assert dataset.crs.to_epsg() == 3857
 
 
 def test_execute_heatmap_writes_correct_meta(
@@ -114,17 +112,29 @@ def test_execute_heatmap_writes_correct_meta(
         storage=storage,
     )
 
-    meta_response = s3_client.get_object(
-        Bucket=_TEST_BUCKET, Key="layers/crime/louisville-metro/meta.json"
+    violent_meta = json.loads(
+        s3_client.get_object(
+            Bucket=_TEST_BUCKET,
+            Key="layers/crime-violent/louisville-metro/meta.json",
+        )["Body"].read()
     )
-    meta = json.loads(meta_response["Body"].read())
-    assert meta["region_slug"] == "louisville-metro"
-    assert meta["record_count"] == 3
-    assert meta["generated_at"] == "2025-12-31"
-    assert meta["bbox"] == list(_LOUISVILLE_POLYGON.bounds)
+    assert violent_meta["date_from"] == "2025-01-01"
+    assert violent_meta["date_to"] == "2025-12-31"
+    assert violent_meta["record_count"] == 1
+    assert violent_meta["bbox"] == list(_LOUISVILLE_POLYGON.bounds)
+    assert "region_slug" not in violent_meta
+    assert "generated_at" not in violent_meta
+
+    property_meta = json.loads(
+        s3_client.get_object(
+            Bucket=_TEST_BUCKET,
+            Key="layers/crime-property/louisville-metro/meta.json",
+        )["Body"].read()
+    )
+    assert property_meta["record_count"] == 2
 
 
-def test_execute_heatmap_produces_cog_when_no_records(
+def test_execute_heatmap_produces_cog_for_each_category_when_no_records(
     region: Region,
     storage: S3LayerStorage,
     s3_client,
@@ -139,27 +149,71 @@ def test_execute_heatmap_produces_cog_when_no_records(
         storage=storage,
     )
 
-    cog_response = s3_client.get_object(
-        Bucket=_TEST_BUCKET, Key="layers/crime/louisville-metro/latest.tif"
-    )
-    cog_bytes = cog_response["Body"].read()
-    with MemoryFile(cog_bytes) as memfile:
-        with memfile.open() as dataset:
-            assert dataset.count == 1
-            assert dataset.crs.to_epsg() == 3857
+    for layer_id in ("crime-violent", "crime-property"):
+        cog_bytes = s3_client.get_object(
+            Bucket=_TEST_BUCKET,
+            Key=f"layers/{layer_id}/louisville-metro/latest.tif",
+        )["Body"].read()
+        with MemoryFile(cog_bytes) as memfile:
+            with memfile.open() as dataset:
+                assert dataset.count == 1
+                assert dataset.crs.to_epsg() == 3857
 
-    meta_response = s3_client.get_object(
-        Bucket=_TEST_BUCKET, Key="layers/crime/louisville-metro/meta.json"
-    )
-    meta = json.loads(meta_response["Body"].read())
-    assert meta["record_count"] == 0
+        meta = json.loads(
+            s3_client.get_object(
+                Bucket=_TEST_BUCKET,
+                Key=f"layers/{layer_id}/louisville-metro/meta.json",
+            )["Body"].read()
+        )
+        assert meta["record_count"] == 0
+
+
+_TIGER_COUNTY_RESPONSE = {
+    "features": [
+        {
+            "geometry": {
+                "type": "MultiPolygon",
+                "coordinates": [
+                    [[
+                        [-86.035, 37.997],
+                        [-85.404, 37.997],
+                        [-85.404, 38.375],
+                        [-86.035, 38.375],
+                        [-86.035, 37.997],
+                    ]]
+                ],
+            }
+        }
+    ]
+}
+
+
+@pytest.fixture
+def sources_config_path(tmp_path: Path, httpserver: HTTPServer) -> Path:
+    config = {
+        "21111": [
+            {
+                "name": "test-pd",
+                "type": "socrata",
+                "base_url": httpserver.url_for("").rstrip("/"),
+                "dataset_id": "4sxa-cwis",
+                "date_field": "date_occured",
+                "lat_field": "latitude",
+                "lon_field": "longitude",
+                "category_field": "offense",
+                "status": "active",
+            }
+        ]
+    }
+    path = tmp_path / "sources_config.yml"
+    path.write_text(yaml.dump(config))
+    return path
 
 
 def test_crime_heatmap_pipeline_runs_as_prefect_flow(
-    prefect_harness,
-    region: Region,
     s3_client,
     httpserver: HTTPServer,
+    sources_config_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("CRIME_DATA_S3_BUCKET", _TEST_BUCKET)
@@ -167,27 +221,61 @@ def test_crime_heatmap_pipeline_runs_as_prefect_flow(
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", _AWS_ACCESS_KEY)
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", _AWS_SECRET_KEY)
     monkeypatch.setenv("AWS_DEFAULT_REGION", _AWS_REGION)
+    monkeypatch.setenv("BACKEND_URL", httpserver.url_for("").rstrip("/"))
+    monkeypatch.setenv("TIGER_BASE_URL", httpserver.url_for("").rstrip("/"))
+    monkeypatch.setenv("SOURCES_CONFIG_PATH", str(sources_config_path))
 
+    httpserver.expect_request("/api/internal/counties").respond_with_json(
+        {"county_fips": ["21111"]}
+    )
+    httpserver.expect_request(
+        "/arcgis/rest/services/TIGERweb/tigerWMS_Current/MapServer/13/query"
+    ).respond_with_json(_TIGER_COUNTY_RESPONSE)
     httpserver.expect_request("/resource/4sxa-cwis.json").respond_with_json(_THREE_INCIDENTS)
 
-    with patch(
-        "pipeline.flows.crime_heatmap.load_region",
-        spec=load_region,
-        return_value=region,
-    ) as mock_load_region:
-        crime_heatmap_pipeline(
-            region_slug="louisville-metro",
-            date_from="2025-01-01",
-            date_to="2025-12-31",
-        )
-
-    mock_load_region.assert_called_once_with("louisville-metro")
-
-    cog_response = s3_client.get_object(
-        Bucket=_TEST_BUCKET, Key="layers/crime/louisville-metro/latest.tif"
+    crime_heatmap_pipeline(
+        date_from="2025-01-01",
+        date_to="2025-12-31",
     )
-    cog_bytes = cog_response["Body"].read()
-    with MemoryFile(cog_bytes) as memfile:
-        with memfile.open() as dataset:
-            assert dataset.count == 1
-            assert dataset.crs.to_epsg() == 3857
+
+    for layer_id in ("crime-violent", "crime-property"):
+        cog_bytes = s3_client.get_object(
+            Bucket=_TEST_BUCKET,
+            Key=f"layers/{layer_id}/21111/latest.tif",
+        )["Body"].read()
+        with MemoryFile(cog_bytes) as memfile:
+            with memfile.open() as dataset:
+                assert dataset.count == 1
+                assert dataset.crs.to_epsg() == 3857
+
+
+def test_repeated_pipeline_run_uses_cached_fetch_result(
+    s3_client,
+    httpserver: HTTPServer,
+    sources_config_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CRIME_DATA_S3_BUCKET", _TEST_BUCKET)
+    monkeypatch.setenv("AWS_ENDPOINT_URL_S3", _MOTO_URL)
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", _AWS_ACCESS_KEY)
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", _AWS_SECRET_KEY)
+    monkeypatch.setenv("AWS_DEFAULT_REGION", _AWS_REGION)
+    monkeypatch.setenv("BACKEND_URL", httpserver.url_for("").rstrip("/"))
+    monkeypatch.setenv("TIGER_BASE_URL", httpserver.url_for("").rstrip("/"))
+    monkeypatch.setenv("SOURCES_CONFIG_PATH", str(sources_config_path))
+
+    httpserver.expect_request("/api/internal/counties").respond_with_json(
+        {"county_fips": ["21111"]}
+    )
+    httpserver.expect_request(
+        "/arcgis/rest/services/TIGERweb/tigerWMS_Current/MapServer/13/query"
+    ).respond_with_json(_TIGER_COUNTY_RESPONSE)
+    httpserver.expect_request("/resource/4sxa-cwis.json").respond_with_json(_THREE_INCIDENTS)
+
+    crime_heatmap_pipeline(date_from="2025-01-01", date_to="2025-12-31")
+    crime_heatmap_pipeline(date_from="2025-01-01", date_to="2025-12-31")
+
+    source_hits = [req for req, _resp in httpserver.log if "/resource/4sxa-cwis.json" in req.path]
+    assert len(source_hits) == 1, (
+        f"Expected source to be fetched once (cache hit on second run), got {len(source_hits)} hits"
+    )

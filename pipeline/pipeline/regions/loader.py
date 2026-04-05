@@ -1,7 +1,10 @@
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
+import httpx
 import yaml
 from shapely.geometry import Polygon, shape
 
@@ -10,6 +13,10 @@ from pipeline.sources.base import Source
 from pipeline.sources.socrata import SocrataSource
 
 _REGIONS_DIR = Path(__file__).parent.parent.parent / "regions"
+_DEFAULT_SOURCES_CONFIG_PATH = _REGIONS_DIR / "sources_config.yml"
+_TIGER_COUNTIES_PATH = "/arcgis/rest/services/TIGERweb/State_County/MapServer/1/query"
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -24,6 +31,7 @@ def _build_source(spec: dict) -> Source | None:
         return None
     source_type = spec["type"]
     if source_type == "socrata":
+        base_url = spec.get("base_url") or f"https://{spec['domain']}"
         return SocrataSource(
             name=spec["name"],
             dataset_id=spec["dataset_id"],
@@ -31,7 +39,7 @@ def _build_source(spec: dict) -> Source | None:
             lat_field=spec["lat_field"],
             lon_field=spec["lon_field"],
             category_field=spec["category_field"],
-            base_url=f"https://{spec['domain']}",
+            base_url=base_url,
         )
     if source_type == "arcgis":
         return ArcGISFeatureSource(
@@ -67,3 +75,43 @@ def load_region(slug: str, regions_dir: Path | None = None) -> Region:
             sources.append(source)
 
     return Region(slug=slug, polygon=polygon, sources=sources)
+
+
+def load_region_by_fips(
+    fips: str,
+    tiger_base_url: str = "https://tigerweb.geo.census.gov",
+    sources_config_path: Optional[Path] = None,
+) -> Optional[Region]:
+    response = httpx.get(
+        f"{tiger_base_url}{_TIGER_COUNTIES_PATH}",
+        params={
+            "f": "json",
+            "where": f"GEOID LIKE '{fips}%'",
+            "returnGeometry": "true",
+            "spatialRel": "esriSpatialRelIntersects",
+            "outFields": "*",
+            "orderByFields": "BASENAME",
+            "resultRecordCount": 1,
+            "outSR": 4326,
+        },
+    )
+    response.raise_for_status()
+    features = response.json().get("features", [])
+    if not features:
+        _logger.warning("No county boundary found in TIGERweb for FIPS %s", fips)
+        return None
+
+    rings = features[0]["geometry"]["rings"]
+    polygon = Polygon(rings[0], rings[1:])
+
+    config_path = sources_config_path or _DEFAULT_SOURCES_CONFIG_PATH
+    with open(config_path) as f:
+        config = yaml.safe_load(f) or {}
+
+    sources = []
+    for spec in config.get(fips, []):
+        source = _build_source(spec)
+        if source is not None:
+            sources.append(source)
+
+    return Region(slug=fips, polygon=polygon, sources=sources)

@@ -6,16 +6,18 @@ class LayerStorage(Protocol):
 
     def store_cog(
         self,
+        layer_id: str,
         region_slug: str,
         cog_bytes: bytes,
     ) -> None:
-        """Store the Cloud Optimized GeoTIFF (COG) for the specified region."""
+        """Store the Cloud Optimized GeoTIFF (COG) for the specified layer and region."""
         ...
 
     def store_meta(
         self,
+        layer_id: str,
         region_slug: str,
         meta_bytes: bytes,
     ) -> None:
-        """Store the metadata JSON for the specified region."""
+        """Store the metadata JSON for the specified layer and region."""
         ...

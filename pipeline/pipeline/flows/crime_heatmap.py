@@ -4,6 +4,7 @@ import os
 import tempfile
 from dataclasses import dataclass
 from datetime import date, timedelta
+from pathlib import Path
 from typing import Any
 
 import boto3
@@ -14,17 +15,21 @@ import rasterio
 from prefect import flow, task
 from prefect.cache_policies import NO_CACHE
 from prefect.concurrency.sync import concurrency
+
+from pipeline.cache import make_cache_key
 from rasterio.crs import CRS
+from rasterio.features import geometry_mask
 from rasterio.transform import from_bounds
 from rasterio.warp import Resampling, calculate_default_transform, reproject
 from rio_cogeo.cogeo import cog_translate
 from rio_cogeo.profiles import cog_profiles
 from scipy.stats import gaussian_kde
-from shapely.geometry import Point, Polygon
+from shapely.geometry import Point, Polygon, mapping
 
+from pipeline.clients.backend import BackendClient
 from pipeline.geocoding.base import AddressRecord, Geocoder
 from pipeline.geocoding.census import CensusGeocoder
-from pipeline.regions.loader import Region, load_region
+from pipeline.regions.loader import Region, load_region_by_fips
 from pipeline.sources.base import Source
 from pipeline.storage.base import LayerStorage
 from pipeline.storage.s3 import S3LayerStorage
@@ -69,6 +74,9 @@ def _compute_kde_grid(records: gpd.GeoDataFrame, polygon: Polygon) -> KdeGrid:
     elif len(records) == 1:
         grid[height // 2, width // 2] = 1.0
 
+    outside = geometry_mask([mapping(polygon)], out_shape=(height, width), transform=from_bounds(minx, miny, maxx, maxy, width, height))
+    grid[outside] = 0.0
+
     return KdeGrid(
         values=grid,
         bounds=(minx, miny, maxx, maxy),
@@ -77,7 +85,7 @@ def _compute_kde_grid(records: gpd.GeoDataFrame, polygon: Polygon) -> KdeGrid:
     )
 
 
-@task
+@task(cache_key_fn=make_cache_key("fetch_raw"), persist_result=True)
 def fetch_raw(source: Source, polygon: Polygon, date_from: date, date_to: date) -> gpd.GeoDataFrame:
     return source.fetch(polygon, date_from, date_to)
 
@@ -105,13 +113,13 @@ _GEOCODE_BATCH_SIZE = 1_000
 _CENSUS_CONCURRENCY_LIMIT = "census-geocoder"
 
 
-@task(cache_policy=NO_CACHE, retries=3, retry_delay_seconds=60)
+@task(cache_key_fn=make_cache_key("geocode_batch"), persist_result=True, retries=3, retry_delay_seconds=60)
 def geocode_batch(addresses: list[AddressRecord], geocoder: Geocoder) -> dict[int, tuple[float, float]]:
     with concurrency(_CENSUS_CONCURRENCY_LIMIT, occupy=1):
         return geocoder.geocode(addresses)
 
 
-@task(cache_policy=NO_CACHE)
+@task(cache_key_fn=make_cache_key("geocode_records"), persist_result=True)
 def geocode_records(frame: gpd.GeoDataFrame, geocoder: Geocoder) -> gpd.GeoDataFrame:
     if frame.empty:
         return frame
@@ -166,12 +174,12 @@ def geocode_records(frame: gpd.GeoDataFrame, geocoder: Geocoder) -> gpd.GeoDataF
     return combined
 
 
-@task
+@task(cache_key_fn=make_cache_key("compute_kde_grid"), persist_result=True)
 def compute_kde_grid(records: gpd.GeoDataFrame, polygon: Polygon) -> KdeGrid:
     return _compute_kde_grid(records, polygon)
 
 
-@task(cache_policy=NO_CACHE)
+@task(cache_key_fn=make_cache_key("write_cog"), persist_result=True)
 def write_cog(kde_grid: KdeGrid) -> bytes:
     minx, miny, maxx, maxy = kde_grid.bounds
     transform = from_bounds(minx, miny, maxx, maxy, kde_grid.width, kde_grid.height)
@@ -220,7 +228,14 @@ def write_cog(kde_grid: KdeGrid) -> bytes:
                     resampling=Resampling.bilinear,
                 )
 
-        cog_translate(reproj_path, cog_path, cog_profiles.get("deflate"), quiet=True)
+        cog_translate(
+            reproj_path,
+            cog_path,
+            cog_profiles.get("deflate"),
+            overview_level=6,
+            overview_resampling="average",
+            quiet=True,
+        )
 
         with open(cog_path, "rb") as f:
             return f.read()
@@ -230,23 +245,31 @@ def write_cog(kde_grid: KdeGrid) -> bytes:
                 os.unlink(path)
 
 
+_CATEGORY_LAYER_IDS: dict[str, str] = {
+    "violent": "crime-violent",
+    "property": "crime-property",
+}
+
+
 @task(cache_policy=NO_CACHE)
 def upload_layer(
     storage: LayerStorage,
     cog_bytes: bytes,
+    layer_id: str,
     region: Region,
     records: gpd.GeoDataFrame,
-    generated_at: str,
+    date_from: date,
+    date_to: date,
 ) -> None:
-    storage.store_cog(region.slug, cog_bytes)
+    storage.store_cog(layer_id, region.slug, cog_bytes)
 
     meta = {
-        "region_slug": region.slug,
-        "generated_at": generated_at,
+        "date_from": date_from.isoformat(),
+        "date_to": date_to.isoformat(),
         "record_count": len(records),
         "bbox": list(region.polygon.bounds),
     }
-    storage.store_meta(region.slug, json.dumps(meta).encode())
+    storage.store_meta(layer_id, region.slug, json.dumps(meta).encode())
 
 
 def execute_heatmap(
@@ -264,20 +287,16 @@ def execute_heatmap(
     ]
     geocoded_frames = [geocode_records(frame, geocoder) for frame in frames]
     records = combine_and_clip(geocoded_frames, region.polygon)
-    kde_grid = compute_kde_grid(records, region.polygon)
-    cog_bytes = write_cog(kde_grid)
-    upload_layer(
-        storage,
-        cog_bytes,
-        region,
-        records,
-        generated_at=date_to.isoformat(),
-    )
+
+    for category, layer_id in _CATEGORY_LAYER_IDS.items():
+        category_records = records[records["category"] == category] if not records.empty else records
+        kde_grid = compute_kde_grid(category_records, region.polygon)
+        cog_bytes = write_cog(kde_grid)
+        upload_layer(storage, cog_bytes, layer_id, region, category_records, date_from, date_to)
 
 
 @flow(name="crime-heatmap-pipeline")
 def crime_heatmap_pipeline(
-    region_slug: str,
     date_from: str | None = None,
     date_to: str | None = None,
 ) -> None:
@@ -285,10 +304,23 @@ def crime_heatmap_pipeline(
     resolved_date_to = date.fromisoformat(date_to) if date_to else today
     resolved_date_from = date.fromisoformat(date_from) if date_from else today - timedelta(days=365)
 
-    region = load_region(region_slug)
-    bucket = os.environ["CRIME_DATA_S3_BUCKET"]
-    storage = S3LayerStorage(
-        bucket=bucket,
-    )
+    backend_url = os.environ["BACKEND_URL"]
+    tiger_base_url = os.environ.get("TIGER_BASE_URL", "https://tigerweb.geo.census.gov")
+    sources_config_path = os.environ.get("SOURCES_CONFIG_PATH")
 
-    execute_heatmap(region, resolved_date_from, resolved_date_to, storage)
+    client = BackendClient(base_url=backend_url)
+    county_fips_list = client.list_county_fips()
+
+    bucket = os.environ["CRIME_DATA_S3_BUCKET"]
+    storage = S3LayerStorage(bucket=bucket)
+
+    for fips in county_fips_list:
+        region = load_region_by_fips(
+            fips,
+            tiger_base_url=tiger_base_url,
+            sources_config_path=Path(sources_config_path) if sources_config_path else None,
+        )
+        if region is None:
+            _logger.warning("No county boundary found for FIPS %s, skipping", fips)
+            continue
+        execute_heatmap(region, resolved_date_from, resolved_date_to, storage)

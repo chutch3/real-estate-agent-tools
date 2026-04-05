@@ -13,7 +13,7 @@ _COMPOSE_FILE = Path(__file__).parent / "docker-compose.yml"
 _MOTO_URL = "http://localhost:5006"
 _TEST_BUCKET = "crime-data"
 _AWS_ACCESS_KEY = "test"
-_AWS_SECRET_KEY = "test"
+_AWS_SECRET_KEY = "testpassword"
 _AWS_REGION = "us-east-1"
 
 
@@ -21,12 +21,13 @@ def _wait_for_motoserver(timeout: int = 30) -> None:
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            with urllib.request.urlopen(_MOTO_URL, timeout=1) as resp:
-                if resp.status in (200, 400, 404):
+            # MinIO health check endpoint
+            with urllib.request.urlopen(f"{_MOTO_URL}/minio/health/live", timeout=1) as resp:
+                if resp.status == 200:
                     return
         except Exception:
             time.sleep(1)
-    raise RuntimeError(f"motoserver did not become ready within {timeout}s")
+    raise RuntimeError(f"minio did not become ready within {timeout}s")
 
 
 @pytest.fixture(scope="session")

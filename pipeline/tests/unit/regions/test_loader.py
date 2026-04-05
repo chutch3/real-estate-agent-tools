@@ -4,7 +4,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from pipeline.regions.loader import load_region
+from pipeline.regions.loader import load_region, load_region_by_fips
+from pipeline.sources.arcgis import ArcGISFeatureSource
 from pipeline.sources.socrata import SocrataSource
 
 _SIMPLE_POLYGON_COORDS = [[-86.0, 38.0], [-85.5, 38.0], [-85.5, 38.4], [-86.0, 38.4], [-86.0, 38.0]]
@@ -97,3 +98,126 @@ def test_load_region_raises_for_unknown_source_type(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="Unknown source type"):
         load_region("test-region", regions_dir=tmp_path)
+
+
+_TIGER_MULTIPOLYGON_RESPONSE = {
+    "features": [
+        {
+            "geometry": {
+                "type": "MultiPolygon",
+                "coordinates": [
+                    [[
+                        [-86.035, 37.997],
+                        [-85.404, 37.997],
+                        [-85.404, 38.375],
+                        [-86.035, 38.375],
+                        [-86.035, 37.997],
+                    ]]
+                ],
+            }
+        }
+    ]
+}
+
+_ARCGIS_SPEC = {
+    "name": "test-pd",
+    "type": "arcgis",
+    "service_url": "https://example.com/FeatureServer/0",
+    "date_field": "date_occurred",
+    "category_field": "offense_classification",
+    "address_field": "block_address",
+    "city_field": "city",
+    "zip_field": "zip_code",
+    "state_code": "KY",
+    "status": "active",
+}
+
+
+def _write_sources_config(path: Path, config: dict) -> None:
+    path.write_text(yaml.dump(config))
+
+
+def test_load_region_by_fips_uses_fips_as_slug(tmp_path, httpserver) -> None:
+    httpserver.expect_request(
+        "/arcgis/rest/services/TIGERweb/tigerWMS_Current/MapServer/13/query"
+    ).respond_with_json(_TIGER_MULTIPOLYGON_RESPONSE)
+    config_path = tmp_path / "sources_config.yml"
+    _write_sources_config(config_path, {"21111": [_ARCGIS_SPEC]})
+
+    region = load_region_by_fips(
+        "21111",
+        tiger_base_url=httpserver.url_for("").rstrip("/"),
+        sources_config_path=config_path,
+    )
+
+    assert region.slug == "21111"
+
+
+def test_load_region_by_fips_fetches_polygon_from_tigerweb(tmp_path, httpserver) -> None:
+    httpserver.expect_request(
+        "/arcgis/rest/services/TIGERweb/tigerWMS_Current/MapServer/13/query"
+    ).respond_with_json(_TIGER_MULTIPOLYGON_RESPONSE)
+    config_path = tmp_path / "sources_config.yml"
+    _write_sources_config(config_path, {"21111": [_ARCGIS_SPEC]})
+
+    region = load_region_by_fips(
+        "21111",
+        tiger_base_url=httpserver.url_for("").rstrip("/"),
+        sources_config_path=config_path,
+    )
+
+    minx, miny, maxx, maxy = region.polygon.bounds
+    assert minx == pytest.approx(-86.035)
+    assert miny == pytest.approx(37.997)
+    assert maxx == pytest.approx(-85.404)
+    assert maxy == pytest.approx(38.375)
+
+
+def test_load_region_by_fips_builds_sources_from_config(tmp_path, httpserver) -> None:
+    httpserver.expect_request(
+        "/arcgis/rest/services/TIGERweb/tigerWMS_Current/MapServer/13/query"
+    ).respond_with_json(_TIGER_MULTIPOLYGON_RESPONSE)
+    config_path = tmp_path / "sources_config.yml"
+    _write_sources_config(config_path, {"21111": [_ARCGIS_SPEC]})
+
+    region = load_region_by_fips(
+        "21111",
+        tiger_base_url=httpserver.url_for("").rstrip("/"),
+        sources_config_path=config_path,
+    )
+
+    assert len(region.sources) == 1
+    assert isinstance(region.sources[0], ArcGISFeatureSource)
+    assert region.sources[0].name == "test-pd"
+
+
+def test_load_region_by_fips_returns_empty_sources_when_fips_not_in_config(tmp_path, httpserver) -> None:
+    httpserver.expect_request(
+        "/arcgis/rest/services/TIGERweb/tigerWMS_Current/MapServer/13/query"
+    ).respond_with_json(_TIGER_MULTIPOLYGON_RESPONSE)
+    config_path = tmp_path / "sources_config.yml"
+    _write_sources_config(config_path, {})
+
+    region = load_region_by_fips(
+        "99999",
+        tiger_base_url=httpserver.url_for("").rstrip("/"),
+        sources_config_path=config_path,
+    )
+
+    assert region.sources == []
+
+
+def test_load_region_by_fips_returns_none_when_tigerweb_has_no_features(tmp_path, httpserver) -> None:
+    httpserver.expect_request(
+        "/arcgis/rest/services/TIGERweb/tigerWMS_Current/MapServer/13/query"
+    ).respond_with_json({"features": []})
+    config_path = tmp_path / "sources_config.yml"
+    _write_sources_config(config_path, {"99999": []})
+
+    result = load_region_by_fips(
+        "99999",
+        tiger_base_url=httpserver.url_for("").rstrip("/"),
+        sources_config_path=config_path,
+    )
+
+    assert result is None

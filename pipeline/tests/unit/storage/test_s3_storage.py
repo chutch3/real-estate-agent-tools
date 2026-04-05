@@ -27,27 +27,33 @@ class TestS3LayerStorage:
 
     def test_store_cog_uploads_to_correct_key(self, subject, s3_setup):
         cog_bytes = b"test-cog-content"
-        region_slug = "test-region"
 
-        subject.store_cog(region_slug, cog_bytes)
+        subject.store_cog("crime-violent", "louisville-metro", cog_bytes)
 
         response = s3_setup.get_object(
             Bucket=self._BUCKET,
-            Key=f"layers/crime/{region_slug}/latest.tif"
+            Key="layers/crime-violent/louisville-metro/latest.tif",
         )
         assert response["Body"].read() == cog_bytes
         assert response["ContentType"] == "image/tiff"
 
+    def test_store_cog_uses_layer_id_in_key(self, subject, s3_setup):
+        subject.store_cog("crime-property", "louisville-metro", b"bytes")
+
+        s3_setup.get_object(
+            Bucket=self._BUCKET,
+            Key="layers/crime-property/louisville-metro/latest.tif",
+        )
+
     def test_store_meta_uploads_to_correct_key(self, subject, s3_setup):
         meta = {"test": "data"}
         meta_bytes = json.dumps(meta).encode()
-        region_slug = "test-region"
 
-        subject.store_meta(region_slug, meta_bytes)
+        subject.store_meta("crime-violent", "louisville-metro", meta_bytes)
 
         response = s3_setup.get_object(
             Bucket=self._BUCKET,
-            Key=f"layers/crime/{region_slug}/meta.json"
+            Key="layers/crime-violent/louisville-metro/meta.json",
         )
         assert json.loads(response["Body"].read()) == meta
         assert response["ContentType"] == "application/json"
