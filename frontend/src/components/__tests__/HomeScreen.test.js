@@ -3,12 +3,15 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom';
 import HomeScreen from '../HomeScreen';
 import apiClient from '../../apiClient';
+import useLayers from '../../hooks/useLayers';
 
 jest.mock('../../apiClient', () => ({
   listProperties: jest.fn(),
   uploadDocument: jest.fn(),
   addDocumentToProperty: jest.fn(),
 }));
+
+jest.mock('../../hooks/useLayers');
 
 jest.mock('@react-google-maps/api', () => ({
   useLoadScript: () => ({ isLoaded: true, loadError: null }),
@@ -34,6 +37,11 @@ describe('HomeScreen', () => {
 
   beforeEach(() => {
     apiClient.listProperties.mockResolvedValue(mockProperties);
+    useLayers.mockReturnValue({
+      groups: [],
+      isActive: jest.fn().mockReturnValue(false),
+      toggle: jest.fn(),
+    });
   });
 
   afterEach(() => {

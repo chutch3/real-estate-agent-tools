@@ -2,10 +2,11 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import HomeScreen from '../../../src/components/HomeScreen';
+import PropertyMap from '../../../src/components/PropertyMap';
 import apiClient from '../../../src/apiClient';
 
 jest.mock('../../../src/apiClient');
-jest.mock('../../../src/components/PropertyMap', () => () => <div data-testid="property-map" />);
+jest.mock('../../../src/components/PropertyMap', () => jest.fn(() => <div data-testid="property-map" />));
 
 const mockProperty = {
   id: 'prop-1',
@@ -24,6 +25,30 @@ describe('HomeScreen', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('passes selectedProperty to PropertyMap when a property is selected', async () => {
+    render(<MemoryRouter><HomeScreen /></MemoryRouter>);
+
+    fireEvent.click(await screen.findByLabelText('Select 1600 Amphitheatre Pkwy, Mountain View, CA 94043'));
+
+    await waitFor(() => {
+      expect(PropertyMap).toHaveBeenLastCalledWith(
+        expect.objectContaining({ selectedProperty: mockProperty }),
+        expect.anything(),
+      );
+    });
+  });
+
+  it('passes null selectedProperty to PropertyMap when no property is selected', async () => {
+    render(<MemoryRouter><HomeScreen /></MemoryRouter>);
+
+    await screen.findByLabelText('Select 1600 Amphitheatre Pkwy, Mountain View, CA 94043');
+
+    expect(PropertyMap).toHaveBeenCalledWith(
+      expect.objectContaining({ selectedProperty: null }),
+      expect.anything(),
+    );
   });
 
   it('shows a delete error message when deleteDocument fails', async () => {

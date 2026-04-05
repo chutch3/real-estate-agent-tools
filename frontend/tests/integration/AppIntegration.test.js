@@ -2,6 +2,7 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import App from '../../src/App';
 import apiClient from '../../src/apiClient';
+import useLayers from '../../src/hooks/useLayers';
 
 jest.mock('../../src/apiClient', () => ({
   listProperties: jest.fn(),
@@ -12,6 +13,8 @@ jest.mock('../../src/apiClient', () => ({
   addDocumentToProperty: jest.fn(),
   getDefaultTemplate: jest.fn(),
 }));
+
+jest.mock('../../src/hooks/useLayers');
 
 jest.mock('@react-google-maps/api', () => ({
   useLoadScript: () => ({ isLoaded: true, loadError: null }),
@@ -44,6 +47,11 @@ describe('App Integration', () => {
 
   beforeEach(() => {
     apiClient.listProperties.mockResolvedValue(mockProperties);
+    useLayers.mockReturnValue({
+      groups: [],
+      isActive: jest.fn().mockReturnValue(false),
+      toggle: jest.fn(),
+    });
   });
 
   afterEach(() => {

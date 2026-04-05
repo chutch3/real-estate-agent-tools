@@ -149,6 +149,7 @@ function HomeScreen() {
         <PropertyMap
           properties={properties}
           onPropertySelect={(property) => setSelectedPropertyId(property.id)}
+          selectedProperty={selectedProperty}
         />
         <PropertyDetailPanel
           property={selectedProperty}
