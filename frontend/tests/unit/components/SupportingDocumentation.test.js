@@ -71,4 +71,45 @@ describe('SupportingDocumentation', () => {
       expect(screen.getByText('my-doc.pdf')).toBeInTheDocument();
     });
   });
+
+  it('shows the filename immediately after selection before upload completes', () => {
+    apiClient.uploadDocument.mockReturnValue(new Promise(() => {}));
+    render(<SupportingDocumentation onDataChange={jest.fn()} />);
+
+    const file = new File(['content'], 'pending.pdf', { type: 'application/pdf' });
+    const input = document.querySelector('input[type="file"]');
+    fireEvent.change(input, { target: { files: [file] } });
+
+    expect(screen.getByText('pending.pdf')).toBeInTheDocument();
+  });
+
+  it('shows a loading indicator while the file is uploading', () => {
+    apiClient.uploadDocument.mockReturnValue(new Promise(() => {}));
+    render(<SupportingDocumentation onDataChange={jest.fn()} />);
+
+    const file = new File(['content'], 'pending.pdf', { type: 'application/pdf' });
+    const input = document.querySelector('input[type="file"]');
+    fireEvent.change(input, { target: { files: [file] } });
+
+    expect(screen.getByLabelText('Uploading pending.pdf')).toBeInTheDocument();
+  });
+
+  it('removes the loading indicator after upload completes', async () => {
+    let resolveUpload;
+    apiClient.uploadDocument.mockReturnValue(new Promise((resolve) => { resolveUpload = resolve; }));
+    render(<SupportingDocumentation onDataChange={jest.fn()} />);
+
+    const file = new File(['content'], 'pending.pdf', { type: 'application/pdf' });
+    const input = document.querySelector('input[type="file"]');
+    fireEvent.change(input, { target: { files: [file] } });
+
+    expect(screen.getByLabelText('Uploading pending.pdf')).toBeInTheDocument();
+
+    resolveUpload('doc-uuid-1');
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Uploading pending.pdf')).not.toBeInTheDocument();
+    });
+    expect(screen.getByText('pending.pdf')).toBeInTheDocument();
+  });
 });

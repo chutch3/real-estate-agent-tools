@@ -64,6 +64,7 @@ describe('AddProperty', () => {
     fireEvent.change(input, { target: { files: [file] } });
 
     await waitFor(() => {
+      expect(screen.queryByLabelText('Uploading doc.pdf')).not.toBeInTheDocument();
       expect(screen.getByText('doc.pdf')).toBeInTheDocument();
     });
 

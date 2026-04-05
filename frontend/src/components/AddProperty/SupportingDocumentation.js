@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { Upload, FileText, X, AlertCircle } from 'lucide-react';
+import { Upload, FileText, X, AlertCircle, Loader2 } from 'lucide-react';
 import apiClient from '../../apiClient';
 
 function SupportingDocumentation({ onDataChange }) {
   const [docs, setDocs] = useState([]);
   const [warning, setWarning] = useState('');
 
-  const handleFileUpload = async (event) => {
+  const handleFileUpload = (event) => {
     const files = Array.from(event.target.files);
     const pdfFiles = files.filter((f) => f.type === 'application/pdf');
 
@@ -16,24 +16,33 @@ function SupportingDocumentation({ onDataChange }) {
       setWarning('');
     }
 
-    const uploaded = await Promise.all(
-      pdfFiles.map(async (file) => ({
-        id: await apiClient.uploadDocument(file),
-        filename: file.name,
-      }))
-    );
+    const pendingDocs = pdfFiles.map((f) => ({
+      tempKey: `${Date.now()}-${f.name}`,
+      filename: f.name,
+      id: null,
+      uploading: true,
+    }));
 
-    setDocs((prev) => {
-      const next = [...prev, ...uploaded];
-      onDataChange({ documents: next.map((d) => ({ id: d.id, filename: d.filename })) });
-      return next;
+    setDocs((prev) => [...prev, ...pendingDocs]);
+
+    pendingDocs.forEach(async (pending, i) => {
+      const id = await apiClient.uploadDocument(pdfFiles[i]);
+      setDocs((prev) => {
+        const next = prev.map((d) =>
+          d.tempKey === pending.tempKey ? { ...d, id, uploading: false } : d
+        );
+        const completed = next.filter((d) => !d.uploading);
+        onDataChange({ documents: completed.map((d) => ({ id: d.id, filename: d.filename })) });
+        return next;
+      });
     });
   };
 
-  const handleRemove = (index) => {
+  const handleRemove = (tempKey) => {
     setDocs((prev) => {
-      const next = prev.filter((_, i) => i !== index);
-      onDataChange({ documents: next.map((d) => ({ id: d.id, filename: d.filename })) });
+      const next = prev.filter((d) => d.tempKey !== tempKey);
+      const completed = next.filter((d) => !d.uploading);
+      onDataChange({ documents: completed.map((d) => ({ id: d.id, filename: d.filename })) });
       return next;
     });
   };
@@ -45,7 +54,6 @@ function SupportingDocumentation({ onDataChange }) {
         Upload PDF documents as supporting documentation for this property.
       </p>
 
-      {/* Upload area */}
       <label
         htmlFor="supporting-doc-upload"
         className="flex flex-col items-center justify-center gap-3 w-full py-8 px-4 border-2 border-dashed border-linen-300 rounded-lg cursor-pointer hover:border-bronze-400 hover:bg-linen-50 transition-colors group"
@@ -82,20 +90,30 @@ function SupportingDocumentation({ onDataChange }) {
 
       {docs.length > 0 && (
         <ul className="mt-4 space-y-2" role="list" aria-label="Uploaded documents">
-          {docs.map((doc, index) => (
+          {docs.map((doc) => (
             <li
-              key={doc.id}
+              key={doc.tempKey}
               className="flex items-center gap-3 px-3 py-2.5 bg-linen-50 rounded-md border border-linen-200"
             >
-              <FileText size={15} className="text-bronze-400 flex-shrink-0" strokeWidth={1.5} />
+              {doc.uploading ? (
+                <Loader2
+                  size={15}
+                  className="text-bronze-400 animate-spin flex-shrink-0"
+                  aria-label={`Uploading ${doc.filename}`}
+                />
+              ) : (
+                <FileText size={15} className="text-bronze-400 flex-shrink-0" strokeWidth={1.5} />
+              )}
               <span className="font-sans text-sm text-ink-800 flex-1 truncate">{doc.filename}</span>
-              <button
-                onClick={() => handleRemove(index)}
-                aria-label={`Remove ${doc.name}`}
-                className="p-1 text-ink-300 hover:text-red-600 transition-colors rounded focus:outline-none focus:ring-2 focus:ring-red-300"
-              >
-                <X size={13} />
-              </button>
+              {!doc.uploading && (
+                <button
+                  onClick={() => handleRemove(doc.tempKey)}
+                  aria-label={`Remove ${doc.filename}`}
+                  className="p-1 text-ink-300 hover:text-red-600 transition-colors rounded focus:outline-none focus:ring-2 focus:ring-red-300"
+                >
+                  <X size={13} />
+                </button>
+              )}
             </li>
           ))}
         </ul>
