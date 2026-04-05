@@ -175,4 +175,14 @@ describe('PropertyDetailPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: /close/i }));
     expect(onClose).toHaveBeenCalled();
   });
+
+  it('does not call onClose when the backdrop is clicked (map pan simulation)', () => {
+    const onClose = jest.fn();
+    const { container } = render(
+      <PropertyDetailPanel property={mockProperty} onClose={onClose} onGeneratePost={jest.fn()} onUploadDocument={jest.fn()} />
+    );
+    const backdrop = container.querySelector('[aria-hidden="true"]');
+    fireEvent.click(backdrop);
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });

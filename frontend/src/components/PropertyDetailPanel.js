@@ -24,7 +24,6 @@ function PropertyDetailPanel({ property, onClose, onChat, onGeneratePost, onUplo
       {property && (
         <div
           className="absolute inset-0 bg-ink-900/10"
-          onClick={onClose}
           aria-hidden="true"
         />
       )}
