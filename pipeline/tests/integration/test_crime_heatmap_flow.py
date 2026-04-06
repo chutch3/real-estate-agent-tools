@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 import yaml
+from PIL import Image
+from io import BytesIO
 from pytest_httpserver import HTTPServer
 from rasterio.io import MemoryFile
 from shapely.geometry import box
@@ -11,12 +13,12 @@ from shapely.geometry import box
 from pipeline.flows.crime_heatmap import crime_heatmap_pipeline, execute_heatmap
 from pipeline.regions.loader import Region
 from pipeline.sources.socrata import SocrataSource
-from pipeline.storage.s3 import S3LayerStorage
+from pipeline.storage.s3 import S3TileStorage
 from tests.conftest import _AWS_ACCESS_KEY, _AWS_REGION, _AWS_SECRET_KEY, _MOTO_URL, _TEST_BUCKET
 
 _LOUISVILLE_BBOX = (-86.035, 37.997, -85.404, 38.375)
-
 _LOUISVILLE_POLYGON = box(-86.035, 37.997, -85.404, 38.375)
+_FIPS = "21111"
 
 _THREE_INCIDENTS = [
     {
@@ -43,7 +45,7 @@ _THREE_INCIDENTS = [
 @pytest.fixture
 def region(httpserver: HTTPServer) -> Region:
     return Region(
-        slug="louisville-metro",
+        slug=_FIPS,
         polygon=_LOUISVILLE_POLYGON,
         sources=[
             SocrataSource(
@@ -60,8 +62,8 @@ def region(httpserver: HTTPServer) -> Region:
 
 
 @pytest.fixture
-def storage() -> S3LayerStorage:
-    return S3LayerStorage(
+def storage() -> S3TileStorage:
+    return S3TileStorage(
         bucket=_TEST_BUCKET,
         endpoint_url=_MOTO_URL,
         access_key=_AWS_ACCESS_KEY,
@@ -70,117 +72,146 @@ def storage() -> S3LayerStorage:
     )
 
 
-def test_execute_heatmap_produces_cog_per_category(
-    region: Region,
-    storage: S3LayerStorage,
-    s3_client,
-    httpserver: HTTPServer,
-) -> None:
-    httpserver.expect_request("/resource/4sxa-cwis.json").respond_with_json(_THREE_INCIDENTS)
+class TestExecuteHeatmap:
+    def test_produces_data_cog_per_category(
+        self,
+        region: Region,
+        storage: S3TileStorage,
+        s3_client,
+        httpserver: HTTPServer,
+    ) -> None:
+        httpserver.expect_request("/resource/4sxa-cwis.json").respond_with_json(_THREE_INCIDENTS)
 
-    execute_heatmap(
-        region=region,
-        date_from=date(2025, 1, 1),
-        date_to=date(2025, 12, 31),
-        storage=storage,
-    )
-
-    for layer_id in ("crime-violent", "crime-property"):
-        cog_response = s3_client.get_object(
-            Bucket=_TEST_BUCKET,
-            Key=f"layers/{layer_id}/louisville-metro/latest.tif",
+        execute_heatmap(
+            region=region,
+            date_from=date(2025, 1, 1),
+            date_to=date(2025, 12, 31),
+            storage=storage,
         )
-        cog_bytes = cog_response["Body"].read()
-        with MemoryFile(cog_bytes) as memfile:
-            with memfile.open() as dataset:
-                assert dataset.count == 1
-                assert dataset.crs.to_epsg() == 3857
 
+        for crime_category in ("violent", "property"):
+            response = s3_client.get_object(
+                Bucket=_TEST_BUCKET,
+                Key=f"tiles/data/{crime_category}/200m/2025-01-01/2025-12-31/v1/{_FIPS}/latest.tif",
+            )
+            cog_bytes = response["Body"].read()
+            with MemoryFile(cog_bytes) as memfile:
+                with memfile.open() as dataset:
+                    assert dataset.count == 1
+                    assert dataset.crs.to_epsg() == 3857
 
-def test_execute_heatmap_writes_correct_meta(
-    region: Region,
-    storage: S3LayerStorage,
-    s3_client,
-    httpserver: HTTPServer,
-) -> None:
-    httpserver.expect_request("/resource/4sxa-cwis.json").respond_with_json(_THREE_INCIDENTS)
+    def test_produces_png_tiles_per_category(
+        self,
+        region: Region,
+        storage: S3TileStorage,
+        s3_client,
+        httpserver: HTTPServer,
+    ) -> None:
+        httpserver.expect_request("/resource/4sxa-cwis.json").respond_with_json(_THREE_INCIDENTS)
 
-    execute_heatmap(
-        region=region,
-        date_from=date(2025, 1, 1),
-        date_to=date(2025, 12, 31),
-        storage=storage,
-    )
+        execute_heatmap(
+            region=region,
+            date_from=date(2025, 1, 1),
+            date_to=date(2025, 12, 31),
+            storage=storage,
+        )
 
-    violent_meta = json.loads(
-        s3_client.get_object(
-            Bucket=_TEST_BUCKET,
-            Key="layers/crime-violent/louisville-metro/meta.json",
-        )["Body"].read()
-    )
-    assert violent_meta["date_from"] == "2025-01-01"
-    assert violent_meta["date_to"] == "2025-12-31"
-    assert violent_meta["record_count"] == 1
-    assert violent_meta["bbox"] == list(_LOUISVILLE_POLYGON.bounds)
-    assert "region_slug" not in violent_meta
-    assert "generated_at" not in violent_meta
+        for layer_id in ("crime-violent", "crime-property"):
+            paginator = s3_client.get_paginator("list_objects_v2")
+            keys = [
+                obj["Key"]
+                for page in paginator.paginate(Bucket=_TEST_BUCKET, Prefix=f"tiles/png/{layer_id}/12/")
+                for obj in page.get("Contents", [])
+            ]
+            assert len(keys) > 0, f"Expected PNG tiles for {layer_id}"
+            for key in keys:
+                png_bytes = s3_client.get_object(Bucket=_TEST_BUCKET, Key=key)["Body"].read()
+                img = Image.open(BytesIO(png_bytes))
+                assert img.format == "PNG"
+                assert img.mode == "RGBA"
+                assert img.size == (256, 256)
 
-    property_meta = json.loads(
-        s3_client.get_object(
-            Bucket=_TEST_BUCKET,
-            Key="layers/crime-property/louisville-metro/meta.json",
-        )["Body"].read()
-    )
-    assert property_meta["record_count"] == 2
+    def test_writes_correct_meta_per_category(
+        self,
+        region: Region,
+        storage: S3TileStorage,
+        s3_client,
+        httpserver: HTTPServer,
+    ) -> None:
+        httpserver.expect_request("/resource/4sxa-cwis.json").respond_with_json(_THREE_INCIDENTS)
 
+        execute_heatmap(
+            region=region,
+            date_from=date(2025, 1, 1),
+            date_to=date(2025, 12, 31),
+            storage=storage,
+        )
 
-def test_execute_heatmap_produces_cog_for_each_category_when_no_records(
-    region: Region,
-    storage: S3LayerStorage,
-    s3_client,
-    httpserver: HTTPServer,
-) -> None:
-    httpserver.expect_request("/resource/4sxa-cwis.json").respond_with_json([])
-
-    execute_heatmap(
-        region=region,
-        date_from=date(2025, 1, 1),
-        date_to=date(2025, 12, 31),
-        storage=storage,
-    )
-
-    for layer_id in ("crime-violent", "crime-property"):
-        cog_bytes = s3_client.get_object(
-            Bucket=_TEST_BUCKET,
-            Key=f"layers/{layer_id}/louisville-metro/latest.tif",
-        )["Body"].read()
-        with MemoryFile(cog_bytes) as memfile:
-            with memfile.open() as dataset:
-                assert dataset.count == 1
-                assert dataset.crs.to_epsg() == 3857
-
-        meta = json.loads(
+        violent_meta = json.loads(
             s3_client.get_object(
                 Bucket=_TEST_BUCKET,
-                Key=f"layers/{layer_id}/louisville-metro/meta.json",
+                Key=f"tiles/meta/crime-violent/{_FIPS}/meta.json",
             )["Body"].read()
         )
-        assert meta["record_count"] == 0
+        assert violent_meta["date_from"] == "2025-01-01"
+        assert violent_meta["date_to"] == "2025-12-31"
+        assert violent_meta["record_count"] == 1
+        assert violent_meta["bbox"] == list(_LOUISVILLE_POLYGON.bounds)
+        assert violent_meta["tile_zoom"] == 12
+
+        property_meta = json.loads(
+            s3_client.get_object(
+                Bucket=_TEST_BUCKET,
+                Key=f"tiles/meta/crime-property/{_FIPS}/meta.json",
+            )["Body"].read()
+        )
+        assert property_meta["record_count"] == 2
+
+    def test_produces_output_when_no_records(
+        self,
+        region: Region,
+        storage: S3TileStorage,
+        s3_client,
+        httpserver: HTTPServer,
+    ) -> None:
+        httpserver.expect_request("/resource/4sxa-cwis.json").respond_with_json([])
+
+        execute_heatmap(
+            region=region,
+            date_from=date(2025, 1, 1),
+            date_to=date(2025, 12, 31),
+            storage=storage,
+        )
+
+        for crime_category in ("violent", "property"):
+            s3_client.get_object(
+                Bucket=_TEST_BUCKET,
+                Key=f"tiles/data/{crime_category}/200m/2025-01-01/2025-12-31/v1/{_FIPS}/latest.tif",
+            )
+
+        for layer_id in ("crime-violent", "crime-property"):
+            meta = json.loads(
+                s3_client.get_object(
+                    Bucket=_TEST_BUCKET,
+                    Key=f"tiles/meta/{layer_id}/{_FIPS}/meta.json",
+                )["Body"].read()
+            )
+            assert meta["record_count"] == 0
 
 
 _TIGER_COUNTY_RESPONSE = {
     "features": [
         {
             "geometry": {
-                "type": "MultiPolygon",
-                "coordinates": [
-                    [[
+                "type": "Polygon",
+                "rings": [
+                    [
                         [-86.035, 37.997],
                         [-85.404, 37.997],
                         [-85.404, 38.375],
                         [-86.035, 38.375],
                         [-86.035, 37.997],
-                    ]]
+                    ]
                 ],
             }
         }
@@ -210,7 +241,7 @@ def sources_config_path(tmp_path: Path, httpserver: HTTPServer) -> Path:
     return path
 
 
-def test_crime_heatmap_pipeline_runs_as_prefect_flow(
+def test_crime_heatmap_pipeline_produces_png_tiles(
     s3_client,
     httpserver: HTTPServer,
     sources_config_path: Path,
@@ -229,7 +260,7 @@ def test_crime_heatmap_pipeline_runs_as_prefect_flow(
         {"county_fips": ["21111"]}
     )
     httpserver.expect_request(
-        "/arcgis/rest/services/TIGERweb/tigerWMS_Current/MapServer/13/query"
+        "/arcgis/rest/services/TIGERweb/State_County/MapServer/1/query"
     ).respond_with_json(_TIGER_COUNTY_RESPONSE)
     httpserver.expect_request("/resource/4sxa-cwis.json").respond_with_json(_THREE_INCIDENTS)
 
@@ -239,14 +270,13 @@ def test_crime_heatmap_pipeline_runs_as_prefect_flow(
     )
 
     for layer_id in ("crime-violent", "crime-property"):
-        cog_bytes = s3_client.get_object(
-            Bucket=_TEST_BUCKET,
-            Key=f"layers/{layer_id}/21111/latest.tif",
-        )["Body"].read()
-        with MemoryFile(cog_bytes) as memfile:
-            with memfile.open() as dataset:
-                assert dataset.count == 1
-                assert dataset.crs.to_epsg() == 3857
+        paginator = s3_client.get_paginator("list_objects_v2")
+        keys = [
+            obj["Key"]
+            for page in paginator.paginate(Bucket=_TEST_BUCKET, Prefix=f"tiles/png/{layer_id}/12/")
+            for obj in page.get("Contents", [])
+        ]
+        assert len(keys) > 0, f"Expected PNG tiles for {layer_id} in full pipeline run"
 
 
 def test_repeated_pipeline_run_uses_cached_fetch_result(
@@ -268,7 +298,7 @@ def test_repeated_pipeline_run_uses_cached_fetch_result(
         {"county_fips": ["21111"]}
     )
     httpserver.expect_request(
-        "/arcgis/rest/services/TIGERweb/tigerWMS_Current/MapServer/13/query"
+        "/arcgis/rest/services/TIGERweb/State_County/MapServer/1/query"
     ).respond_with_json(_TIGER_COUNTY_RESPONSE)
     httpserver.expect_request("/resource/4sxa-cwis.json").respond_with_json(_THREE_INCIDENTS)
 

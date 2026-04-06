@@ -1,13 +1,14 @@
 import os
 from dataclasses import dataclass
+from datetime import date
 from typing import Any
 
 import boto3
 
 
 @dataclass
-class S3LayerStorage:
-    """Stores layers in an S3-compatible bucket."""
+class S3TileStorage:
+    """Stores crime layer tiles in an S3-compatible bucket."""
 
     bucket: str
     endpoint_url: str | None = None
@@ -24,30 +25,51 @@ class S3LayerStorage:
             region_name=self.region_name or os.environ.get("AWS_DEFAULT_REGION"),
         )
 
-    def store_cog(
+    def store_data_tile(
         self,
-        layer_id: str,
-        region_slug: str,
+        crime_category: str,
+        resolution_m: int,
+        date_from: date,
+        date_to: date,
+        version: str,
+        fips: str,
         cog_bytes: bytes,
     ) -> None:
-        client = self._client()
-        key = f"layers/{layer_id}/{region_slug}/latest.tif"
-        client.put_object(
+        key = (
+            f"tiles/data/{crime_category}/{resolution_m}m/"
+            f"{date_from.isoformat()}/{date_to.isoformat()}/{version}/{fips}/latest.tif"
+        )
+        self._client().put_object(
             Bucket=self.bucket,
             Key=key,
             Body=cog_bytes,
             ContentType="image/tiff",
         )
 
+    def store_png_tile(
+        self,
+        layer_id: str,
+        z: int,
+        x: int,
+        y: int,
+        png_bytes: bytes,
+    ) -> None:
+        key = f"tiles/png/{layer_id}/{z}/{x}/{y}.png"
+        self._client().put_object(
+            Bucket=self.bucket,
+            Key=key,
+            Body=png_bytes,
+            ContentType="image/png",
+        )
+
     def store_meta(
         self,
         layer_id: str,
-        region_slug: str,
+        fips: str,
         meta_bytes: bytes,
     ) -> None:
-        client = self._client()
-        key = f"layers/{layer_id}/{region_slug}/meta.json"
-        client.put_object(
+        key = f"tiles/meta/{layer_id}/{fips}/meta.json"
+        self._client().put_object(
             Bucket=self.bucket,
             Key=key,
             Body=meta_bytes,

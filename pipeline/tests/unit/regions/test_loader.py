@@ -100,20 +100,21 @@ def test_load_region_raises_for_unknown_source_type(tmp_path: Path) -> None:
         load_region("test-region", regions_dir=tmp_path)
 
 
-_TIGER_MULTIPOLYGON_RESPONSE = {
+_TIGER_COUNTY_PATH = "/arcgis/rest/services/TIGERweb/State_County/MapServer/1/query"
+
+_TIGER_COUNTY_RESPONSE = {
     "features": [
         {
             "geometry": {
-                "type": "MultiPolygon",
-                "coordinates": [
-                    [[
+                "rings": [
+                    [
                         [-86.035, 37.997],
                         [-85.404, 37.997],
                         [-85.404, 38.375],
                         [-86.035, 38.375],
                         [-86.035, 37.997],
-                    ]]
-                ],
+                    ]
+                ]
             }
         }
     ]
@@ -139,8 +140,8 @@ def _write_sources_config(path: Path, config: dict) -> None:
 
 def test_load_region_by_fips_uses_fips_as_slug(tmp_path, httpserver) -> None:
     httpserver.expect_request(
-        "/arcgis/rest/services/TIGERweb/tigerWMS_Current/MapServer/13/query"
-    ).respond_with_json(_TIGER_MULTIPOLYGON_RESPONSE)
+        _TIGER_COUNTY_PATH
+    ).respond_with_json(_TIGER_COUNTY_RESPONSE)
     config_path = tmp_path / "sources_config.yml"
     _write_sources_config(config_path, {"21111": [_ARCGIS_SPEC]})
 
@@ -155,8 +156,8 @@ def test_load_region_by_fips_uses_fips_as_slug(tmp_path, httpserver) -> None:
 
 def test_load_region_by_fips_fetches_polygon_from_tigerweb(tmp_path, httpserver) -> None:
     httpserver.expect_request(
-        "/arcgis/rest/services/TIGERweb/tigerWMS_Current/MapServer/13/query"
-    ).respond_with_json(_TIGER_MULTIPOLYGON_RESPONSE)
+        _TIGER_COUNTY_PATH
+    ).respond_with_json(_TIGER_COUNTY_RESPONSE)
     config_path = tmp_path / "sources_config.yml"
     _write_sources_config(config_path, {"21111": [_ARCGIS_SPEC]})
 
@@ -175,8 +176,8 @@ def test_load_region_by_fips_fetches_polygon_from_tigerweb(tmp_path, httpserver)
 
 def test_load_region_by_fips_builds_sources_from_config(tmp_path, httpserver) -> None:
     httpserver.expect_request(
-        "/arcgis/rest/services/TIGERweb/tigerWMS_Current/MapServer/13/query"
-    ).respond_with_json(_TIGER_MULTIPOLYGON_RESPONSE)
+        _TIGER_COUNTY_PATH
+    ).respond_with_json(_TIGER_COUNTY_RESPONSE)
     config_path = tmp_path / "sources_config.yml"
     _write_sources_config(config_path, {"21111": [_ARCGIS_SPEC]})
 
@@ -193,8 +194,8 @@ def test_load_region_by_fips_builds_sources_from_config(tmp_path, httpserver) ->
 
 def test_load_region_by_fips_returns_empty_sources_when_fips_not_in_config(tmp_path, httpserver) -> None:
     httpserver.expect_request(
-        "/arcgis/rest/services/TIGERweb/tigerWMS_Current/MapServer/13/query"
-    ).respond_with_json(_TIGER_MULTIPOLYGON_RESPONSE)
+        _TIGER_COUNTY_PATH
+    ).respond_with_json(_TIGER_COUNTY_RESPONSE)
     config_path = tmp_path / "sources_config.yml"
     _write_sources_config(config_path, {})
 
@@ -209,7 +210,7 @@ def test_load_region_by_fips_returns_empty_sources_when_fips_not_in_config(tmp_p
 
 def test_load_region_by_fips_returns_none_when_tigerweb_has_no_features(tmp_path, httpserver) -> None:
     httpserver.expect_request(
-        "/arcgis/rest/services/TIGERweb/tigerWMS_Current/MapServer/13/query"
+        _TIGER_COUNTY_PATH
     ).respond_with_json({"features": []})
     config_path = tmp_path / "sources_config.yml"
     _write_sources_config(config_path, {"99999": []})

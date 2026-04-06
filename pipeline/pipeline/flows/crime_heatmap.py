@@ -7,7 +7,6 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
-import boto3
 import geopandas as gpd
 import numpy as np
 import pandas as pd
@@ -17,6 +16,8 @@ from prefect.cache_policies import NO_CACHE
 from prefect.concurrency.sync import concurrency
 
 from pipeline.cache import make_cache_key
+from pipeline.tiles.colormaps import LAYER_COLORMAPS
+from pipeline.tiles.rendering import BASE_ZOOM, render_png_tile, tiles_for_polygon
 from rasterio.crs import CRS
 from rasterio.features import geometry_mask
 from rasterio.transform import from_bounds
@@ -31,10 +32,13 @@ from pipeline.geocoding.base import AddressRecord, Geocoder
 from pipeline.geocoding.census import CensusGeocoder
 from pipeline.regions.loader import Region, load_region_by_fips
 from pipeline.sources.base import Source
-from pipeline.storage.base import LayerStorage
-from pipeline.storage.s3 import S3LayerStorage
+from pipeline.storage.base import TileStorage
+from pipeline.storage.s3 import S3TileStorage
 
 _logger = logging.getLogger(__name__)
+
+_RESOLUTION_M = 200
+_DATA_TILE_VERSION = "v1"
 
 
 @dataclass
@@ -47,7 +51,7 @@ class KdeGrid:
 
 def _compute_kde_grid(records: gpd.GeoDataFrame, polygon: Polygon) -> KdeGrid:
     minx, miny, maxx, maxy = polygon.bounds
-    resolution_deg = 200 / 111_320  # ~200m in degrees at mid-latitude
+    resolution_deg = _RESOLUTION_M / 111_320  # ~200m in degrees at mid-latitude
     width = max(int((maxx - minx) / resolution_deg), 10)
     height = max(int((maxy - miny) / resolution_deg), 10)
 
@@ -74,7 +78,11 @@ def _compute_kde_grid(records: gpd.GeoDataFrame, polygon: Polygon) -> KdeGrid:
     elif len(records) == 1:
         grid[height // 2, width // 2] = 1.0
 
-    outside = geometry_mask([mapping(polygon)], out_shape=(height, width), transform=from_bounds(minx, miny, maxx, maxy, width, height))
+    outside = geometry_mask(
+        [mapping(polygon)],
+        out_shape=(height, width),
+        transform=from_bounds(minx, miny, maxx, maxy, width, height),
+    )
     grid[outside] = 0.0
 
     return KdeGrid(
@@ -108,8 +116,6 @@ def combine_and_clip(frames: list[gpd.GeoDataFrame], polygon: Polygon) -> gpd.Ge
 
 
 _GEOCODE_BATCH_SIZE = 1_000
-
-
 _CENSUS_CONCURRENCY_LIMIT = "census-geocoder"
 
 
@@ -252,35 +258,84 @@ _CATEGORY_LAYER_IDS: dict[str, str] = {
 
 
 @task(cache_policy=NO_CACHE)
-def upload_layer(
-    storage: LayerStorage,
+def store_data_tile(
+    storage: TileStorage,
     cog_bytes: bytes,
-    layer_id: str,
-    region: Region,
-    records: gpd.GeoDataFrame,
+    crime_category: str,
+    fips: str,
     date_from: date,
     date_to: date,
 ) -> None:
-    storage.store_cog(layer_id, region.slug, cog_bytes)
+    storage.store_data_tile(
+        crime_category=crime_category,
+        resolution_m=_RESOLUTION_M,
+        date_from=date_from,
+        date_to=date_to,
+        version=_DATA_TILE_VERSION,
+        fips=fips,
+        cog_bytes=cog_bytes,
+    )
 
+
+@task(cache_policy=NO_CACHE)
+def render_and_store_png_tiles(
+    storage: TileStorage,
+    cog_bytes: bytes,
+    layer_id: str,
+    region: Region,
+) -> None:
+    colormap = LAYER_COLORMAPS[layer_id]()
+    polygon = region.polygon
+    for tile in tiles_for_polygon(polygon):
+        png_bytes = render_png_tile(
+            tile=tile,
+            cog_bytes=cog_bytes,
+            county_polygon=polygon,
+            colormap=colormap,
+        )
+        storage.store_png_tile(
+            layer_id=layer_id,
+            z=tile.z,
+            x=tile.x,
+            y=tile.y,
+            png_bytes=png_bytes,
+        )
+
+
+@task(cache_policy=NO_CACHE)
+def store_meta(
+    storage: TileStorage,
+    layer_id: str,
+    fips: str,
+    records: gpd.GeoDataFrame,
+    region: Region,
+    date_from: date,
+    date_to: date,
+) -> None:
     meta = {
         "date_from": date_from.isoformat(),
         "date_to": date_to.isoformat(),
         "record_count": len(records),
         "bbox": list(region.polygon.bounds),
+        "tile_zoom": BASE_ZOOM,
     }
-    storage.store_meta(layer_id, region.slug, json.dumps(meta).encode())
+    storage.store_meta(
+        layer_id=layer_id,
+        fips=fips,
+        meta_bytes=json.dumps(meta).encode(),
+    )
 
 
 def execute_heatmap(
     region: Region,
     date_from: date,
     date_to: date,
-    storage: LayerStorage,
+    storage: TileStorage,
     geocoder: Geocoder | None = None,
 ) -> None:
     if geocoder is None:
         geocoder = CensusGeocoder()
+
     frames = [
         fetch_raw(source, region.polygon, date_from, date_to)
         for source in region.sources
@@ -288,11 +343,17 @@ def execute_heatmap(
     geocoded_frames = [geocode_records(frame, geocoder) for frame in frames]
     records = combine_and_clip(geocoded_frames, region.polygon)
 
-    for category, layer_id in _CATEGORY_LAYER_IDS.items():
-        category_records = records[records["category"] == category] if not records.empty else records
+    fips = region.slug
+
+    for crime_category, layer_id in _CATEGORY_LAYER_IDS.items():
+        category_records = (
+            records[records["category"] == crime_category] if not records.empty else records
+        )
         kde_grid = compute_kde_grid(category_records, region.polygon)
         cog_bytes = write_cog(kde_grid)
-        upload_layer(storage, cog_bytes, layer_id, region, category_records, date_from, date_to)
+        store_data_tile(storage, cog_bytes, crime_category, fips, date_from, date_to)
+        render_and_store_png_tiles(storage, cog_bytes, layer_id, region)
+        store_meta(storage, layer_id, fips, category_records, region, date_from, date_to)
 
 
 @flow(name="crime-heatmap-pipeline")
@@ -312,7 +373,7 @@ def crime_heatmap_pipeline(
     county_fips_list = client.list_county_fips()
 
     bucket = os.environ["CRIME_DATA_S3_BUCKET"]
-    storage = S3LayerStorage(bucket=bucket)
+    storage = S3TileStorage(bucket=bucket)
 
     for fips in county_fips_list:
         region = load_region_by_fips(

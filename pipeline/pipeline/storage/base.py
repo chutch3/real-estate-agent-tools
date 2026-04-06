@@ -1,23 +1,39 @@
+from datetime import date
 from typing import Protocol
 
 
-class LayerStorage(Protocol):
-    """Protocol for storing and retrieving crime layer data."""
+class TileStorage(Protocol):
+    """Protocol for storing crime layer tiles and metadata."""
 
-    def store_cog(
+    def store_data_tile(
         self,
-        layer_id: str,
-        region_slug: str,
+        crime_category: str,
+        resolution_m: int,
+        date_from: date,
+        date_to: date,
+        version: str,
+        fips: str,
         cog_bytes: bytes,
     ) -> None:
-        """Store the Cloud Optimized GeoTIFF (COG) for the specified layer and region."""
+        """Store the COG data tile for the given category, date range, and FIPS."""
+        ...
+
+    def store_png_tile(
+        self,
+        layer_id: str,
+        z: int,
+        x: int,
+        y: int,
+        png_bytes: bytes,
+    ) -> None:
+        """Store a pre-rendered PNG tile."""
         ...
 
     def store_meta(
         self,
         layer_id: str,
-        region_slug: str,
+        fips: str,
         meta_bytes: bytes,
     ) -> None:
-        """Store the metadata JSON for the specified layer and region."""
+        """Store the metadata JSON for the given layer and FIPS."""
         ...
