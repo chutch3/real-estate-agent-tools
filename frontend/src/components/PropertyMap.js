@@ -1,72 +1,99 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { GoogleMap, Marker, Polygon, useLoadScript } from '@react-google-maps/api';
+import React, { useEffect, useRef } from 'react';
+import { Map, Marker, Source, Layer } from 'react-map-gl/mapbox';
+import { MapPin } from 'lucide-react';
+import 'mapbox-gl/dist/mapbox-gl.css';
 import useLayers from '../hooks/useLayers';
 import MapLayerControls from './MapLayerControls';
 import CrimeLayerLegend from './CrimeLayerLegend';
 
-const defaultCenter = { lat: 37.7749, lng: -122.4194 };
-const mapContainerStyle = { width: '100%', height: '100%' };
-const libraries = ['places'];
+const API_BASE_URL =
+  process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000';
+const MAPBOX_TOKEN = process.env.REACT_APP_MAPBOX_TOKEN;
+
+const defaultViewState = { longitude: -122.4194, latitude: 37.7749, zoom: 10 };
 
 function PropertyMap({ properties, onPropertySelect, selectedProperty }) {
-  const [center, setCenter] = useState(defaultCenter);
-  const [mapInstance, setMapInstance] = useState(null);
   const mapRef = useRef(null);
-  const { groups, isActive, toggle } = useLayers(mapInstance, selectedProperty?.county_fips ?? null);
+  const { groups, isActive, toggle } = useLayers(
+    selectedProperty?.county_fips ?? null,
+  );
 
   const hasLayers = groups.flatMap((g) => g.categories).length > 0;
 
-  useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition((position) => {
-        const location = { lat: position.coords.latitude, lng: position.coords.longitude };
-        setCenter(location);
-        mapRef.current?.panTo(location);
-      });
-    }
-  }, []);
+  const activeCategory =
+    groups.flatMap((g) => g.categories).find((c) => isActive(c.id)) ?? null;
 
   useEffect(() => {
-    if (!mapRef.current || !selectedProperty?.latitude || !selectedProperty?.longitude) return;
-    mapRef.current.panTo({ lat: selectedProperty.latitude, lng: selectedProperty.longitude });
-    mapRef.current.setZoom(14);
-  }, [selectedProperty, mapInstance]);
-
-  const { isLoaded, loadError } = useLoadScript({
-    googleMapsApiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY,
-    libraries,
-  });
-
-  if (loadError) return <div>Error loading maps</div>;
-  if (!isLoaded) return <div>Loading maps</div>;
+    if (
+      !mapRef.current ||
+      !selectedProperty?.latitude ||
+      !selectedProperty?.longitude
+    )
+      return;
+    mapRef.current.flyTo({
+      center: [selectedProperty.longitude, selectedProperty.latitude],
+      zoom: 14,
+    });
+  }, [selectedProperty?.id, selectedProperty?.latitude, selectedProperty?.longitude]);
 
   return (
     <div className="relative w-full h-full">
-      <GoogleMap
-        mapContainerStyle={mapContainerStyle}
-        center={center}
-        zoom={10}
-        onLoad={(map) => {
-          mapRef.current = map;
-          setMapInstance(map);
-        }}
+      <Map
+        ref={mapRef}
+        initialViewState={defaultViewState}
+        style={{ width: '100%', height: '100%' }}
+        mapStyle="mapbox://styles/mapbox/light-v11"
+        mapboxAccessToken={MAPBOX_TOKEN}
+        projection="mercator"
       >
         {properties
-          .filter((property) => property.latitude !== 0 || property.longitude !== 0)
-          .map((property) => (
-            <Marker
-              key={property.id}
-              position={{ lat: property.latitude, lng: property.longitude }}
-              onClick={() => onPropertySelect(property)}
-            />
-          ))}
+          .filter((p) => p.latitude !== 0 || p.longitude !== 0)
+          .map((property) => {
+            const isSelected = selectedProperty?.id === property.id;
+            return (
+              <Marker
+                key={property.id}
+                longitude={property.longitude}
+                latitude={property.latitude}
+                anchor="bottom"
+                onClick={() => onPropertySelect(property)}
+                style={{ cursor: 'pointer' }}
+              >
+                <MapPin
+                  size={isSelected ? 32 : 22}
+                  className={isSelected ? 'text-bronze-600' : 'text-bronze-400'}
+                  strokeWidth={isSelected ? 2 : 1.5}
+                  aria-label={isSelected ? 'Selected property' : 'Property'}
+                />
+              </Marker>
+            );
+          })}
+
         {selectedProperty?.county_polygon && (
-          <Polygon
-            paths={selectedProperty.county_polygon.coordinates[0].map(([lng, lat]) => ({ lat, lng }))}
-            options={{ strokeColor: '#92400e', strokeWeight: 2, fillOpacity: 0 }}
-          />
+          <Source type="geojson" data={selectedProperty.county_polygon}>
+            <Layer
+              type="line"
+              paint={{ 'line-color': '#92400e', 'line-width': 2 }}
+            />
+          </Source>
         )}
-      </GoogleMap>
+
+        {activeCategory && (
+          <Source
+            id="active-layer"
+            type="raster"
+            tiles={[
+              `${API_BASE_URL}/layers/${activeCategory.id}/tiles/{z}/{x}/{y}`,
+            ]}
+            tileSize={256}
+            maxzoom={activeCategory.tile_zoom ?? 12}
+            bounds={activeCategory.bbox ?? undefined}
+          >
+            <Layer type="raster" paint={{ 'raster-resampling': 'linear' }} />
+          </Source>
+        )}
+      </Map>
+
       {hasLayers && (
         <>
           <MapLayerControls groups={groups} isActive={isActive} onToggle={toggle} />

@@ -14,13 +14,21 @@ jest.mock('../../src/apiClient', () => ({
 
 jest.mock('../../src/hooks/useLayers');
 
-jest.mock('@react-google-maps/api', () => ({
-  useLoadScript: () => ({ isLoaded: true, loadError: null }),
-  GoogleMap: ({ children }) => <div data-testid="google-map">{children}</div>,
-  Marker: ({ position, onClick }) => (
-    <button data-testid={`marker-${position.lat}-${position.lng}`} onClick={onClick} />
-  ),
-}));
+jest.mock('react-map-gl/mapbox', () => {
+  const React = require('react');
+  return {
+    Map: React.forwardRef(function MockMap({ children }, ref) {
+      return React.createElement('div', { 'data-testid': 'mapbox-map' }, children);
+    }),
+    Marker: ({ latitude, longitude, onClick }) =>
+      React.createElement('button', {
+        'data-testid': `marker-${latitude}-${longitude}`,
+        onClick,
+      }),
+    Source: jest.fn(({ children }) => children || null),
+    Layer: jest.fn(() => null),
+  };
+});
 
 describe('App', () => {
   beforeEach(() => {
@@ -38,14 +46,14 @@ describe('App', () => {
   it('renders the home screen with a map on startup', async () => {
     render(<App />);
     await waitFor(() => {
-      expect(screen.getByTestId('google-map')).toBeInTheDocument();
+      expect(screen.getByTestId('mapbox-map')).toBeInTheDocument();
     });
   });
 
   it('renders the home screen route at /', async () => {
     render(<App />);
     await waitFor(() => {
-      expect(screen.getByTestId('google-map')).toBeInTheDocument();
+      expect(screen.getByTestId('mapbox-map')).toBeInTheDocument();
     });
   });
 });

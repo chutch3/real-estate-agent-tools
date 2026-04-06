@@ -1,54 +1,19 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useLoadScript } from '@react-google-maps/api';
+import React, { useState } from 'react';
 import { MapPin } from 'lucide-react';
-
-const libraries = ['places'];
+import apiClient from '../apiClient';
 
 function AddressInput({ onGeocodeComplete }) {
   const [address, setAddress] = useState('');
-  const inputRef = useRef(null);
-  const autocompleteRef = useRef(null);
 
-  const { isLoaded, loadError } = useLoadScript({
-    googleMapsApiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY,
-    libraries,
-  });
-
-  const handlePlaceSelect = useCallback(() => {
-    const place = autocompleteRef.current.getPlace();
-    if (place.formatted_address) {
-      setAddress(place.formatted_address);
-      if (place.geometry && place.geometry.location) {
-        const newLocation = {
-          lat: place.geometry.location.lat(),
-          lng: place.geometry.location.lng(),
-        };
-        onGeocodeComplete(place.formatted_address, newLocation);
-      }
-    }
-  }, [onGeocodeComplete]);
-
-  useEffect(() => {
-    if (isLoaded && !loadError && inputRef.current) {
-      autocompleteRef.current = new window.google.maps.places.Autocomplete(
-        inputRef.current,
-        { types: ['address'] }
-      );
-      autocompleteRef.current.addListener('place_changed', handlePlaceSelect);
-
-      return () => {
-        if (autocompleteRef.current) {
-          window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
-        }
-      };
-    }
-  }, [isLoaded, loadError, handlePlaceSelect]);
-
-  if (loadError) return <p className="font-sans text-sm text-red-700">Error loading Google Maps</p>;
-  if (!isLoaded) return <p className="font-sans text-sm text-ink-400">Loading…</p>;
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!address.trim()) return;
+    const result = await apiClient.geocodeAddress(address);
+    onGeocodeComplete(address, result.location);
+  };
 
   return (
-    <div className="relative">
+    <form onSubmit={handleSubmit} role="form">
       <label htmlFor="address-input" className="block font-sans text-xs uppercase tracking-widest text-ink-400 mb-1.5">
         Property Address
       </label>
@@ -60,7 +25,6 @@ function AddressInput({ onGeocodeComplete }) {
         />
         <input
           id="address-input"
-          ref={inputRef}
           type="text"
           placeholder="Enter address"
           value={address}
@@ -75,7 +39,7 @@ function AddressInput({ onGeocodeComplete }) {
           {address}
         </p>
       )}
-    </div>
+    </form>
   );
 }
 

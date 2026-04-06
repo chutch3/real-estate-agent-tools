@@ -13,16 +13,21 @@ jest.mock('../../apiClient', () => ({
 
 jest.mock('../../hooks/useLayers');
 
-jest.mock('@react-google-maps/api', () => ({
-  useLoadScript: () => ({ isLoaded: true, loadError: null }),
-  GoogleMap: ({ children }) => <div data-testid="google-map">{children}</div>,
-  Marker: ({ position, onClick }) => (
-    <button
-      data-testid={`marker-${position.lat}-${position.lng}`}
-      onClick={onClick}
-    />
-  ),
-}));
+jest.mock('react-map-gl/mapbox', () => {
+  const React = require('react');
+  return {
+    Map: React.forwardRef(function MockMap({ children }, ref) {
+      return React.createElement('div', { 'data-testid': 'mapbox-map' }, children);
+    }),
+    Marker: ({ latitude, longitude, onClick }) =>
+      React.createElement('button', {
+        'data-testid': `marker-${latitude}-${longitude}`,
+        onClick,
+      }),
+    Source: jest.fn(({ children }) => children || null),
+    Layer: jest.fn(() => null),
+  };
+});
 
 jest.mock('react-router-dom', () => ({
   ...jest.requireActual('react-router-dom'),
@@ -58,7 +63,7 @@ describe('HomeScreen', () => {
 
   it('renders a map', async () => {
     render(<MemoryRouter><HomeScreen /></MemoryRouter>);
-    await waitFor(() => expect(screen.getByTestId('google-map')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('mapbox-map')).toBeInTheDocument());
   });
 
   it('renders a marker for each property', async () => {

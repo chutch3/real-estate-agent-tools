@@ -1,49 +1,29 @@
-import React, { useCallback } from 'react';
-import { GoogleMap, Marker, useLoadScript } from '@react-google-maps/api';
+import React, { useEffect, useRef } from 'react';
+import { Map, Marker } from 'react-map-gl/mapbox';
+import 'mapbox-gl/dist/mapbox-gl.css';
 
-const defaultCenter = {
-  lat: 40.7128, // New York City coordinates as default
-  lng: -74.0060,
-};
-
-const defaultZoom = 18;
+const MAPBOX_TOKEN = process.env.REACT_APP_MAPBOX_TOKEN;
+const DEFAULT_ZOOM = 18;
 
 const MapComponent = ({ center }) => {
-  const mapContainerStyle = {
-    width: '100%',
-    height: '400px'
-  };
+  const mapRef = useRef(null);
 
-  const options = {
-    mapTypeId: 'satellite',
-    disableDefaultUI: true,
-    zoomControl: true,
-  };
-  const { isLoaded, loadError } = useLoadScript({
-    googleMapsApiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY,
-    libraries: ['places'],
-  });
-
-  const onMapLoad = useCallback((map) => {
-    if (center) {
-      map.panTo(center);
-      map.setZoom(defaultZoom);
-    }
+  useEffect(() => {
+    if (!mapRef.current || !center) return;
+    mapRef.current.flyTo({ center: [center.lng, center.lat], zoom: DEFAULT_ZOOM });
   }, [center]);
 
-  if (loadError) return <div>Error loading maps</div>;
-  if (!isLoaded) return <div>Loading maps</div>;
-
   return (
-    <GoogleMap
-      mapContainerStyle={mapContainerStyle}
-      center={center || defaultCenter}
-      zoom={defaultZoom}
-      options={options}
-      onLoad={onMapLoad}
+    <Map
+      ref={mapRef}
+      initialViewState={{ longitude: center?.lng ?? 0, latitude: center?.lat ?? 0, zoom: DEFAULT_ZOOM }}
+      style={{ width: '100%', height: '400px' }}
+      mapStyle="mapbox://styles/mapbox/satellite-v9"
+      mapboxAccessToken={MAPBOX_TOKEN}
+      projection="mercator"
     >
-      {center && <Marker position={center} />}
-    </GoogleMap>
+      {center && <Marker longitude={center.lng} latitude={center.lat} />}
+    </Map>
   );
 };
 

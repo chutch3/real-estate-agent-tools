@@ -1,20 +1,27 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { GoogleMap, Marker } from '@react-google-maps/api';
 import PropertyMap from '../../../src/components/PropertyMap';
 import useLayers from '../../../src/hooks/useLayers';
 
-jest.mock('@react-google-maps/api', () => ({
-  useLoadScript: () => ({ isLoaded: true, loadError: null }),
-  GoogleMap: jest.fn(({ children }) => <div data-testid="google-map">{children}</div>),
-  Marker: jest.fn(({ position, onClick }) => (
-    <button
-      data-testid={`marker-${position.lat}-${position.lng}`}
-      onClick={onClick}
-    />
-  )),
-  Polygon: jest.fn(() => null),
-}));
+const mockFlyTo = jest.fn();
+
+jest.mock('react-map-gl/mapbox', () => {
+  const React = require('react');
+  return {
+    Map: React.forwardRef(function MockMap({ children }, ref) {
+      React.useImperativeHandle(ref, () => ({ flyTo: mockFlyTo }), []);
+      return React.createElement('div', { 'data-testid': 'mapbox-map' }, children);
+    }),
+    Marker: jest.fn(({ latitude, longitude, onClick }) =>
+      React.createElement('button', {
+        'data-testid': `marker-${latitude}-${longitude}`,
+        onClick,
+      })
+    ),
+    Source: jest.fn(({ children }) => children || null),
+    Layer: jest.fn(() => null),
+  };
+});
 
 jest.mock('../../../src/hooks/useLayers');
 
@@ -25,6 +32,7 @@ describe('PropertyMap', () => {
   ];
 
   beforeEach(() => {
+    jest.clearAllMocks();
     useLayers.mockReturnValue({
       groups: [],
       isActive: jest.fn().mockReturnValue(false),
@@ -32,51 +40,9 @@ describe('PropertyMap', () => {
     });
   });
 
-  afterEach(() => {
-    jest.clearAllMocks();
-    delete global.navigator.geolocation;
-  });
-
-  it('renders a GoogleMap', () => {
+  it('renders the map container', () => {
     render(<PropertyMap properties={[]} onPropertySelect={jest.fn()} />);
-    expect(screen.getByTestId('google-map')).toBeInTheDocument();
-  });
-
-  it('centers the map on the user current location when geolocation is available', async () => {
-    global.navigator.geolocation = {
-      getCurrentPosition: jest.fn((success) =>
-        success({ coords: { latitude: 38.352193, longitude: -85.721456 } })
-      ),
-    };
-
-    render(<PropertyMap properties={[]} onPropertySelect={jest.fn()} />);
-
-    await waitFor(() => {
-      expect(GoogleMap).toHaveBeenLastCalledWith(
-        expect.objectContaining({ center: { lat: 38.352193, lng: -85.721456 } }),
-        expect.anything()
-      );
-    });
-  });
-
-  it('pans the map to the user location when geolocation resolves after the map is loaded', async () => {
-    const mockPanTo = jest.fn();
-    GoogleMap.mockImplementationOnce(({ children, onLoad }) => {
-      React.useEffect(() => { onLoad?.({ panTo: mockPanTo }); }, []);
-      return <div data-testid="google-map">{children}</div>;
-    });
-
-    global.navigator.geolocation = {
-      getCurrentPosition: jest.fn((success) =>
-        success({ coords: { latitude: 38.352193, longitude: -85.721456 } })
-      ),
-    };
-
-    render(<PropertyMap properties={[]} onPropertySelect={jest.fn()} />);
-
-    await waitFor(() => {
-      expect(mockPanTo).toHaveBeenCalledWith({ lat: 38.352193, lng: -85.721456 });
-    });
+    expect(screen.getByTestId('mapbox-map')).toBeInTheDocument();
   });
 
   it('renders a Marker for each property', () => {
@@ -106,16 +72,17 @@ describe('PropertyMap', () => {
     expect(screen.queryByTestId('marker-0-0')).not.toBeInTheDocument();
   });
 
-  it('passes correct position to each Marker', () => {
+  it('passes correct longitude and latitude to each Marker', () => {
+    const { Marker } = require('react-map-gl/mapbox');
     render(<PropertyMap properties={mockProperties} onPropertySelect={jest.fn()} />);
 
     expect(Marker).toHaveBeenCalledWith(
-      expect.objectContaining({ position: { lat: 37.4225, lng: -122.0847 } }),
-      expect.anything()
+      expect.objectContaining({ longitude: -122.0847, latitude: 37.4225 }),
+      expect.anything(),
     );
     expect(Marker).toHaveBeenCalledWith(
-      expect.objectContaining({ position: { lat: 37.3382, lng: -121.8863 } }),
-      expect.anything()
+      expect.objectContaining({ longitude: -121.8863, latitude: 37.3382 }),
+      expect.anything(),
     );
   });
 
@@ -128,7 +95,7 @@ describe('PropertyMap', () => {
       />
     );
 
-    expect(useLayers).toHaveBeenCalledWith(null, null);
+    expect(useLayers).toHaveBeenCalledWith(null);
   });
 
   it('passes selectedProperty county_fips to useLayers', () => {
@@ -141,19 +108,10 @@ describe('PropertyMap', () => {
       />
     );
 
-    expect(useLayers).toHaveBeenCalledWith(null, '21111');
+    expect(useLayers).toHaveBeenCalledWith('21111');
   });
 
-  it('pans to the property location and sets zoom when a property is selected', async () => {
-    const mockPanTo = jest.fn();
-    const mockSetZoom = jest.fn();
-    GoogleMap.mockImplementationOnce(({ children, onLoad }) => {
-      React.useEffect(() => {
-        onLoad?.({ panTo: mockPanTo, setZoom: mockSetZoom });
-      }, []);
-      return <div data-testid="google-map">{children}</div>;
-    });
-
+  it('flies to the property location when a property is selected', async () => {
     const selectedProperty = {
       ...mockProperties[0],
       county_fips: '21111',
@@ -169,8 +127,10 @@ describe('PropertyMap', () => {
     );
 
     await waitFor(() => {
-      expect(mockPanTo).toHaveBeenCalledWith({ lat: 37.4225, lng: -122.0847 });
-      expect(mockSetZoom).toHaveBeenCalledWith(14);
+      expect(mockFlyTo).toHaveBeenCalledWith({
+        center: [-122.0847, 37.4225],
+        zoom: 14,
+      });
     });
   });
 
@@ -185,6 +145,8 @@ describe('PropertyMap', () => {
           date_from: '2025-04-01',
           date_to: '2026-04-01',
           record_count: 1234,
+          tile_zoom: 12,
+          bbox: [-86.035, 37.997, -85.404, 38.375],
         }],
       }],
       isActive: jest.fn().mockReturnValue(false),

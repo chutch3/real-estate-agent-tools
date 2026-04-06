@@ -11,11 +11,15 @@ jest.mock('../../../src/apiClient', () => ({
   getPropertyDetails: jest.fn(),
 }));
 
-jest.mock('@react-google-maps/api', () => ({
-  useLoadScript: () => ({ isLoaded: true, loadError: null }),
-  GoogleMap: ({ children }) => <div data-testid="google-map">{children}</div>,
-  Marker: () => null,
-}));
+jest.mock('react-map-gl/mapbox', () => {
+  const React = require('react');
+  return {
+    Map: React.forwardRef(function MockMap({ children }, ref) {
+      return React.createElement('div', { 'data-testid': 'map-component' }, children);
+    }),
+    Marker: () => null,
+  };
+});
 
 function renderComponent() {
   return render(
@@ -26,20 +30,6 @@ function renderComponent() {
 }
 
 describe('AddProperty', () => {
-  beforeEach(() => {
-    window.google = {
-      maps: {
-        places: {
-          Autocomplete: jest.fn().mockReturnValue({
-            addListener: jest.fn(),
-            getPlace: jest.fn(),
-          }),
-        },
-        event: { clearInstanceListeners: jest.fn() },
-      },
-    };
-  });
-
   afterEach(() => {
     jest.clearAllMocks();
   });
