@@ -1,26 +1,13 @@
 import asyncio
+import functools
+import io
 import logging
-from typing import Callable, Optional
+from typing import Optional
 
+from PIL import Image
+
+from backend.exceptions import LayerNotFoundError
 from backend.repositories.layer import LayerRepository
-from backend.services.crime_layer import (
-    _crime_colormap,
-    _render_empty_tile,
-    _render_float_tile,
-    _sync_get_tile,
-    _violent_colormap,
-)
-
-_LAYER_COLORMAPS: dict[str, Callable[[], dict]] = {
-    "crime-violent": _violent_colormap,
-    "crime-property": _crime_colormap,
-}
-
-
-def _colormap_for_layer_id(layer_id: str) -> dict:
-    if layer_id not in _LAYER_COLORMAPS:
-        raise ValueError(f"unknown layer: {layer_id!r}")
-    return _LAYER_COLORMAPS[layer_id]()
 
 
 _LAYER_CONFIG: list[dict] = [
@@ -35,14 +22,16 @@ _LAYER_CONFIG: list[dict] = [
 ]
 
 
-def _build_vsi_path(bucket_name: str, layer_id: str, region_slug: str) -> str:
-    return f"/vsis3/{bucket_name}/layers/{layer_id}/{region_slug}/latest.tif"
+@functools.cache
+def _render_empty_tile() -> bytes:
+    buf = io.BytesIO()
+    Image.new("RGBA", (256, 256), (0, 0, 0, 0)).save(buf, format="PNG")
+    return buf.getvalue()
 
 
 class LayerService:
-    def __init__(self, repository: LayerRepository, bucket_name: str) -> None:
+    def __init__(self, repository: LayerRepository) -> None:
         self._repository = repository
-        self._bucket_name = bucket_name
         self._logger = logging.getLogger(self.__class__.__name__)
         self._region_slugs_cache: dict[str, list[str]] = {}
 
@@ -70,6 +59,7 @@ class LayerService:
                 date_from = None
                 date_to = None
                 union_bbox = None
+                tile_zoom = None
 
                 for slug in slugs:
                     meta = self._repository.get_meta(layer_id, slug)
@@ -90,6 +80,9 @@ class LayerService:
                             union_bbox[2] = max(union_bbox[2], bbox[2])
                             union_bbox[3] = max(union_bbox[3], bbox[3])
 
+                    if tile_zoom is None:
+                        tile_zoom = meta.get("tile_zoom")
+
                 categories.append(
                     {
                         "id": layer_id,
@@ -98,6 +91,7 @@ class LayerService:
                         "date_to": date_to,
                         "record_count": total_count,
                         "bbox": union_bbox,
+                        "tile_zoom": tile_zoom,
                     }
                 )
 
@@ -113,11 +107,7 @@ class LayerService:
         return {"groups": groups}
 
     async def get_tile(self, layer_id: str, z: int, x: int, y: int) -> bytes:
-        slugs = self._get_region_slugs(layer_id)
-        if not slugs:
-            self._logger.info("No regions found for layer %s, returning empty tile", layer_id)
+        try:
+            return await asyncio.to_thread(self._repository.get_png_tile, layer_id, z, x, y)
+        except LayerNotFoundError:
             return _render_empty_tile()
-
-        vsi_paths = [_build_vsi_path(self._bucket_name, layer_id, slug) for slug in slugs]
-        colormap = _colormap_for_layer_id(layer_id)
-        return await asyncio.to_thread(_sync_get_tile, vsi_paths, z, x, y, colormap)

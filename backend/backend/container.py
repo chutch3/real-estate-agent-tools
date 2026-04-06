@@ -171,5 +171,4 @@ class Container(containers.DeclarativeContainer):
     layer_service = providers.Singleton(
         LayerService,
         repository=layer_repository,
-        bucket_name=config.s3.bucket,
     )

@@ -4,7 +4,6 @@ from http import HTTPStatus
 from unittest.mock import AsyncMock, patch
 
 import boto3
-import numpy as np
 import pytest
 from backend.container import Container
 from backend.main import create_app
@@ -31,26 +30,18 @@ _MOTO_URL = "http://localhost:5005"
 _S3_BUCKET = "test-documents"
 
 
-def _make_test_cog() -> bytes:
-    """Minimal valid GeoTIFF in EPSG:3857 covering full web-mercator extent."""
-    from rasterio.crs import CRS
-    from rasterio.io import MemoryFile
-    from rasterio.transform import from_bounds
+def _make_test_png() -> bytes:
+    from io import BytesIO
+    from PIL import Image
+    import numpy as np
 
-    with MemoryFile() as mem:
-        with mem.open(
-            driver="GTiff",
-            height=10,
-            width=10,
-            count=1,
-            dtype="float32",
-            crs=CRS.from_epsg(3857),
-            transform=from_bounds(
-                -20037508.34, -20037508.34, 20037508.34, 20037508.34, 10, 10
-            ),
-        ) as dst:
-            dst.write(np.ones((1, 10, 10), dtype="float32"))
-        return mem.read()
+    rgba = np.zeros((256, 256, 4), dtype=np.uint8)
+    rgba[:, :, 0] = 100
+    rgba[:, :, 3] = 200
+    buf = BytesIO()
+    Image.fromarray(rgba, "RGBA").save(buf, format="PNG")
+    return buf.getvalue()
+
 
 
 class TestApp:
@@ -405,19 +396,13 @@ class TestApp:
         for layer_id in ("crime-violent", "crime-property"):
             s3_client.put_object(
                 Bucket=_S3_BUCKET,
-                Key=f"layers/{layer_id}/louisville-metro/latest.tif",
-                Body=_make_test_cog(),
-                ContentType="image/tiff",
-            )
-            s3_client.put_object(
-                Bucket=_S3_BUCKET,
-                Key=f"layers/{layer_id}/louisville-metro/meta.json",
+                Key=f"tiles/meta/{layer_id}/21111/meta.json",
                 Body=json.dumps({
-                    "region_slug": "louisville-metro",
                     "date_from": "2025-04-01",
                     "date_to": "2026-04-01",
                     "record_count": 42,
                     "bbox": [-86.035, 37.997, -85.404, 38.375],
+                    "tile_zoom": 12,
                 }).encode(),
                 ContentType="application/json",
             )
@@ -440,6 +425,7 @@ class TestApp:
         assert violent["date_to"] == "2026-04-01"
         assert violent["record_count"] == 42
         assert violent["bbox"] == [-86.035, 37.997, -85.404, 38.375]
+        assert violent["tile_zoom"] == 12
 
     def test_get_layers_returns_empty_groups_when_no_data(self, subject, s3_client):
         response = subject.get("/api/layers")
@@ -448,22 +434,23 @@ class TestApp:
         body = response.json()
         assert body["groups"] == []
 
-    def test_get_layer_tile_returns_png_when_cog_exists(self, subject, s3_client):
+    def test_get_layer_tile_returns_pre_rendered_png(self, subject, s3_client):
+        png_bytes = _make_test_png()
         s3_client.put_object(
             Bucket=_S3_BUCKET,
-            Key="layers/crime-violent/louisville-metro/latest.tif",
-            Body=_make_test_cog(),
-            ContentType="image/tiff",
+            Key="tiles/png/crime-violent/12/1234/3456.png",
+            Body=png_bytes,
+            ContentType="image/png",
         )
 
-        response = subject.get("/api/layers/crime-violent/tiles/0/0/0")
+        response = subject.get("/api/layers/crime-violent/tiles/12/1234/3456")
 
         assert response.status_code == HTTPStatus.OK
         assert response.headers["content-type"] == "image/png"
-        assert response.content[:4] == b"\x89PNG"
+        assert response.content == png_bytes
 
-    def test_get_layer_tile_returns_transparent_png_when_no_data(self, subject, s3_client):
-        response = subject.get("/api/layers/crime-violent/tiles/0/0/0")
+    def test_get_layer_tile_returns_transparent_png_when_no_tile_exists(self, subject, s3_client):
+        response = subject.get("/api/layers/crime-violent/tiles/12/0/0")
 
         assert response.status_code == HTTPStatus.OK
         assert response.headers["content-type"] == "image/png"
@@ -479,9 +466,10 @@ class TestApp:
             region_name="us-east-1",
         )
         yield client
-        response = client.list_objects_v2(Bucket=_S3_BUCKET, Prefix="layers/")
-        for obj in response.get("Contents", []):
-            client.delete_object(Bucket=_S3_BUCKET, Key=obj["Key"])
+        for prefix in ("tiles/",):
+            response = client.list_objects_v2(Bucket=_S3_BUCKET, Prefix=prefix)
+            for obj in response.get("Contents", []):
+                client.delete_object(Bucket=_S3_BUCKET, Key=obj["Key"])
 
     @pytest.fixture
     def milvus_client(self, subject, test_container: Container) -> MilvusClient:
@@ -608,19 +596,13 @@ class TestApp:
         for layer_id in ("crime-violent", "crime-property"):
             s3_client.put_object(
                 Bucket=_S3_BUCKET,
-                Key=f"layers/{layer_id}/{county_fips}/latest.tif",
-                Body=_make_test_cog(),
-                ContentType="image/tiff",
-            )
-            s3_client.put_object(
-                Bucket=_S3_BUCKET,
-                Key=f"layers/{layer_id}/{county_fips}/meta.json",
+                Key=f"tiles/meta/{layer_id}/{county_fips}/meta.json",
                 Body=json.dumps({
-                    "county_fips": county_fips,
                     "date_from": "2025-04-01",
                     "date_to": "2026-04-01",
                     "record_count": 42,
                     "bbox": [-86.035, 37.997, -85.404, 38.375],
+                    "tile_zoom": 12,
                 }).encode(),
                 ContentType="application/json",
             )

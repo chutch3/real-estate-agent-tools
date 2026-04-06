@@ -4,26 +4,7 @@ import pytest
 
 from backend.exceptions import LayerNotFoundError
 from backend.repositories.layer import LayerRepository
-from backend.services.layer import LayerService, _colormap_for_layer_id
-
-
-def test_colormap_for_layer_id_violent_uses_rouge_palette():
-    cmap = _colormap_for_layer_id("crime-violent")
-    r, g, b, a = cmap[255]
-    assert (r, g, b) == (139, 46, 43)  # rouge-700
-    assert a == 255
-
-
-def test_colormap_for_layer_id_property_uses_bronze_palette():
-    cmap = _colormap_for_layer_id("crime-property")
-    r, g, b, a = cmap[255]
-    assert (r, g, b) == (62, 59, 55)  # ink-700 (property ends at ink-700)
-    assert a == 255
-
-
-def test_colormap_for_layer_id_raises_for_unknown_layer():
-    with pytest.raises(ValueError, match="unknown layer"):
-        _colormap_for_layer_id("unknown-layer")
+from backend.services.layer import LayerService, _render_empty_tile
 
 
 class TestLayerService:
@@ -33,7 +14,7 @@ class TestLayerService:
 
     @pytest.fixture
     def subject(self, repository) -> LayerService:
-        return LayerService(repository=repository, bucket_name="test-bucket")
+        return LayerService(repository=repository)
 
     @pytest.mark.asyncio
     async def test_get_layers_returns_empty_when_no_data(self, subject, repository):
@@ -75,6 +56,7 @@ class TestLayerService:
             "date_to": "2026-04-01",
             "record_count": 42,
             "bbox": [-86.035, 37.997, -85.404, 38.375],
+            "tile_zoom": 12,
         }
 
         result = await subject.get_layers()
@@ -86,6 +68,7 @@ class TestLayerService:
         assert violent["date_to"] == "2026-04-01"
         assert violent["record_count"] == 42
         assert violent["bbox"] == [-86.035, 37.997, -85.404, 38.375]
+        assert violent["tile_zoom"] == 12
 
     @pytest.mark.asyncio
     async def test_get_layers_aggregates_record_count_across_regions(self, subject, repository):
@@ -155,21 +138,20 @@ class TestLayerService:
         repository.list_region_slugs.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_get_tile_returns_empty_png_when_no_regions(self, subject, repository):
-        from backend.services.crime_layer import _render_empty_tile
-        repository.list_region_slugs.return_value = []
+    async def test_get_tile_returns_bytes_when_tile_exists(self, subject, repository):
+        png_bytes = b"\x89PNG-fake"
+        repository.get_png_tile.return_value = png_bytes
 
-        result = await subject.get_tile("crime-violent", z=0, x=0, y=0)
+        result = await subject.get_tile("crime-violent", z=12, x=1234, y=3456)
 
-        assert result == _render_empty_tile()
-        repository.list_region_slugs.assert_called_once_with("crime-violent")
+        assert result == png_bytes
+        repository.get_png_tile.assert_called_once_with("crime-violent", 12, 1234, 3456)
 
     @pytest.mark.asyncio
-    async def test_get_tile_calls_list_region_slugs_only_once_across_multiple_requests(self, subject, repository):
-        repository.list_region_slugs.return_value = []
+    async def test_get_tile_returns_empty_png_when_tile_not_found(self, subject, repository):
+        repository.get_png_tile.side_effect = LayerNotFoundError("tile not found")
 
-        await subject.get_tile("crime-violent", z=10, x=269, y=393)
-        await subject.get_tile("crime-violent", z=11, x=538, y=786)
-        await subject.get_tile("crime-violent", z=12, x=1076, y=1572)
+        result = await subject.get_tile("crime-violent", z=12, x=0, y=0)
 
-        repository.list_region_slugs.assert_called_once_with("crime-violent")
+        assert result == _render_empty_tile()
+        repository.get_png_tile.assert_called_once_with("crime-violent", 12, 0, 0)
