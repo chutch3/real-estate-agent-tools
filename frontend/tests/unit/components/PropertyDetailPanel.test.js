@@ -21,6 +21,15 @@ describe('PropertyDetailPanel', () => {
     expect(screen.queryByTestId('property-detail-panel')).not.toBeInTheDocument();
   });
 
+  it('renders the backdrop with pointer-events-none so map zoom is not blocked', () => {
+    const { container } = render(
+      <PropertyDetailPanel property={mockProperty} onClose={jest.fn()} onGeneratePost={jest.fn()} onUploadDocument={jest.fn()} />
+    );
+    const backdrop = container.querySelector('[aria-hidden="true"]');
+    expect(backdrop).not.toBeNull();
+    expect(backdrop.className).toMatch(/pointer-events-none/);
+  });
+
   it('shows property address when a property is selected', () => {
     render(
       <PropertyDetailPanel property={mockProperty} onClose={jest.fn()} onGeneratePost={jest.fn()} onUploadDocument={jest.fn()} />

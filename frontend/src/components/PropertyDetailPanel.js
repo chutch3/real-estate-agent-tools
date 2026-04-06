@@ -41,7 +41,10 @@ function PropertyDetailPanel({
     <>
       {/* Backdrop */}
       {property && (
-        <div className="absolute inset-0 bg-ink-900/10" aria-hidden="true" />
+        <div
+          className="absolute inset-0 bg-ink-900/10 pointer-events-none"
+          aria-hidden="true"
+        />
       )}
 
       {/* Panel */}
