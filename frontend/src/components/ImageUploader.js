@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef } from "react";
 
 function ImageUploader({ selectedImages, onImagesSelected, onImageRemove }) {
   const fileInputRef = useRef(null);
@@ -15,7 +15,7 @@ function ImageUploader({ selectedImages, onImagesSelected, onImageRemove }) {
     if (selectedImages.length === 1) {
       // Clear the file input when removing the last image
       if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+        fileInputRef.current.value = "";
       }
     }
   };
@@ -42,8 +42,7 @@ function ImageUploader({ selectedImages, onImagesSelected, onImageRemove }) {
               onClick={() => handleRemove(index)}
               className="remove-image-button"
               aria-label={`Remove image ${index + 1}`}
-            >
-            </button>
+            ></button>
           </div>
         ))}
       </div>

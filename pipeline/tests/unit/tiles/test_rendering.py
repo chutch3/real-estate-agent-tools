@@ -15,16 +15,15 @@ _TILE_PX = 256
 
 def _make_cog_bytes(polygon=_LOUISVILLE_POLYGON, value: float = 0.5) -> bytes:
     """Return a minimal float32 COG in EPSG:3857 covering the given polygon."""
-    import tempfile
     import os
+    import tempfile
+
     import rasterio
+    from pyproj import Transformer
     from rasterio.crs import CRS
-    from rasterio.io import MemoryFile
     from rasterio.transform import from_bounds
-    from rasterio.warp import Resampling, calculate_default_transform, reproject
     from rio_cogeo.cogeo import cog_translate
     from rio_cogeo.profiles import cog_profiles
-    from pyproj import Transformer
     from shapely.ops import transform as shapely_transform
 
     transformer = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
@@ -39,8 +38,15 @@ def _make_cog_bytes(polygon=_LOUISVILLE_POLYGON, value: float = 0.5) -> bytes:
     try:
         transform = from_bounds(minx, miny, maxx, maxy, 10, 10)
         with rasterio.open(
-            src_path, "w", driver="GTiff", height=10, width=10,
-            count=1, dtype="float32", crs=CRS.from_epsg(3857), transform=transform,
+            src_path,
+            "w",
+            driver="GTiff",
+            height=10,
+            width=10,
+            count=1,
+            dtype="float32",
+            crs=CRS.from_epsg(3857),
+            transform=transform,
         ) as dst:
             dst.write(np.full((10, 10), value, dtype="float32"), 1)
 

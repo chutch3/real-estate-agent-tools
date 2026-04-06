@@ -125,7 +125,12 @@ def test_configure_gdal_skips_endpoint_config_when_s3_endpoint_url_absent(monkey
 
 
 def test_configure_gdal_sets_performance_defaults(monkeypatch):
-    for key in ("GDAL_DISABLE_READDIR_ON_OPEN", "CPL_VSIL_CURL_CACHE_SIZE", "GDAL_HTTP_MAX_RETRY", "GDAL_NUM_THREADS"):
+    for key in (
+        "GDAL_DISABLE_READDIR_ON_OPEN",
+        "CPL_VSIL_CURL_CACHE_SIZE",
+        "GDAL_HTTP_MAX_RETRY",
+        "GDAL_NUM_THREADS",
+    ):
         monkeypatch.delenv(key, raising=False)
 
     _configure_gdal()

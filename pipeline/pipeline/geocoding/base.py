@@ -5,5 +5,4 @@ AddressRecord = tuple[int, str | None, str | None, str | None, str | None]
 
 
 class Geocoder(Protocol):
-    def geocode(self, addresses: list[AddressRecord]) -> dict[int, tuple[float, float]]:
-        ...
+    def geocode(self, addresses: list[AddressRecord]) -> dict[int, tuple[float, float]]: ...

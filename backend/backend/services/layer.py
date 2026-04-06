@@ -2,13 +2,11 @@ import asyncio
 import functools
 import io
 import logging
-from typing import Optional
 
 from PIL import Image
 
 from backend.exceptions import LayerNotFoundError
 from backend.repositories.layer import LayerRepository
-
 
 _LAYER_CONFIG: list[dict] = [
     {
@@ -40,7 +38,7 @@ class LayerService:
             self._region_slugs_cache[layer_id] = self._repository.list_region_slugs(layer_id)
         return self._region_slugs_cache[layer_id]
 
-    async def get_layers(self, county_fips: Optional[str] = None) -> dict:
+    async def get_layers(self, county_fips: str | None = None) -> dict:
         groups = []
         for group_config in _LAYER_CONFIG:
             categories = []

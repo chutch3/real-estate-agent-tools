@@ -1,8 +1,9 @@
 import logging
 import time
+
+from dependency_injector.wiring import Provide, inject
 from pymilvus import CollectionSchema, DataType, FieldSchema, MilvusClient
-from pymilvus.milvus_client.index import IndexParams
-from dependency_injector.wiring import inject, Provide
+
 from backend.container import Container
 
 logger = logging.getLogger(__name__)

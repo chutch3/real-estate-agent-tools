@@ -1,6 +1,4 @@
-from typing import Callable, Optional
-
-from sqlmodel import select
+from collections.abc import Callable
 
 from backend.models import CountyBoundary
 
@@ -9,7 +7,7 @@ class CountyBoundaryRepository:
     def __init__(self, session_factory: Callable) -> None:
         self._session_factory = session_factory
 
-    def get_by_fips(self, fips: str) -> Optional[CountyBoundary]:
+    def get_by_fips(self, fips: str) -> CountyBoundary | None:
         with self._session_factory() as session:
             return session.get(CountyBoundary, fips)
 

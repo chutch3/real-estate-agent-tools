@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { TextField, Button, Box, Typography } from '@mui/material';
-import apiClient from '../apiClient';
+import React, { useState, useEffect } from "react";
+import { TextField, Button, Box, Typography } from "@mui/material";
+import apiClient from "../apiClient";
 
 function DefaultPromptEditor({ onCustomTemplateChange }) {
-  const [defaultTemplate, setDefaultTemplate] = useState('');
-  const [customTemplate, setCustomTemplate] = useState('');
+  const [defaultTemplate, setDefaultTemplate] = useState("");
+  const [customTemplate, setCustomTemplate] = useState("");
   const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
@@ -14,7 +14,7 @@ function DefaultPromptEditor({ onCustomTemplateChange }) {
         setDefaultTemplate(response.template);
         setCustomTemplate(response.template);
       } catch (error) {
-        console.error('Error fetching default template:', error);
+        console.error("Error fetching default template:", error);
       }
     };
     fetchDefaultTemplate();
@@ -52,7 +52,12 @@ function DefaultPromptEditor({ onCustomTemplateChange }) {
             margin="normal"
           />
           <Box sx={{ mt: 1 }}>
-            <Button variant="contained" color="primary" onClick={handleSave} sx={{ mr: 1 }}>
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={handleSave}
+              sx={{ mr: 1 }}
+            >
               Save Changes
             </Button>
             <Button variant="outlined" onClick={handleCancel}>

@@ -6,8 +6,8 @@ from prefect import flow
 from prefect.testing.utilities import prefect_test_harness
 from shapely.geometry import Point
 
-from pipeline.geocoding.base import Geocoder
 from pipeline.flows.crime_heatmap import geocode_records
+from pipeline.geocoding.base import Geocoder
 
 
 @pytest.fixture(scope="module")
@@ -18,8 +18,16 @@ def prefect_harness():
 
 def _make_frame_with_geometry() -> gpd.GeoDataFrame:
     return gpd.GeoDataFrame(
-        [{"lat": 38.25, "lon": -85.75, "category": "violent", "date": "2025-01-01",
-          "source": "test", "geometry": Point(-85.75, 38.25)}],
+        [
+            {
+                "lat": 38.25,
+                "lon": -85.75,
+                "category": "violent",
+                "date": "2025-01-01",
+                "source": "test",
+                "geometry": Point(-85.75, 38.25),
+            }
+        ],
         geometry="geometry",
         crs="EPSG:4326",
     )
@@ -27,9 +35,20 @@ def _make_frame_with_geometry() -> gpd.GeoDataFrame:
 
 def _make_frame_without_geometry() -> gpd.GeoDataFrame:
     return gpd.GeoDataFrame(
-        [{"lat": None, "lon": None, "category": "violent", "date": "2025-01-01",
-          "source": "test", "address": "100 BLOCK N 4TH ST", "city": "LOUISVILLE",
-          "zip_code": "40202", "state": "KY", "geometry": None}],
+        [
+            {
+                "lat": None,
+                "lon": None,
+                "category": "violent",
+                "date": "2025-01-01",
+                "source": "test",
+                "address": "100 BLOCK N 4TH ST",
+                "city": "LOUISVILLE",
+                "zip_code": "40202",
+                "state": "KY",
+                "geometry": None,
+            }
+        ],
         geometry="geometry",
         crs="EPSG:4326",
     )
@@ -44,6 +63,7 @@ class TestGeocodeRecords:
         @flow
         def _flow():
             return geocode_records(frame, geocoder)
+
         return _flow()
 
     def test_skips_records_that_already_have_geometry(self, prefect_harness, geocoder):
@@ -78,14 +98,38 @@ class TestGeocodeRecords:
         geocoder.geocode.return_value = {1: (38.2567, -85.7573)}
         frame = gpd.GeoDataFrame(
             [
-                {"lat": 38.25, "lon": -85.75, "category": "violent", "date": "2025-01-01",
-                 "source": "test", "geometry": Point(-85.75, 38.25)},
-                {"lat": None, "lon": None, "category": "violent", "date": "2025-01-01",
-                 "source": "test", "address": "100 BLOCK N 4TH ST", "city": "LOUISVILLE",
-                 "zip_code": "40202", "state": "KY", "geometry": None},
-                {"lat": None, "lon": None, "category": "property", "date": "2025-01-02",
-                 "source": "test", "address": "999 FAKE ST", "city": "LOUISVILLE",
-                 "zip_code": "40202", "state": "KY", "geometry": None},
+                {
+                    "lat": 38.25,
+                    "lon": -85.75,
+                    "category": "violent",
+                    "date": "2025-01-01",
+                    "source": "test",
+                    "geometry": Point(-85.75, 38.25),
+                },
+                {
+                    "lat": None,
+                    "lon": None,
+                    "category": "violent",
+                    "date": "2025-01-01",
+                    "source": "test",
+                    "address": "100 BLOCK N 4TH ST",
+                    "city": "LOUISVILLE",
+                    "zip_code": "40202",
+                    "state": "KY",
+                    "geometry": None,
+                },
+                {
+                    "lat": None,
+                    "lon": None,
+                    "category": "property",
+                    "date": "2025-01-02",
+                    "source": "test",
+                    "address": "999 FAKE ST",
+                    "city": "LOUISVILLE",
+                    "zip_code": "40202",
+                    "state": "KY",
+                    "geometry": None,
+                },
             ],
             geometry="geometry",
             crs="EPSG:4326",

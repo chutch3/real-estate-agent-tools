@@ -28,21 +28,25 @@ def _interpolate_stops(stops: list[tuple[int, int, int]]) -> dict[int, tuple[int
 @functools.cache
 def violent_colormap() -> dict[int, tuple[int, int, int, int]]:
     """linen-100 → rouge-500 → rouge-700."""
-    return _interpolate_stops([
-        (248, 245, 240),  # linen-100
-        (184, 84, 80),    # rouge-500
-        (139, 46, 43),    # rouge-700
-    ])
+    return _interpolate_stops(
+        [
+            (248, 245, 240),  # linen-100
+            (184, 84, 80),  # rouge-500
+            (139, 46, 43),  # rouge-700
+        ]
+    )
 
 
 @functools.cache
 def property_colormap() -> dict[int, tuple[int, int, int, int]]:
     """linen-100 → bronze-400 → ink-700."""
-    return _interpolate_stops([
-        (248, 245, 240),  # linen-100
-        (184, 154, 120),  # bronze-400
-        (62, 59, 55),     # ink-700
-    ])
+    return _interpolate_stops(
+        [
+            (248, 245, 240),  # linen-100
+            (184, 154, 120),  # bronze-400
+            (62, 59, 55),  # ink-700
+        ]
+    )
 
 
 LAYER_COLORMAPS: dict[str, callable] = {

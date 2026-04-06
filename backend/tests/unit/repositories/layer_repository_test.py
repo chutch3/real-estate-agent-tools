@@ -66,9 +66,7 @@ class TestLayerRepository:
             "record_count": 42,
             "bbox": [-86.035, 37.997, -85.404, 38.375],
         }
-        s3_client.get_object.return_value = {
-            "Body": MagicMock(read=lambda: json.dumps(meta).encode())
-        }
+        s3_client.get_object.return_value = {"Body": MagicMock(read=lambda: json.dumps(meta).encode())}
 
         result = subject.get_meta("crime-violent", "21111")
 
@@ -108,9 +106,7 @@ class TestLayerRepository:
 
     def test_get_png_tile_returns_bytes_from_s3(self, subject, s3_client):
         png_bytes = b"\x89PNG-fake"
-        s3_client.get_object.return_value = {
-            "Body": MagicMock(read=lambda: png_bytes)
-        }
+        s3_client.get_object.return_value = {"Body": MagicMock(read=lambda: png_bytes)}
 
         result = subject.get_png_tile("crime-violent", z=12, x=1234, y=3456)
 

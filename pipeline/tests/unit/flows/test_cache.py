@@ -41,5 +41,11 @@ def test_cache_key_different_versions_produce_different_keys():
 
 
 def test_all_cacheable_tasks_have_version_entries():
-    expected_tasks = {"fetch_raw", "geocode_batch", "geocode_records", "compute_kde_grid", "write_cog"}
+    expected_tasks = {
+        "fetch_raw",
+        "geocode_batch",
+        "geocode_records",
+        "compute_kde_grid",
+        "write_cog",
+    }
     assert set(CACHE_VERSIONS.keys()) == expected_tasks

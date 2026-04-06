@@ -1,5 +1,3 @@
-import logging
-import shlex
 import subprocess
 import time
 import urllib.request
@@ -8,8 +6,11 @@ from pathlib import Path
 
 import boto3
 import pytest
+
 from backend.container import Container
-from tests.factories import PropertyInfoFactory  # noqa: F401 — registers property_info_factory fixture
+from tests.factories import (
+    PropertyInfoFactory,  # noqa: F401 — registers property_info_factory fixture
+)
 
 COMPOSE_FILE = Path(__file__).parent / "docker-compose.yml"
 MILVUS_HEALTH_URL = "http://localhost:9091/healthz"

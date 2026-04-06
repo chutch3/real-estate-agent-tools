@@ -2,8 +2,9 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
-from backend.startup import _on_startup
+
 from backend.repositories.document_storage import DocumentStorageRepository
+from backend.startup import _on_startup
 
 
 @pytest.fixture(autouse=True)

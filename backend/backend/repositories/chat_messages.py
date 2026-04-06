@@ -1,4 +1,4 @@
-from typing import Callable, List
+from collections.abc import Callable
 
 from sqlmodel import select
 
@@ -17,12 +17,10 @@ class ChatMessageRepository:
             session.refresh(message)
             return message
 
-    async def get_history(self, property_id: str) -> List[ChatMessage]:
+    async def get_history(self, property_id: str) -> list[ChatMessage]:
         with self._session_factory() as session:
             return list(
                 session.exec(
-                    select(ChatMessage)
-                    .where(ChatMessage.property_id == property_id)
-                    .order_by(ChatMessage.created_at)
+                    select(ChatMessage).where(ChatMessage.property_id == property_id).order_by(ChatMessage.created_at)
                 ).all()
             )

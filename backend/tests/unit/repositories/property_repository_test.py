@@ -38,7 +38,6 @@ class TestPropertyRepository:
             result = session.exec(select(PropertyInfo)).first()
             assert result.county_fips == "18019"
 
-
     @pytest.mark.asyncio
     async def test_list_properties(
         self,

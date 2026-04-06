@@ -1,19 +1,14 @@
-import json
+from collections.abc import Container
 from http import HTTPStatus
-from typing import Container
 from unittest.mock import AsyncMock, MagicMock, Mock
 from urllib.parse import quote_plus
 
+import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 from pymilvus.exceptions import MilvusException
 
 from backend.clients.google_maps import GoogleMapsClient
-from backend.repositories.document_storage import DocumentStorageRepository
-from backend.services.layer import LayerService
-from backend.services.chat import ChatService
-from backend.services.document import DocumentService
-from backend.services.property import PropertyService
-from backend.template_loader import TemplateLoader
-import pytest
 from backend.exceptions import (
     AddressNotFoundError,
     DocumentNotFoundError,
@@ -32,16 +27,21 @@ from backend.models import (
     TemplateResponse,
 )
 from backend.post_coordinator import PostCoordinator
+from backend.repositories.document_storage import DocumentStorageRepository
 from backend.routes import router
-from fastapi import FastAPI, UploadFile
-from fastapi.testclient import TestClient
+from backend.services.chat import ChatService
+from backend.services.document import DocumentService
+from backend.services.layer import LayerService
+from backend.services.property import PropertyService
+from backend.template_loader import TemplateLoader
 from tests.factories import PropertyInfoFactory
 
 
 def generate_fake_pdf(text="This is a fake PDF") -> bytes:
     from io import BytesIO
-    from reportlab.pdfgen import canvas
+
     from reportlab.lib.pagesizes import letter
+    from reportlab.pdfgen import canvas
 
     buffer = BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
@@ -94,9 +94,7 @@ class TestRoutes:
             ),
         ],
     )
-    def test_generate_post(
-        self, subject, mock_coordinator, actual_request, expected_response
-    ):
+    def test_generate_post(self, subject, mock_coordinator, actual_request, expected_response):
         mock_coordinator.generate_post.return_value = expected_response["post"]
         response = subject.post("/posts", json=actual_request.model_dump())
         assert response.status_code == HTTPStatus.CREATED
@@ -155,10 +153,7 @@ class TestRoutes:
         mock_template_loader.read_user_prompt.return_value = "This is a test template"
         response = subject.get("/templates/default")
         assert response.status_code == HTTPStatus.OK
-        assert (
-            response.json()
-            == TemplateResponse(template="This is a test template").model_dump()
-        )
+        assert response.json() == TemplateResponse(template="This is a test template").model_dump()
 
     def test_document_upload(self, subject, mock_document_service):
         mock_document_service.process_pdf.return_value = "123"
@@ -196,14 +191,10 @@ class TestRoutes:
         expected = property_info_factory.build()
         mock_property_service.search_property.return_value = expected
 
-        response = subject.get(
-            f"/properties?address={quote_plus('123 Main St, Anytown, USA')}"
-        )
+        response = subject.get(f"/properties?address={quote_plus('123 Main St, Anytown, USA')}")
         assert response.status_code == HTTPStatus.OK
         assert response.json() == expected.model_dump(by_alias=True)
-        mock_property_service.search_property.assert_awaited_once_with(
-            address="123 Main St, Anytown, USA"
-        )
+        mock_property_service.search_property.assert_awaited_once_with(address="123 Main St, Anytown, USA")
 
     def test_list_properties(
         self,
@@ -266,9 +257,7 @@ class TestRoutes:
         assert response.status_code == HTTPStatus.BAD_REQUEST
         assert response.json() == {"detail": "No documents found with the provided IDs"}
 
-    def test_create_property_document_not_found(
-        self, subject, mock_property_service, property_info_factory
-    ):
+    def test_create_property_document_not_found(self, subject, mock_property_service, property_info_factory):
         property_data = property_info_factory.build()
         mock_property_service.create_property.side_effect = DocumentNotFoundError()
         response = subject.post("/properties", json=property_data.model_dump())
@@ -285,9 +274,7 @@ class TestRoutes:
         assert response.json() == expected.model_dump(by_alias=True)
         mock_property_service.remove_document.assert_awaited_once_with("prop-1", "doc-1")
 
-    def test_delete_document_from_property_returns_404_when_doc_not_in_property(
-        self, subject, mock_property_service
-    ):
+    def test_delete_document_from_property_returns_404_when_doc_not_in_property(self, subject, mock_property_service):
         mock_property_service.remove_document.side_effect = DocumentNotFoundError()
 
         response = subject.delete("/properties/prop-1/documents/missing-doc")
@@ -295,7 +282,9 @@ class TestRoutes:
         assert response.status_code == HTTPStatus.NOT_FOUND
 
     def test_chat_streams_assistant_response(self, subject, mock_chat_service):
-        mock_chat_service.prepare_chat_messages.return_value = [{"role": "user", "content": "Tell me about this property"}]
+        mock_chat_service.prepare_chat_messages.return_value = [
+            {"role": "user", "content": "Tell me about this property"}
+        ]
 
         async def mock_stream(*args, **kwargs):
             yield "Hello from "
@@ -311,9 +300,7 @@ class TestRoutes:
         assert response.status_code == HTTPStatus.OK
         assert "Hello from " in response.text
         assert "the assistant" in response.text
-        mock_chat_service.prepare_chat_messages.assert_awaited_once_with(
-            "prop-1", "Tell me about this property"
-        )
+        mock_chat_service.prepare_chat_messages.assert_awaited_once_with("prop-1", "Tell me about this property")
 
     def test_chat_returns_503_when_milvus_unavailable(self, subject, mock_chat_service):
         mock_chat_service.prepare_chat_messages.side_effect = MilvusException("connection refused")
@@ -327,8 +314,20 @@ class TestRoutes:
 
     def test_get_chat_history(self, subject, mock_chat_service):
         messages = [
-            ChatMessage(id="msg-1", property_id="prop-1", role="user", content="Hi", created_at="2026-01-01T00:00:00"),
-            ChatMessage(id="msg-2", property_id="prop-1", role="assistant", content="Hello!", created_at="2026-01-01T00:00:01"),
+            ChatMessage(
+                id="msg-1",
+                property_id="prop-1",
+                role="user",
+                content="Hi",
+                created_at="2026-01-01T00:00:00",
+            ),
+            ChatMessage(
+                id="msg-2",
+                property_id="prop-1",
+                role="assistant",
+                content="Hello!",
+                created_at="2026-01-01T00:00:01",
+            ),
         ]
         mock_chat_service.get_history.return_value = messages
 

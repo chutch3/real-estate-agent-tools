@@ -1,13 +1,13 @@
-import React, { useEffect, useRef } from 'react';
-import { Map, Marker, Source, Layer } from 'react-map-gl/mapbox';
-import { MapPin } from 'lucide-react';
-import 'mapbox-gl/dist/mapbox-gl.css';
-import useLayers from '../hooks/useLayers';
-import MapLayerControls from './MapLayerControls';
-import CrimeLayerLegend from './CrimeLayerLegend';
+import React, { useEffect, useRef } from "react";
+import { Map, Marker, Source, Layer } from "react-map-gl/mapbox";
+import { MapPin } from "lucide-react";
+import "mapbox-gl/dist/mapbox-gl.css";
+import useLayers from "../hooks/useLayers";
+import MapLayerControls from "./MapLayerControls";
+import CrimeLayerLegend from "./CrimeLayerLegend";
 
 const API_BASE_URL =
-  process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000';
+  process.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
 const MAPBOX_TOKEN = process.env.REACT_APP_MAPBOX_TOKEN;
 
 const defaultViewState = { longitude: -122.4194, latitude: 37.7749, zoom: 10 };
@@ -34,14 +34,18 @@ function PropertyMap({ properties, onPropertySelect, selectedProperty }) {
       center: [selectedProperty.longitude, selectedProperty.latitude],
       zoom: 14,
     });
-  }, [selectedProperty?.id, selectedProperty?.latitude, selectedProperty?.longitude]);
+  }, [
+    selectedProperty?.id,
+    selectedProperty?.latitude,
+    selectedProperty?.longitude,
+  ]);
 
   return (
     <div className="relative w-full h-full">
       <Map
         ref={mapRef}
         initialViewState={defaultViewState}
-        style={{ width: '100%', height: '100%' }}
+        style={{ width: "100%", height: "100%" }}
         mapStyle="mapbox://styles/mapbox/light-v11"
         mapboxAccessToken={MAPBOX_TOKEN}
         projection="mercator"
@@ -57,13 +61,13 @@ function PropertyMap({ properties, onPropertySelect, selectedProperty }) {
                 latitude={property.latitude}
                 anchor="bottom"
                 onClick={() => onPropertySelect(property)}
-                style={{ cursor: 'pointer' }}
+                style={{ cursor: "pointer" }}
               >
                 <MapPin
                   size={isSelected ? 32 : 22}
-                  className={isSelected ? 'text-bronze-600' : 'text-bronze-400'}
+                  className={isSelected ? "text-bronze-600" : "text-bronze-400"}
                   strokeWidth={isSelected ? 2 : 1.5}
-                  aria-label={isSelected ? 'Selected property' : 'Property'}
+                  aria-label={isSelected ? "Selected property" : "Property"}
                 />
               </Marker>
             );
@@ -73,7 +77,7 @@ function PropertyMap({ properties, onPropertySelect, selectedProperty }) {
           <Source type="geojson" data={selectedProperty.county_polygon}>
             <Layer
               type="line"
-              paint={{ 'line-color': '#92400e', 'line-width': 2 }}
+              paint={{ "line-color": "#92400e", "line-width": 2 }}
             />
           </Source>
         )}
@@ -89,15 +93,23 @@ function PropertyMap({ properties, onPropertySelect, selectedProperty }) {
             maxzoom={activeCategory.tile_zoom ?? 12}
             bounds={activeCategory.bbox ?? undefined}
           >
-            <Layer type="raster" paint={{ 'raster-resampling': 'linear' }} />
+            <Layer type="raster" paint={{ "raster-resampling": "linear" }} />
           </Source>
         )}
       </Map>
 
       {hasLayers && (
         <>
-          <MapLayerControls groups={groups} isActive={isActive} onToggle={toggle} />
-          <CrimeLayerLegend groups={groups} isActive={isActive} panelOpen={!!selectedProperty} />
+          <MapLayerControls
+            groups={groups}
+            isActive={isActive}
+            onToggle={toggle}
+          />
+          <CrimeLayerLegend
+            groups={groups}
+            isActive={isActive}
+            panelOpen={!!selectedProperty}
+          />
         </>
       )}
     </div>

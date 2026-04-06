@@ -76,8 +76,18 @@ class TestLayerService:
             ["region-a", "region-b"] if layer_id == "crime-violent" else []
         )
         repository.get_meta.side_effect = [
-            {"date_from": "2025-04-01", "date_to": "2026-04-01", "record_count": 30, "bbox": [-86.0, 38.0, -85.5, 38.4]},
-            {"date_from": "2025-04-01", "date_to": "2026-04-01", "record_count": 20, "bbox": [-85.5, 38.0, -85.0, 38.4]},
+            {
+                "date_from": "2025-04-01",
+                "date_to": "2026-04-01",
+                "record_count": 30,
+                "bbox": [-86.0, 38.0, -85.5, 38.4],
+            },
+            {
+                "date_from": "2025-04-01",
+                "date_to": "2026-04-01",
+                "record_count": 20,
+                "bbox": [-85.5, 38.0, -85.0, 38.4],
+            },
         ]
 
         result = await subject.get_layers()

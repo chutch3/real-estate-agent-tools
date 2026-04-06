@@ -4,14 +4,14 @@ import morecantile
 import numpy as np
 from PIL import Image
 from pyproj import Transformer
+from rasterio.enums import Resampling
 from rasterio.features import geometry_mask
 from rasterio.io import MemoryFile
 from rasterio.transform import from_bounds as transform_from_bounds
-from rasterio.enums import Resampling
 from rasterio.windows import from_bounds as window_from_bounds
-from shapely.geometry import box as shapely_box, mapping
+from shapely.geometry import Polygon, mapping
+from shapely.geometry import box as shapely_box
 from shapely.ops import transform as shapely_transform
-from shapely.geometry import Polygon
 
 _TMS = morecantile.tms.get("WebMercatorQuad")
 BASE_ZOOM = 12
@@ -38,7 +38,10 @@ def render_png_tile(
     with MemoryFile(cog_bytes) as memfile:
         with memfile.open() as src:
             window = window_from_bounds(
-                xy_bounds.left, xy_bounds.bottom, xy_bounds.right, xy_bounds.top,
+                xy_bounds.left,
+                xy_bounds.bottom,
+                xy_bounds.right,
+                xy_bounds.top,
                 src.transform,
             )
             data = src.read(
@@ -55,8 +58,12 @@ def render_png_tile(
     clip_polygon = county_poly_3857.intersection(tile_poly_3857)
 
     transform_3857 = transform_from_bounds(
-        xy_bounds.left, xy_bounds.bottom, xy_bounds.right, xy_bounds.top,
-        TILE_PX, TILE_PX,
+        xy_bounds.left,
+        xy_bounds.bottom,
+        xy_bounds.right,
+        xy_bounds.top,
+        TILE_PX,
+        TILE_PX,
     )
 
     if not clip_polygon.is_empty:

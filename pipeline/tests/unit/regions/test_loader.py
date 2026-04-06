@@ -26,11 +26,13 @@ _SOCRATA_SPEC = {
 def _write_region(region_dir: Path, polygon_coords: list, sources: list) -> None:
     region_dir.mkdir()
     (region_dir / "region.geojson").write_text(
-        json.dumps({
-            "type": "Feature",
-            "geometry": {"type": "Polygon", "coordinates": [polygon_coords]},
-            "properties": {},
-        })
+        json.dumps(
+            {
+                "type": "Feature",
+                "geometry": {"type": "Polygon", "coordinates": [polygon_coords]},
+                "properties": {},
+            }
+        )
     )
     (region_dir / "sources.yml").write_text(yaml.dump({"sources": sources}))
 
@@ -139,9 +141,7 @@ def _write_sources_config(path: Path, config: dict) -> None:
 
 
 def test_load_region_by_fips_uses_fips_as_slug(tmp_path, httpserver) -> None:
-    httpserver.expect_request(
-        _TIGER_COUNTY_PATH
-    ).respond_with_json(_TIGER_COUNTY_RESPONSE)
+    httpserver.expect_request(_TIGER_COUNTY_PATH).respond_with_json(_TIGER_COUNTY_RESPONSE)
     config_path = tmp_path / "sources_config.yml"
     _write_sources_config(config_path, {"21111": [_ARCGIS_SPEC]})
 
@@ -155,9 +155,7 @@ def test_load_region_by_fips_uses_fips_as_slug(tmp_path, httpserver) -> None:
 
 
 def test_load_region_by_fips_fetches_polygon_from_tigerweb(tmp_path, httpserver) -> None:
-    httpserver.expect_request(
-        _TIGER_COUNTY_PATH
-    ).respond_with_json(_TIGER_COUNTY_RESPONSE)
+    httpserver.expect_request(_TIGER_COUNTY_PATH).respond_with_json(_TIGER_COUNTY_RESPONSE)
     config_path = tmp_path / "sources_config.yml"
     _write_sources_config(config_path, {"21111": [_ARCGIS_SPEC]})
 
@@ -175,9 +173,7 @@ def test_load_region_by_fips_fetches_polygon_from_tigerweb(tmp_path, httpserver)
 
 
 def test_load_region_by_fips_builds_sources_from_config(tmp_path, httpserver) -> None:
-    httpserver.expect_request(
-        _TIGER_COUNTY_PATH
-    ).respond_with_json(_TIGER_COUNTY_RESPONSE)
+    httpserver.expect_request(_TIGER_COUNTY_PATH).respond_with_json(_TIGER_COUNTY_RESPONSE)
     config_path = tmp_path / "sources_config.yml"
     _write_sources_config(config_path, {"21111": [_ARCGIS_SPEC]})
 
@@ -193,9 +189,7 @@ def test_load_region_by_fips_builds_sources_from_config(tmp_path, httpserver) ->
 
 
 def test_load_region_by_fips_returns_empty_sources_when_fips_not_in_config(tmp_path, httpserver) -> None:
-    httpserver.expect_request(
-        _TIGER_COUNTY_PATH
-    ).respond_with_json(_TIGER_COUNTY_RESPONSE)
+    httpserver.expect_request(_TIGER_COUNTY_PATH).respond_with_json(_TIGER_COUNTY_RESPONSE)
     config_path = tmp_path / "sources_config.yml"
     _write_sources_config(config_path, {})
 
@@ -209,9 +203,7 @@ def test_load_region_by_fips_returns_empty_sources_when_fips_not_in_config(tmp_p
 
 
 def test_load_region_by_fips_returns_none_when_tigerweb_has_no_features(tmp_path, httpserver) -> None:
-    httpserver.expect_request(
-        _TIGER_COUNTY_PATH
-    ).respond_with_json({"features": []})
+    httpserver.expect_request(_TIGER_COUNTY_PATH).respond_with_json({"features": []})
     config_path = tmp_path / "sources_config.yml"
     _write_sources_config(config_path, {"99999": []})
 

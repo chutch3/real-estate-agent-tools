@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, Loader2, MapPin } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import apiClient from '../apiClient';
+import React, { useState, useEffect, useRef } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { ArrowLeft, Send, Loader2, MapPin } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import apiClient from "../apiClient";
 
 function Chat() {
   const { state } = useLocation();
@@ -10,49 +10,52 @@ function Chat() {
   const property = state?.property;
 
   const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isDisabled, setIsDisabled] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const bottomRef = useRef(null);
 
   useEffect(() => {
     if (!property) return;
-    apiClient.getChatHistory(property.id).then(setMessages).catch(() => {});
+    apiClient
+      .getChatHistory(property.id)
+      .then(setMessages)
+      .catch(() => {});
   }, [property]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView?.({ behavior: 'smooth' });
+    bottomRef.current?.scrollIntoView?.({ behavior: "smooth" });
   }, [messages]);
 
   const handleSend = async () => {
     if (!input.trim() || isSending) return;
     const userMessage = input.trim();
-    setInput('');
-    setError('');
+    setInput("");
+    setError("");
     setIsSending(true);
 
     setMessages((prev) => [
       ...prev,
-      { id: `local-user-${Date.now()}`, role: 'user', content: userMessage },
+      { id: `local-user-${Date.now()}`, role: "user", content: userMessage },
     ]);
 
     const assistantId = `local-assistant-${Date.now()}`;
     setMessages((prev) => [
       ...prev,
-      { id: assistantId, role: 'assistant', content: '' },
+      { id: assistantId, role: "assistant", content: "" },
     ]);
 
     try {
       await apiClient.sendChatMessage(property.id, userMessage, (chunk) => {
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === assistantId ? { ...m, content: m.content + chunk } : m
-          )
+            m.id === assistantId ? { ...m, content: m.content + chunk } : m,
+          ),
         );
       });
     } catch {
-      setError('Chat is currently unavailable. Please try again later.');
+      setError("Chat is currently unavailable. Please try again later.");
       setIsDisabled(true);
       setMessages((prev) => prev.filter((m) => m.id !== assistantId));
     } finally {
@@ -61,14 +64,17 @@ function Chat() {
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
   };
 
   return (
-    <main data-testid="chat-page" className="min-h-screen bg-linen-100 pt-14 flex flex-col">
+    <main
+      data-testid="chat-page"
+      className="min-h-screen bg-linen-100 pt-14 flex flex-col"
+    >
       <div className="max-w-2xl mx-auto w-full px-6 py-10 flex flex-col flex-1">
         {/* Back */}
         <button
@@ -76,12 +82,18 @@ function Chat() {
           className="flex items-center gap-1.5 font-sans text-sm text-ink-400 hover:text-ink-900 transition-colors mb-8 group"
           aria-label="Go back"
         >
-          <ArrowLeft size={14} className="group-hover:-translate-x-0.5 transition-transform" />
+          <ArrowLeft
+            size={14}
+            className="group-hover:-translate-x-0.5 transition-transform"
+          />
           Back
         </button>
 
         {/* Heading */}
-        <div className="mb-6 animate-fade-up" style={{ animationFillMode: 'both' }}>
+        <div
+          className="mb-6 animate-fade-up"
+          style={{ animationFillMode: "both" }}
+        >
           <h1 className="font-serif text-4xl text-ink-900 mb-2">Chat</h1>
           {property && (
             <div className="flex items-center gap-2">
@@ -107,20 +119,30 @@ function Chat() {
           {messages.map((msg) => (
             <div
               key={msg.id}
-              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
             >
               <div
                 className={`max-w-xs lg:max-w-md px-4 py-2.5 rounded-lg font-sans text-sm leading-relaxed ${
-                  msg.role === 'user'
-                    ? 'bg-bronze-500 text-white'
-                    : 'bg-linen-100 text-ink-800'
+                  msg.role === "user"
+                    ? "bg-bronze-500 text-white"
+                    : "bg-linen-100 text-ink-800"
                 }`}
-                aria-label={msg.role === 'user' ? 'Your message' : 'Assistant message'}
+                aria-label={
+                  msg.role === "user" ? "Your message" : "Assistant message"
+                }
               >
-                {msg.role === 'assistant' && msg.content ? (
-                  <ReactMarkdown className="prose prose-sm max-w-none">{msg.content}</ReactMarkdown>
-                ) : msg.content || (
-                  <Loader2 size={13} className="animate-spin text-ink-400" aria-label="Thinking" />
+                {msg.role === "assistant" && msg.content ? (
+                  <ReactMarkdown className="prose prose-sm max-w-none">
+                    {msg.content}
+                  </ReactMarkdown>
+                ) : (
+                  msg.content || (
+                    <Loader2
+                      size={13}
+                      className="animate-spin text-ink-400"
+                      aria-label="Thinking"
+                    />
+                  )
                 )}
               </div>
             </div>

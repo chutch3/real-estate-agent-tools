@@ -92,5 +92,3 @@ This application requires valid API keys for OpenAI, Google Maps, and other serv
 - [ ] Deployment
 - [ ] Support for different LLM sources
 - [ ] Support for different proprety data sources (MLS, Zillow, etc)
-
-

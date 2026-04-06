@@ -52,8 +52,14 @@ class TestDocumentService:
         mock_embedding_repository.batch_insert_embeddings.assert_awaited_once_with(
             actual,
             [
-                ("This is page 1 of 2\nThis is some fake content for testing purposes.\n", [0.1] * 10),
-                ("This is page 2 of 2\nThis is some fake content for testing purposes.\n", [0.1] * 10),
+                (
+                    "This is page 1 of 2\nThis is some fake content for testing purposes.\n",
+                    [0.1] * 10,
+                ),
+                (
+                    "This is page 2 of 2\nThis is some fake content for testing purposes.\n",
+                    [0.1] * 10,
+                ),
             ],
         )
 

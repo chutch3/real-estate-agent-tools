@@ -1,5 +1,12 @@
-import React, { useState } from 'react';
-import { Button, Checkbox, FormControlLabel, FormGroup, Box, Typography } from '@mui/material';
+import React, { useState } from "react";
+import {
+  Button,
+  Checkbox,
+  FormControlLabel,
+  FormGroup,
+  Box,
+  Typography,
+} from "@mui/material";
 
 function SocialMediaPoster({ onPost, isLoading }) {
   const [selectedPlatforms, setSelectedPlatforms] = useState({
@@ -17,7 +24,7 @@ function SocialMediaPoster({ onPost, isLoading }) {
 
   const handlePost = () => {
     const platforms = Object.keys(selectedPlatforms).filter(
-      (platform) => selectedPlatforms[platform]
+      (platform) => selectedPlatforms[platform],
     );
     onPost(platforms);
   };
@@ -31,15 +38,33 @@ function SocialMediaPoster({ onPost, isLoading }) {
       </Typography>
       <FormGroup>
         <FormControlLabel
-          control={<Checkbox checked={selectedPlatforms.instagram} onChange={handleChange} name="instagram" />}
+          control={
+            <Checkbox
+              checked={selectedPlatforms.instagram}
+              onChange={handleChange}
+              name="instagram"
+            />
+          }
           label="Instagram"
         />
         <FormControlLabel
-          control={<Checkbox checked={selectedPlatforms.facebook} onChange={handleChange} name="facebook" />}
+          control={
+            <Checkbox
+              checked={selectedPlatforms.facebook}
+              onChange={handleChange}
+              name="facebook"
+            />
+          }
           label="Facebook"
         />
         <FormControlLabel
-          control={<Checkbox checked={selectedPlatforms.twitter} onChange={handleChange} name="twitter" />}
+          control={
+            <Checkbox
+              checked={selectedPlatforms.twitter}
+              onChange={handleChange}
+              name="twitter"
+            />
+          }
           label="Twitter"
         />
       </FormGroup>

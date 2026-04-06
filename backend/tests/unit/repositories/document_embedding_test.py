@@ -1,13 +1,14 @@
 import random
-from typing import Container
+from collections.abc import Container
 
+import pytest
+from pymilvus import MilvusClient
+
+from backend.repositories.document_embeddings import DocumentEmbeddingRepository
 from backend.schema import (
     create_document_embeddings_schema,
     drop_document_embeddings_schema,
 )
-import pytest
-from backend.repositories.document_embeddings import DocumentEmbeddingRepository
-from pymilvus import MilvusClient
 
 
 def generate_simple_embedding(text: str, dimension: int = 1536) -> list[float]:
@@ -23,14 +24,15 @@ def generate_simple_embedding(text: str, dimension: int = 1536) -> list[float]:
 class TestDocumentEmbeddingRepository:
     @pytest.mark.asyncio
     async def test_insert_embeddings(
-        self, subject: DocumentEmbeddingRepository, milvus_client: MilvusClient, test_container: Container
+        self,
+        subject: DocumentEmbeddingRepository,
+        milvus_client: MilvusClient,
+        test_container: Container,
     ):
         collection_name = test_container.embeddings_collection_name()
         actual = await subject.insert_embeddings("1", "test", [1.0] * 1536)
         assert actual["insert_count"] == 1
-        query_results = milvus_client.query(
-            collection_name=collection_name, filter='doc_id == "1"'
-        )
+        query_results = milvus_client.query(collection_name=collection_name, filter='doc_id == "1"')
         assert len(query_results) == 1
         assert query_results[0]["doc_id"] == "1"
         assert query_results[0]["text"] == "test"
@@ -85,15 +87,16 @@ class TestDocumentEmbeddingRepository:
                 for i, content in enumerate(document_contents)
             ],
         )
-        actual = await subject.query_embeddings(
-            [generate_simple_embedding(search_text)], limit
-        )
+        actual = await subject.query_embeddings([generate_simple_embedding(search_text)], limit)
         assert len(actual) == len(expected)
         assert all(text in actual for text in expected)
 
     @pytest.mark.asyncio
     async def test_exists_returns_true_when_document_found(
-        self, subject: DocumentEmbeddingRepository, milvus_client: MilvusClient, test_container: Container
+        self,
+        subject: DocumentEmbeddingRepository,
+        milvus_client: MilvusClient,
+        test_container: Container,
     ):
         collection_name = test_container.embeddings_collection_name()
         milvus_client.insert(
@@ -104,7 +107,10 @@ class TestDocumentEmbeddingRepository:
 
     @pytest.mark.asyncio
     async def test_batch_insert_embeddings(
-        self, subject: DocumentEmbeddingRepository, milvus_client: MilvusClient, test_container: Container
+        self,
+        subject: DocumentEmbeddingRepository,
+        milvus_client: MilvusClient,
+        test_container: Container,
     ):
         collection_name = test_container.embeddings_collection_name()
         chunks = [

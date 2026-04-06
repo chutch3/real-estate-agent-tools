@@ -1,1 +1,2 @@
-class Prop
+class Prop:
+    pass

@@ -52,9 +52,7 @@ class TestArcGISFeatureSource:
         )
 
     def _expect(self, httpserver: HTTPServer, body: dict) -> None:
-        httpserver.expect_request(
-            "/rest/services/crime/FeatureServer/0/query"
-        ).respond_with_json(body)
+        httpserver.expect_request("/rest/services/crime/FeatureServer/0/query").respond_with_json(body)
 
     def test_fetch_returns_records_with_address_fields(self, subject, httpserver):
         self._expect(httpserver, _make_response([_make_feature()]))
@@ -78,11 +76,13 @@ class TestArcGISFeatureSource:
     def test_fetch_maps_category_from_offense_classification(self, subject, httpserver):
         self._expect(
             httpserver,
-            _make_response([
-                _make_feature(offense="13A AGGRAVATED ASSAULT"),
-                _make_feature(offense="220 BURGLARY/BREAKING & ENTERING"),
-                _make_feature(offense="56 ALL OTHER OFFENSES"),
-            ]),
+            _make_response(
+                [
+                    _make_feature(offense="13A AGGRAVATED ASSAULT"),
+                    _make_feature(offense="220 BURGLARY/BREAKING & ENTERING"),
+                    _make_feature(offense="56 ALL OTHER OFFENSES"),
+                ]
+            ),
         )
 
         result = subject.fetch(_LOUISVILLE_BBOX, _DATE_FROM, _DATE_TO)
@@ -105,12 +105,12 @@ class TestArcGISFeatureSource:
         assert result.crs.to_epsg() == 4326
 
     def test_fetch_paginates_when_transfer_limit_exceeded(self, subject, httpserver):
-        httpserver.expect_ordered_request(
-            "/rest/services/crime/FeatureServer/0/query"
-        ).respond_with_json(_make_response([_make_feature()], exceeded=True))
-        httpserver.expect_ordered_request(
-            "/rest/services/crime/FeatureServer/0/query"
-        ).respond_with_json(_make_response([_make_feature()], exceeded=False))
+        httpserver.expect_ordered_request("/rest/services/crime/FeatureServer/0/query").respond_with_json(
+            _make_response([_make_feature()], exceeded=True)
+        )
+        httpserver.expect_ordered_request("/rest/services/crime/FeatureServer/0/query").respond_with_json(
+            _make_response([_make_feature()], exceeded=False)
+        )
 
         result = subject.fetch(_LOUISVILLE_BBOX, _DATE_FROM, _DATE_TO)
 

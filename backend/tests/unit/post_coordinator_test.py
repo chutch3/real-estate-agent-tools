@@ -1,12 +1,12 @@
 from unittest.mock import AsyncMock
 
 import pytest
+
 from backend.post_coordinator import PostCoordinator
 from backend.services import PostGenerationService, PropertyService
 
 
 class TestPostCoordinator:
-
     @pytest.mark.parametrize(
         "address, agent_info, custom_template, expected",
         [
@@ -66,9 +66,7 @@ class TestPostCoordinator:
         yield AsyncMock(spec=PostGenerationService)
 
     @pytest.fixture
-    def subject(
-        self, test_container, mock_property_service, mock_post_generation_service
-    ):
+    def subject(self, test_container, mock_property_service, mock_post_generation_service):
         with test_container.override_providers(
             property_service=mock_property_service,
             post_generation_service=mock_post_generation_service,

@@ -16,9 +16,7 @@ class TestChatService:
     async def test_prepare_chat_messages_saves_user_message(
         self, subject, mock_chat_message_repository, mock_property_repository, mock_openai_client
     ):
-        mock_property_repository.get_property.return_value = PropertyInfo(
-            id="prop-1", latitude=37.4, longitude=-122.0
-        )
+        mock_property_repository.get_property.return_value = PropertyInfo(id="prop-1", latitude=37.4, longitude=-122.0)
         mock_openai_client.create_embeddings.return_value = [0.1] * 1536
         mock_chat_message_repository.get_history.return_value = []
 
@@ -30,7 +28,12 @@ class TestChatService:
 
     @pytest.mark.asyncio
     async def test_prepare_chat_messages_filters_rag_by_property_doc_ids(
-        self, subject, mock_chat_message_repository, mock_property_repository, mock_openai_client, mock_document_embedding_repository
+        self,
+        subject,
+        mock_chat_message_repository,
+        mock_property_repository,
+        mock_openai_client,
+        mock_document_embedding_repository,
     ):
         mock_property_repository.get_property.return_value = PropertyInfo(
             id="prop-1",
@@ -49,7 +52,12 @@ class TestChatService:
 
     @pytest.mark.asyncio
     async def test_prepare_chat_messages_does_not_filter_rag_when_no_documents(
-        self, subject, mock_chat_message_repository, mock_property_repository, mock_openai_client, mock_document_embedding_repository
+        self,
+        subject,
+        mock_chat_message_repository,
+        mock_property_repository,
+        mock_openai_client,
+        mock_document_embedding_repository,
     ):
         mock_property_repository.get_property.return_value = PropertyInfo(
             id="prop-1", latitude=37.4, longitude=-122.0, documents=None
@@ -65,11 +73,14 @@ class TestChatService:
 
     @pytest.mark.asyncio
     async def test_prepare_chat_messages_raises_when_milvus_unavailable(
-        self, subject, mock_chat_message_repository, mock_property_repository, mock_openai_client, mock_document_embedding_repository
+        self,
+        subject,
+        mock_chat_message_repository,
+        mock_property_repository,
+        mock_openai_client,
+        mock_document_embedding_repository,
     ):
-        mock_property_repository.get_property.return_value = PropertyInfo(
-            id="prop-1", latitude=37.4, longitude=-122.0
-        )
+        mock_property_repository.get_property.return_value = PropertyInfo(id="prop-1", latitude=37.4, longitude=-122.0)
         mock_openai_client.create_embeddings.return_value = [0.1] * 1536
         mock_document_embedding_repository.query_embeddings.side_effect = MilvusException("connection refused")
 
@@ -90,9 +101,7 @@ class TestChatService:
         chunks = [chunk async for chunk in subject.stream_response("prop-1", messages)]
 
         assert chunks == ["Hello ", "World"]
-        mock_chat_message_repository.save_message.assert_awaited_once_with(
-            "prop-1", "assistant", "Hello World"
-        )
+        mock_chat_message_repository.save_message.assert_awaited_once_with("prop-1", "assistant", "Hello World")
 
     @pytest.mark.asyncio
     async def test_stream_response_passes_max_tokens_to_stream_completion(
@@ -112,7 +121,13 @@ class TestChatService:
     @pytest.mark.asyncio
     async def test_get_history_returns_messages_for_property(self, subject, mock_chat_message_repository):
         messages = [
-            ChatMessage(id="msg-1", property_id="prop-1", role="user", content="Hi", created_at="2026-01-01T00:00:00"),
+            ChatMessage(
+                id="msg-1",
+                property_id="prop-1",
+                role="user",
+                content="Hi",
+                created_at="2026-01-01T00:00:00",
+            ),
         ]
         mock_chat_message_repository.get_history.return_value = messages
 
@@ -123,7 +138,10 @@ class TestChatService:
 
     def test_build_system_prompt_includes_rag_results(self, subject):
         property_info = PropertyInfo(id="prop-1", formatted_address="123 Main St", city="Sellersburg", state="IN")
-        rag_results = [{"text": "The purchase agreement states a price of $300k."}, {"text": "Closing date is May 1st."}]
+        rag_results = [
+            {"text": "The purchase agreement states a price of $300k."},
+            {"text": "Closing date is May 1st."},
+        ]
 
         prompt = subject._build_system_prompt(property_info, rag_results)
 
@@ -139,16 +157,19 @@ class TestChatService:
 
         assert "Relevant Documents:" not in prompt
 
-    @pytest.mark.parametrize("property_kwargs,expected", [
-        ({"formatted_address": "123 Main St"}, "Address: 123 Main St"),
-        ({"city": "Sellersburg", "state": "IN"}, "Location: Sellersburg, IN"),
-        ({"property_type": "Single Family"}, "Type: Single Family"),
-        ({"bedrooms": 3}, "Bedrooms: 3"),
-        ({"bathrooms": 2}, "Bathrooms: 2"),
-        ({"square_footage": 1800}, "Square Footage: 1800"),
-        ({"year_built": 1995}, "Year Built: 1995"),
-        ({}, "No details available."),
-    ])
+    @pytest.mark.parametrize(
+        "property_kwargs,expected",
+        [
+            ({"formatted_address": "123 Main St"}, "Address: 123 Main St"),
+            ({"city": "Sellersburg", "state": "IN"}, "Location: Sellersburg, IN"),
+            ({"property_type": "Single Family"}, "Type: Single Family"),
+            ({"bedrooms": 3}, "Bedrooms: 3"),
+            ({"bathrooms": 2}, "Bathrooms: 2"),
+            ({"square_footage": 1800}, "Square Footage: 1800"),
+            ({"year_built": 1995}, "Year Built: 1995"),
+            ({}, "No details available."),
+        ],
+    )
     def test_build_system_prompt_includes_property_fields(self, subject, property_kwargs, expected):
         property_info = PropertyInfo(id="prop-1", **property_kwargs)
 
@@ -173,7 +194,13 @@ class TestChatService:
         yield AsyncMock(spec=OpenAIClient)
 
     @pytest.fixture
-    def subject(self, mock_chat_message_repository, mock_property_repository, mock_document_embedding_repository, mock_openai_client):
+    def subject(
+        self,
+        mock_chat_message_repository,
+        mock_property_repository,
+        mock_document_embedding_repository,
+        mock_openai_client,
+    ):
         yield ChatService(
             chat_message_repository=mock_chat_message_repository,
             property_repository=mock_property_repository,

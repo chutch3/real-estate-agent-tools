@@ -1,6 +1,8 @@
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock
 from pymilvus import MilvusClient
+
 from backend.repositories.document_embeddings import DocumentEmbeddingRepository
 
 
@@ -13,7 +15,9 @@ def milvus_client():
 
 @pytest.mark.asyncio
 async def test_insert_embeddings_uses_collection_name(milvus_client):
-    subject = DocumentEmbeddingRepository(client=milvus_client, collection_name="document_embeddings_nomic_embed_text_768")
+    subject = DocumentEmbeddingRepository(
+        client=milvus_client, collection_name="document_embeddings_nomic_embed_text_768"
+    )
 
     await subject.insert_embeddings("doc-1", "some text", [0.1] * 768)
 
@@ -23,7 +27,9 @@ async def test_insert_embeddings_uses_collection_name(milvus_client):
 
 @pytest.mark.asyncio
 async def test_batch_insert_embeddings_uses_collection_name(milvus_client):
-    subject = DocumentEmbeddingRepository(client=milvus_client, collection_name="document_embeddings_nomic_embed_text_768")
+    subject = DocumentEmbeddingRepository(
+        client=milvus_client, collection_name="document_embeddings_nomic_embed_text_768"
+    )
     chunks = [("text 1", [0.1] * 768), ("text 2", [0.2] * 768)]
 
     await subject.batch_insert_embeddings("doc-1", chunks)
@@ -39,7 +45,9 @@ async def test_batch_insert_embeddings_uses_collection_name(milvus_client):
 @pytest.mark.asyncio
 async def test_exists_uses_collection_name(milvus_client):
     milvus_client.query.return_value = [{"id": "doc-1"}]
-    subject = DocumentEmbeddingRepository(client=milvus_client, collection_name="document_embeddings_nomic_embed_text_768")
+    subject = DocumentEmbeddingRepository(
+        client=milvus_client, collection_name="document_embeddings_nomic_embed_text_768"
+    )
 
     await subject.exists("doc-1")
 

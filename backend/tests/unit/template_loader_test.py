@@ -1,21 +1,17 @@
-from pathlib import Path
-from backend.container import Container
-from backend.models import AgentInfo, PropertyInfo
-from backend.template_loader import TemplateLoader, TEMPLATE_DIR
 import jinja2
 import pytest
 
+from backend.container import Container
+from backend.models import AgentInfo, PropertyInfo
+from backend.template_loader import TEMPLATE_DIR, TemplateLoader
+
 
 class TestTemplateLoader:
-    def test_render_system_prompt(
-        self, subject: TemplateLoader, jinja_env: jinja2.Environment
-    ):
+    def test_render_system_prompt(self, subject: TemplateLoader, jinja_env: jinja2.Environment):
         actual = subject.render_system_prompt()
         assert actual == jinja_env.get_template("system_prompt.txt").render()
 
-    def test_render_user_prompt(
-        self, subject: TemplateLoader, jinja_env: jinja2.Environment
-    ):
+    def test_render_user_prompt(self, subject: TemplateLoader, jinja_env: jinja2.Environment):
         actual_property_info = PropertyInfo(
             formatted_address="123 Main St",
         )
@@ -64,7 +60,7 @@ class TestTemplateLoader:
         subject: TemplateLoader,
     ):
         actual = subject.read_user_prompt()
-        with open(f"{TEMPLATE_DIR}/post_prompt.txt", "r") as file:
+        with open(f"{TEMPLATE_DIR}/post_prompt.txt") as file:
             assert actual == file.read()
 
     @pytest.fixture

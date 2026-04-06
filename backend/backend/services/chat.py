@@ -1,5 +1,5 @@
 import logging
-from typing import AsyncGenerator, List
+from collections.abc import AsyncGenerator
 
 from backend.clients.openai import OpenAIClient
 from backend.models import ChatMessage, PropertyInfo
@@ -26,9 +26,7 @@ class ChatService:
         self._max_tokens = max_tokens
         self._logger = logging.getLogger(self.__class__.__name__)
 
-    async def prepare_chat_messages(
-        self, property_id: str, user_message: str
-    ) -> List[dict]:
+    async def prepare_chat_messages(self, property_id: str, user_message: str) -> list[dict]:
         await self._chat_message_repository.save_message(property_id, "user", user_message)
 
         property_info = await self._property_repository.get_property(property_id)
@@ -50,18 +48,14 @@ class ChatService:
             messages.append({"role": msg.role, "content": msg.content})
         return messages
 
-    async def stream_response(
-        self, property_id: str, messages: List[dict]
-    ) -> AsyncGenerator[str, None]:
+    async def stream_response(self, property_id: str, messages: list[dict]) -> AsyncGenerator[str, None]:
         full_response = ""
         async for chunk in self._openai_client.stream_completion(messages, max_tokens=self._max_tokens):
             full_response += chunk
             yield chunk
-        await self._chat_message_repository.save_message(
-            property_id, "assistant", full_response
-        )
+        await self._chat_message_repository.save_message(property_id, "assistant", full_response)
 
-    async def get_history(self, property_id: str) -> List[ChatMessage]:
+    async def get_history(self, property_id: str) -> list[ChatMessage]:
         return await self._chat_message_repository.get_history(property_id)
 
     def _build_system_prompt(self, property_info: PropertyInfo, rag_results: list) -> str:

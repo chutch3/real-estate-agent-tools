@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 import aiohttp
 
@@ -9,7 +8,7 @@ class TigerWebClient:
         self._base_url = base_url
         self._logger = logging.getLogger(self.__class__.__name__)
 
-    async def get_county_polygon(self, county_fips: str) -> Optional[dict]:
+    async def get_county_polygon(self, county_fips: str) -> dict | None:
         url = f"{self._base_url}/arcgis/rest/services/TIGERweb/State_County/MapServer/1/query"
         params = {
             "f": "json",

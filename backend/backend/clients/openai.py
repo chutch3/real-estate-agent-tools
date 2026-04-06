@@ -1,6 +1,7 @@
-from typing import AsyncGenerator, List, Optional
-import openai
 import logging
+from collections.abc import AsyncGenerator
+
+import openai
 
 
 class OpenAIClient:
@@ -8,8 +9,8 @@ class OpenAIClient:
         self,
         model: str = "gpt-3.5-turbo",
         embeddings_model: str = "text-embedding-ada-002",
-        base_url: Optional[str] = None,
-        api_key: Optional[str] = None,
+        base_url: str | None = None,
+        api_key: str | None = None,
     ):
         self._client = openai.AsyncOpenAI(
             base_url=base_url,
@@ -19,9 +20,7 @@ class OpenAIClient:
         self._embeddings_model = embeddings_model
         self._logger = logging.getLogger(self.__class__.__name__)
 
-    async def generate_completion(
-        self, system_prompt: str, user_prompt: str, max_tokens: int
-    ) -> str:
+    async def generate_completion(self, system_prompt: str, user_prompt: str, max_tokens: int) -> str:
         response = await self._client.chat.completions.create(
             model=self._model,
             messages=[
@@ -32,9 +31,7 @@ class OpenAIClient:
         )
         return response.choices[0].message.content.strip()
 
-    async def stream_completion(
-        self, messages: List[dict], max_tokens: int = 1000
-    ) -> AsyncGenerator[str, None]:
+    async def stream_completion(self, messages: list[dict], max_tokens: int = 1000) -> AsyncGenerator[str, None]:
         stream = await self._client.chat.completions.create(
             model=self._model,
             messages=messages,
@@ -46,8 +43,6 @@ class OpenAIClient:
             if content:
                 yield content
 
-    async def create_embeddings(self, text: str) -> List[float]:
-        response = await self._client.embeddings.create(
-            input=[text], model=self._embeddings_model
-        )
+    async def create_embeddings(self, text: str) -> list[float]:
+        response = await self._client.embeddings.create(input=[text], model=self._embeddings_model)
         return response.data[0].embedding

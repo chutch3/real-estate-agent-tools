@@ -1,7 +1,6 @@
 import pytest
 import pytest_asyncio
 from pytest_httpserver import HTTPServer
-
 from rentcast_client.api.default_rentcast import DefaultRentcast
 from rentcast_client.api_client import ApiClient
 from rentcast_client.configuration import Configuration
@@ -14,18 +13,20 @@ class TestRentcastClient:
 
     @pytest.mark.asyncio
     async def test_property_records_calls_configured_host(self, subject: DefaultRentcast, httpserver: HTTPServer):
-        httpserver.expect_request("/properties").respond_with_json([
-            {
-                "id": "prop-1",
-                "formattedAddress": "1600 Amphitheatre Pkwy, Mountain View, CA 94043",
-                "addressLine1": "1600 Amphitheatre Pkwy",
-                "city": "Mountain View",
-                "state": "CA",
-                "zipCode": "94043",
-                "latitude": 37.4225103,
-                "longitude": -122.0847089,
-            }
-        ])
+        httpserver.expect_request("/properties").respond_with_json(
+            [
+                {
+                    "id": "prop-1",
+                    "formattedAddress": "1600 Amphitheatre Pkwy, Mountain View, CA 94043",
+                    "addressLine1": "1600 Amphitheatre Pkwy",
+                    "city": "Mountain View",
+                    "state": "CA",
+                    "zipCode": "94043",
+                    "latitude": 37.4225103,
+                    "longitude": -122.0847089,
+                }
+            ]
+        )
 
         results = await subject.property_records(address="1600 Amphitheatre Pkwy, Mountain View, CA 94043")
 

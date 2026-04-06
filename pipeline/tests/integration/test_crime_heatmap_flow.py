@@ -1,11 +1,11 @@
 import json
 from datetime import date
+from io import BytesIO
 from pathlib import Path
 
 import pytest
 import yaml
 from PIL import Image
-from io import BytesIO
 from pytest_httpserver import HTTPServer
 from rasterio.io import MemoryFile
 from shapely.geometry import box
@@ -256,12 +256,10 @@ def test_crime_heatmap_pipeline_produces_png_tiles(
     monkeypatch.setenv("TIGER_BASE_URL", httpserver.url_for("").rstrip("/"))
     monkeypatch.setenv("SOURCES_CONFIG_PATH", str(sources_config_path))
 
-    httpserver.expect_request("/api/internal/counties").respond_with_json(
-        {"county_fips": ["21111"]}
+    httpserver.expect_request("/api/internal/counties").respond_with_json({"county_fips": ["21111"]})
+    httpserver.expect_request("/arcgis/rest/services/TIGERweb/State_County/MapServer/1/query").respond_with_json(
+        _TIGER_COUNTY_RESPONSE
     )
-    httpserver.expect_request(
-        "/arcgis/rest/services/TIGERweb/State_County/MapServer/1/query"
-    ).respond_with_json(_TIGER_COUNTY_RESPONSE)
     httpserver.expect_request("/resource/4sxa-cwis.json").respond_with_json(_THREE_INCIDENTS)
 
     crime_heatmap_pipeline(
@@ -294,18 +292,16 @@ def test_repeated_pipeline_run_uses_cached_fetch_result(
     monkeypatch.setenv("TIGER_BASE_URL", httpserver.url_for("").rstrip("/"))
     monkeypatch.setenv("SOURCES_CONFIG_PATH", str(sources_config_path))
 
-    httpserver.expect_request("/api/internal/counties").respond_with_json(
-        {"county_fips": ["21111"]}
+    httpserver.expect_request("/api/internal/counties").respond_with_json({"county_fips": ["21111"]})
+    httpserver.expect_request("/arcgis/rest/services/TIGERweb/State_County/MapServer/1/query").respond_with_json(
+        _TIGER_COUNTY_RESPONSE
     )
-    httpserver.expect_request(
-        "/arcgis/rest/services/TIGERweb/State_County/MapServer/1/query"
-    ).respond_with_json(_TIGER_COUNTY_RESPONSE)
     httpserver.expect_request("/resource/4sxa-cwis.json").respond_with_json(_THREE_INCIDENTS)
 
     crime_heatmap_pipeline(date_from="2025-01-01", date_to="2025-12-31")
     crime_heatmap_pipeline(date_from="2025-01-01", date_to="2025-12-31")
 
     source_hits = [req for req, _resp in httpserver.log if "/resource/4sxa-cwis.json" in req.path]
-    assert len(source_hits) == 1, (
-        f"Expected source to be fetched once (cache hit on second run), got {len(source_hits)} hits"
-    )
+    assert (
+        len(source_hits) == 1
+    ), f"Expected source to be fetched once (cache hit on second run), got {len(source_hits)} hits"

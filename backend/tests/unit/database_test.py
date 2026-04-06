@@ -25,7 +25,7 @@ class TestDatabase:
             assert result is None
 
     def test_creates_tables_on_init(self, db_url: str):
-        db = Database(url=db_url)
+        Database(url=db_url)
         engine = create_engine(db_url)
         inspector = inspect(engine)
         assert "property_info" in inspector.get_table_names()

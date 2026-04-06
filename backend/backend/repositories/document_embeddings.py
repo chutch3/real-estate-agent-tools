@@ -1,8 +1,8 @@
 import logging
-from typing import List, Optional
 
 from pymilvus import MilvusClient
 from pymilvus.client.types import LoadState
+
 
 class DocumentEmbeddingRepository:
     def __init__(self, client: MilvusClient, collection_name: str):
@@ -27,11 +27,13 @@ class DocumentEmbeddingRepository:
 
         inserted = self.client.insert(
             collection_name=self._collection_name,
-            data=[{
-                "doc_id": doc_id,
-                "text": text,
-                "embedding": embedding,
-            }],
+            data=[
+                {
+                    "doc_id": doc_id,
+                    "text": text,
+                    "embedding": embedding,
+                }
+            ],
         )
         self._logger.info(f"Inserted {len(inserted['ids'])} embeddings")
         return inserted
@@ -43,10 +45,7 @@ class DocumentEmbeddingRepository:
     ):
         self._load_if_needed()
 
-        data = [
-            {"doc_id": doc_id, "text": text, "embedding": embedding}
-            for text, embedding in chunks
-        ]
+        data = [{"doc_id": doc_id, "text": text, "embedding": embedding} for text, embedding in chunks]
         inserted = self.client.insert(
             collection_name=self._collection_name,
             data=data,
@@ -65,10 +64,10 @@ class DocumentEmbeddingRepository:
 
     async def query_embeddings(
         self,
-        query_embedding: List[List[float]],
+        query_embedding: list[list[float]],
         limit: int,
-        filter_ids: Optional[List[str]] = None,
-    ) -> List[dict]:
+        filter_ids: list[str] | None = None,
+    ) -> list[dict]:
         self._load_if_needed()
 
         search_params = {"metric_type": "L2", "params": {"nprobe": 10}}

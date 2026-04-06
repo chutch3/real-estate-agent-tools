@@ -1,22 +1,20 @@
-from typing import Optional
-from backend.models import AgentInfo, PropertyInfo
 import jinja2
+
+from backend.models import AgentInfo, PropertyInfo
 
 TEMPLATE_DIR = "backend/templates"
 
 
 class TemplateLoader:
     def __init__(self):
-        self._default_jinja_env = jinja2.Environment(
-            loader=jinja2.FileSystemLoader(TEMPLATE_DIR)
-        )
+        self._default_jinja_env = jinja2.Environment(loader=jinja2.FileSystemLoader(TEMPLATE_DIR))
 
     def render_user_prompt(
         self,
         property_info: PropertyInfo,
         agent_info: AgentInfo,
-        custom_template: Optional[str] = None,
-    ) -> Optional[str]:
+        custom_template: str | None = None,
+    ) -> str | None:
         """
         Render the user prompt for a property.
 
@@ -51,5 +49,5 @@ class TemplateLoader:
         Returns:
             str: The user template.
         """
-        with open(f"{TEMPLATE_DIR}/post_prompt.txt", "r") as file:
+        with open(f"{TEMPLATE_DIR}/post_prompt.txt") as file:
             return file.read()

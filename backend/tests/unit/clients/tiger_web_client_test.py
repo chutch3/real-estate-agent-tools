@@ -39,9 +39,9 @@ _EXPECTED_POLYGON = {
 class TestTigerWebClient:
     @pytest.mark.asyncio
     async def test_get_county_polygon_returns_geojson_geometry(self, httpserver: HTTPServer):
-        httpserver.expect_request(
-            "/arcgis/rest/services/TIGERweb/State_County/MapServer/1/query"
-        ).respond_with_json(_ARCGIS_POLYGON_RESPONSE)
+        httpserver.expect_request("/arcgis/rest/services/TIGERweb/State_County/MapServer/1/query").respond_with_json(
+            _ARCGIS_POLYGON_RESPONSE
+        )
 
         client = TigerWebClient(base_url=httpserver.url_for("").rstrip("/"))
         result = await client.get_county_polygon("21111")
@@ -50,9 +50,9 @@ class TestTigerWebClient:
 
     @pytest.mark.asyncio
     async def test_get_county_polygon_returns_none_when_no_features(self, httpserver: HTTPServer):
-        httpserver.expect_request(
-            "/arcgis/rest/services/TIGERweb/State_County/MapServer/1/query"
-        ).respond_with_json({"features": []})
+        httpserver.expect_request("/arcgis/rest/services/TIGERweb/State_County/MapServer/1/query").respond_with_json(
+            {"features": []}
+        )
 
         client = TigerWebClient(base_url=httpserver.url_for("").rstrip("/"))
         result = await client.get_county_polygon("99999")

@@ -1,23 +1,27 @@
 import random
-from typing import Container
+from collections.abc import Container
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from faker import Faker
-from unittest.mock import AsyncMock, MagicMock
+from rentcast_client.api.default_rentcast import DefaultRentcast
+from rentcast_client.models import RentcastPropertyRecords200ResponseInner
 
 from backend.clients.census_geocoder import CensusGeocoderClient
 from backend.clients.tiger import TigerWebClient
 from backend.exceptions import DocumentNotFoundError, PropertyNotFoundError
-from backend.models import CountyBoundary, DocumentInfo, PropertyFeatures, PropertyInfo, PropertyResponse
+from backend.models import (
+    CountyBoundary,
+    DocumentInfo,
+    PropertyFeatures,
+    PropertyInfo,
+    PropertyResponse,
+)
 from backend.repositories.county_boundary import CountyBoundaryRepository
 from backend.repositories.properties import PropertyRepository
 from backend.services.document import DocumentService
 from backend.services.property import PropertyService
-from rentcast_client.api.default_rentcast import DefaultRentcast
-from rentcast_client.models import RentcastPropertyRecords200ResponseInner
 from tests.factories import PropertyInfoFactory
-from typing import Container
 
 
 def fake_property_record(
@@ -42,16 +46,12 @@ def fake_property_record(
         zip_code=fake.zipcode(),
         latitude=fake.latitude(),
         longitude=fake.longitude(),
-        property_type=random.choice(
-            ["Single Family Home", "Apartment", "Condo", "Townhouse"]
-        ),
+        property_type=random.choice(["Single Family Home", "Apartment", "Condo", "Townhouse"]),
         year_built=random.randint(1900, 2023),
         legal_description=fake.text(max_nb_chars=100),
         subdivision=fake.word(),
         zoning=random.choice(["Residential", "Commercial", "Industrial", "Mixed-Use"]),
-        last_sale_date=fake.date_between(
-            start_date="-5y", end_date="today"
-        ).isoformat(),
+        last_sale_date=fake.date_between(start_date="-5y", end_date="today").isoformat(),
         last_sale_price=random.randint(100000, 1000000),
         features=features,
     )
@@ -66,7 +66,6 @@ class AsyncMockWithValidateCall(AsyncMock):
 
 
 class TestPropertyService:
-
     @pytest.mark.parametrize(
         "address, property_records",
         [
@@ -200,7 +199,10 @@ class TestPropertyService:
         mock_tiger_web_client: AsyncMock,
         mock_county_boundary_repository: MagicMock,
     ):
-        polygon = {"type": "Polygon", "coordinates": [[[-86.035, 37.997], [-85.404, 37.997], [-85.404, 38.375], [-86.035, 37.997]]]}
+        polygon = {
+            "type": "Polygon",
+            "coordinates": [[[-86.035, 37.997], [-85.404, 37.997], [-85.404, 38.375], [-86.035, 37.997]]],
+        }
         property_data = PropertyInfo(rentcast_id="rentcast-123", latitude=38.2, longitude=-85.7)
         saved = property_data.model_copy(update={"id": "new-id", "county_fips": "21111"})
         mock_property_repository.insert_property.return_value = saved
@@ -231,7 +233,10 @@ class TestPropertyService:
         mock_tiger_web_client: AsyncMock,
         mock_county_boundary_repository: MagicMock,
     ):
-        polygon = {"type": "Polygon", "coordinates": [[[-86.035, 37.997], [-85.404, 38.375], [-86.035, 37.997]]]}
+        polygon = {
+            "type": "Polygon",
+            "coordinates": [[[-86.035, 37.997], [-85.404, 38.375], [-86.035, 37.997]]],
+        }
         existing_boundary = CountyBoundary(fips="21111", geometry=polygon)
         property_data = PropertyInfo(rentcast_id="rentcast-123", latitude=38.2, longitude=-85.7)
         saved = property_data.model_copy(update={"id": "new-id", "county_fips": "21111"})
@@ -403,7 +408,10 @@ class TestPropertyService:
         mock_property_repository: AsyncMock,
         mock_county_boundary_repository: MagicMock,
     ):
-        props = [property_info_factory.build(county_fips=None), property_info_factory.build(county_fips=None)]
+        props = [
+            property_info_factory.build(county_fips=None),
+            property_info_factory.build(county_fips=None),
+        ]
         mock_property_repository.list_properties.return_value = props
 
         actual = await subject.list_properties()
@@ -413,9 +421,7 @@ class TestPropertyService:
         assert all(isinstance(r, PropertyResponse) for r in actual)
 
     @pytest.mark.asyncio
-    async def test_search_property_not_found(
-        self, subject: PropertyService, mock_client: AsyncMock
-    ):
+    async def test_search_property_not_found(self, subject: PropertyService, mock_client: AsyncMock):
         mock_client.property_records.return_value = []
 
         with pytest.raises(PropertyNotFoundError):

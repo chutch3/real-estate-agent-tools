@@ -1,7 +1,8 @@
 import logging
+
 from backend.clients.openai import OpenAIClient
-from backend.template_loader import TemplateLoader
 from backend.repositories.document_embeddings import DocumentEmbeddingRepository
+from backend.template_loader import TemplateLoader
 
 
 class PostGenerationService:
@@ -42,9 +43,7 @@ class PostGenerationService:
         )
 
         user_prompt_embedding = await self.openai_client.create_embeddings(user_prompt)
-        relevant_chunks = await self.document_embedding_repository.query_embeddings(
-            [user_prompt_embedding], limit=5
-        )
+        relevant_chunks = await self.document_embedding_repository.query_embeddings([user_prompt_embedding], limit=5)
 
         # TODO: move this the user prompt loader
         additional_info = "\n".join([chunk["text"] for chunk in relevant_chunks])

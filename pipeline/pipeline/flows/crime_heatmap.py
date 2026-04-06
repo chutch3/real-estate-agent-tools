@@ -5,7 +5,6 @@ import tempfile
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Any
 
 import geopandas as gpd
 import numpy as np
@@ -14,10 +13,6 @@ import rasterio
 from prefect import flow, task
 from prefect.cache_policies import NO_CACHE
 from prefect.concurrency.sync import concurrency
-
-from pipeline.cache import make_cache_key
-from pipeline.tiles.colormaps import LAYER_COLORMAPS
-from pipeline.tiles.rendering import BASE_ZOOM, render_png_tile, tiles_for_polygon
 from rasterio.crs import CRS
 from rasterio.features import geometry_mask
 from rasterio.transform import from_bounds
@@ -27,6 +22,7 @@ from rio_cogeo.profiles import cog_profiles
 from scipy.stats import gaussian_kde
 from shapely.geometry import Point, Polygon, mapping
 
+from pipeline.cache import make_cache_key
 from pipeline.clients.backend import BackendClient
 from pipeline.geocoding.base import AddressRecord, Geocoder
 from pipeline.geocoding.census import CensusGeocoder
@@ -34,6 +30,8 @@ from pipeline.regions.loader import Region, load_region_by_fips
 from pipeline.sources.base import Source
 from pipeline.storage.base import TileStorage
 from pipeline.storage.s3 import S3TileStorage
+from pipeline.tiles.colormaps import LAYER_COLORMAPS
+from pipeline.tiles.rendering import BASE_ZOOM, render_png_tile, tiles_for_polygon
 
 _logger = logging.getLogger(__name__)
 
@@ -119,7 +117,12 @@ _GEOCODE_BATCH_SIZE = 1_000
 _CENSUS_CONCURRENCY_LIMIT = "census-geocoder"
 
 
-@task(cache_key_fn=make_cache_key("geocode_batch"), persist_result=True, retries=3, retry_delay_seconds=60)
+@task(
+    cache_key_fn=make_cache_key("geocode_batch"),
+    persist_result=True,
+    retries=3,
+    retry_delay_seconds=60,
+)
 def geocode_batch(addresses: list[AddressRecord], geocoder: Geocoder) -> dict[int, tuple[float, float]]:
     with concurrency(_CENSUS_CONCURRENCY_LIMIT, occupy=1):
         return geocoder.geocode(addresses)
@@ -140,10 +143,7 @@ def geocode_records(frame: gpd.GeoDataFrame, geocoder: Geocoder) -> gpd.GeoDataF
         (idx, row.get("address"), row.get("city"), row.get("state"), row.get("zip_code"))
         for idx, row in to_geocode.iterrows()
     ]
-    batches = [
-        addresses[i : i + _GEOCODE_BATCH_SIZE]
-        for i in range(0, len(addresses), _GEOCODE_BATCH_SIZE)
-    ]
+    batches = [addresses[i : i + _GEOCODE_BATCH_SIZE] for i in range(0, len(addresses), _GEOCODE_BATCH_SIZE)]
     futures = [geocode_batch.submit(batch, geocoder) for batch in batches]
     coords: dict[int, tuple[float, float]] = {}
     for future in futures:
@@ -161,12 +161,14 @@ def geocode_records(frame: gpd.GeoDataFrame, geocoder: Geocoder) -> gpd.GeoDataF
     for idx, row in to_geocode.iterrows():
         if idx in coords:
             lat, lon = coords[idx]
-            new_rows.append({
-                **{k: v for k, v in row.items() if k != "geometry"},
-                "lat": lat,
-                "lon": lon,
-                "geometry": Point(lon, lat),
-            })
+            new_rows.append(
+                {
+                    **{k: v for k, v in row.items() if k != "geometry"},
+                    "lat": lat,
+                    "lon": lon,
+                    "geometry": Point(lon, lat),
+                }
+            )
 
     if not new_rows:
         return gpd.GeoDataFrame(already_geocoded, geometry="geometry", crs="EPSG:4326")
@@ -212,9 +214,7 @@ def write_cog(kde_grid: KdeGrid) -> bytes:
             dst.write(kde_grid.values, 1)
 
         with rasterio.open(src_path) as src:
-            t, w, h = calculate_default_transform(
-                src.crs, CRS.from_epsg(3857), src.width, src.height, *src.bounds
-            )
+            t, w, h = calculate_default_transform(src.crs, CRS.from_epsg(3857), src.width, src.height, *src.bounds)
             with rasterio.open(
                 reproj_path,
                 "w",
@@ -336,19 +336,14 @@ def execute_heatmap(
     if geocoder is None:
         geocoder = CensusGeocoder()
 
-    frames = [
-        fetch_raw(source, region.polygon, date_from, date_to)
-        for source in region.sources
-    ]
+    frames = [fetch_raw(source, region.polygon, date_from, date_to) for source in region.sources]
     geocoded_frames = [geocode_records(frame, geocoder) for frame in frames]
     records = combine_and_clip(geocoded_frames, region.polygon)
 
     fips = region.slug
 
     for crime_category, layer_id in _CATEGORY_LAYER_IDS.items():
-        category_records = (
-            records[records["category"] == crime_category] if not records.empty else records
-        )
+        category_records = records[records["category"] == crime_category] if not records.empty else records
         kde_grid = compute_kde_grid(category_records, region.polygon)
         cog_bytes = write_cog(kde_grid)
         store_data_tile(storage, cog_bytes, crime_category, fips, date_from, date_to)

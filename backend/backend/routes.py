@@ -1,21 +1,20 @@
 import asyncio
 import logging
 from http import HTTPStatus
-from typing import Annotated, List, Optional
+from urllib.parse import unquote_plus
 
+from dependency_injector.wiring import Provide, inject
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import Response, StreamingResponse
 from pymilvus.exceptions import MilvusException
 
 from backend.clients.google_maps import GoogleMapsClient
 from backend.repositories.document_storage import DocumentStorageRepository
 from backend.services.chat import ChatService
-from backend.services.layer import LayerService
 from backend.services.document import DocumentService
+from backend.services.layer import LayerService
 from backend.services.property import PropertyService
 from backend.template_loader import TemplateLoader
-from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form
-from fastapi.responses import Response, StreamingResponse
-from urllib.parse import unquote_plus
 
 from .container import Container
 from .exceptions import (
@@ -33,7 +32,6 @@ from .models import (
     PostGenerationRequest,
     PostGenerationResponse,
     PropertyInfo,
-    PropertyResponse,
     TemplateResponse,
 )
 from .post_coordinator import PostCoordinator
@@ -64,10 +62,8 @@ async def generate_post(
             custom_template=request.custom_template,
         )
         return PostGenerationResponse(post=post)
-    except PropertyNotFoundError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail="Property not found"
-        )
+    except PropertyNotFoundError:
+        raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail="Property not found")
 
 
 @router.post(
@@ -78,9 +74,7 @@ async def generate_post(
 @inject
 async def geocode(
     request: GeocodeRequest,
-    google_maps_client: GoogleMapsClient = Depends(
-        Provide[Container.google_maps_client]
-    ),
+    google_maps_client: GoogleMapsClient = Depends(Provide[Container.google_maps_client]),
 ):
     """
     Geocode an address.
@@ -95,11 +89,9 @@ async def geocode(
     try:
         location = await google_maps_client.geocode(request.address)
         return GeocodeResponse(location=location)
-    except AddressNotFoundError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail="Address not found"
-        )
-    except Exception as e:
+    except AddressNotFoundError:
+        raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail="Address not found")
+    except Exception:
         raise HTTPException(
             status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
             detail="Unable to geocode address",
@@ -197,11 +189,9 @@ async def search_properties(
         return await property_service.search_property(
             address=unquote_plus(address),
         )
-    except PropertyNotFoundError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail="Property not found"
-        )
-    except Exception as e:
+    except PropertyNotFoundError:
+        raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail="Property not found")
+    except Exception:
         logging.getLogger(__name__).exception("Error searching property")
         raise HTTPException(
             status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
@@ -263,7 +253,7 @@ async def chat(
 @router.get(
     "/properties/{property_id}/chat",
     status_code=HTTPStatus.OK,
-    response_model=List[ChatMessageResponse],
+    response_model=list[ChatMessageResponse],
 )
 @inject
 async def get_chat_history(
@@ -285,7 +275,7 @@ async def get_internal_counties(
 @router.get("/layers", status_code=HTTPStatus.OK)
 @inject
 async def get_layers(
-    county_fips: Optional[str] = None,
+    county_fips: str | None = None,
     layer_service: LayerService = Depends(Provide[Container.layer_service]),
 ):
     return await layer_service.get_layers(county_fips=county_fips)
@@ -308,7 +298,6 @@ async def get_layer_tile(
     )
 
 
-
 @router.post("/properties", status_code=HTTPStatus.CREATED)
 @inject
 async def create_property(
@@ -329,12 +318,10 @@ async def create_property(
         return await property_service.create_property(
             property_data=property_data,
         )
-    except DocumentNotFoundError as e:
+    except DocumentNotFoundError:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
             detail="No documents found with the provided IDs",
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error creating property: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error creating property: {str(e)}")

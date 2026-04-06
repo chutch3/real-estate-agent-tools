@@ -43,9 +43,7 @@ class LayerRepository:
             return json.loads(response["Body"].read())
         except ClientError as e:
             if e.response["Error"]["Code"] in ("NoSuchKey", "404"):
-                raise LayerNotFoundError(
-                    f"Metadata not found for layer {layer_id!r}, region {region_slug!r}"
-                )
+                raise LayerNotFoundError(f"Metadata not found for layer {layer_id!r}, region {region_slug!r}")
             raise
 
     def get_png_tile(self, layer_id: str, z: int, x: int, y: int) -> bytes:
@@ -57,7 +55,5 @@ class LayerRepository:
             return response["Body"].read()
         except ClientError as e:
             if e.response["Error"]["Code"] in ("NoSuchKey", "404"):
-                raise LayerNotFoundError(
-                    f"PNG tile not found for layer {layer_id!r} at z={z}, x={x}, y={y}"
-                )
+                raise LayerNotFoundError(f"PNG tile not found for layer {layer_id!r} at z={z}, x={x}, y={y}")
             raise

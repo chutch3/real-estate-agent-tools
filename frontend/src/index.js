@@ -1,12 +1,12 @@
-import React from 'react';
-import { createRoot } from 'react-dom/client';
-import './index.css';
-import App from './App';
-import apiClient from './apiClient';
+import React from "react";
+import { createRoot } from "react-dom/client";
+import "./index.css";
+import App from "./App";
+import apiClient from "./apiClient";
 
-const root = createRoot(document.getElementById('root'));
+const root = createRoot(document.getElementById("root"));
 root.render(
   <React.StrictMode>
     <App apiClient={apiClient} />
-  </React.StrictMode>
+  </React.StrictMode>,
 );

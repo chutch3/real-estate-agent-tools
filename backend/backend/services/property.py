@@ -1,14 +1,20 @@
 import logging
-from typing import List, Optional
+
+from rentcast_client.api.default_rentcast import DefaultRentcast
 
 from backend.clients.census_geocoder import CensusGeocoderClient
 from backend.clients.tiger import TigerWebClient
-from backend.models import CountyBoundary, DocumentInfo, PropertyFeatures, PropertyInfo, PropertyResponse
+from backend.exceptions import DocumentNotFoundError, PropertyNotFoundError
+from backend.models import (
+    CountyBoundary,
+    DocumentInfo,
+    PropertyFeatures,
+    PropertyInfo,
+    PropertyResponse,
+)
 from backend.repositories.county_boundary import CountyBoundaryRepository
 from backend.repositories.properties import PropertyRepository
 from backend.services.document import DocumentService
-from rentcast_client.api.default_rentcast import DefaultRentcast
-from backend.exceptions import DocumentNotFoundError, PropertyNotFoundError
 
 
 class PropertyService:
@@ -61,15 +67,11 @@ class PropertyService:
             zoning=properties[0].zoning,
             last_sale_date=properties[0].last_sale_date,
             last_sale_price=properties[0].last_sale_price,
-            features=(
-                PropertyFeatures(**properties[0].features.model_dump())
-                if properties[0].features
-                else None
-            ),
+            features=(PropertyFeatures(**properties[0].features.model_dump()) if properties[0].features else None),
             owner_occupied=properties[0].owner_occupied,
         )
 
-    async def list_properties(self) -> List[PropertyResponse]:
+    async def list_properties(self) -> list[PropertyResponse]:
         properties = await self._property_repository.list_properties()
         result = []
         for prop in properties:
@@ -79,10 +81,10 @@ class PropertyService:
             result.append(self._to_response(prop, boundary))
         return result
 
-    async def list_county_fips(self) -> List[str]:
+    async def list_county_fips(self) -> list[str]:
         return await self._property_repository.list_county_fips()
 
-    async def _enrich_with_county(self, property_data: PropertyInfo) -> Optional[CountyBoundary]:
+    async def _enrich_with_county(self, property_data: PropertyInfo) -> CountyBoundary | None:
         try:
             county_fips = await self._census_geocoder_client.get_county_fips(
                 property_data.latitude, property_data.longitude
@@ -117,8 +119,8 @@ class PropertyService:
         return self._county_boundary_repository.upsert(boundary)
 
     async def create_property(self, property_data: PropertyInfo) -> PropertyResponse:
-        for doc in (property_data.documents or []):
-            doc_id = doc['id'] if isinstance(doc, dict) else doc.id
+        for doc in property_data.documents or []:
+            doc_id = doc["id"] if isinstance(doc, dict) else doc.id
             if not await self._document_service.exists(doc_id):
                 raise DocumentNotFoundError
 
@@ -143,7 +145,7 @@ class PropertyService:
             boundary = self._county_boundary_repository.get_by_fips(prop.county_fips)
         return self._to_response(prop, boundary)
 
-    def _to_response(self, property_info: PropertyInfo, boundary: Optional[CountyBoundary]) -> PropertyResponse:
+    def _to_response(self, property_info: PropertyInfo, boundary: CountyBoundary | None) -> PropertyResponse:
         return PropertyResponse(
             **property_info.model_dump(),
             county_polygon=boundary.geometry if boundary else None,

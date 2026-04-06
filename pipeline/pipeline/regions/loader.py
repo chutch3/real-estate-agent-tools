@@ -2,7 +2,6 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 import httpx
 import yaml
@@ -80,8 +79,8 @@ def load_region(slug: str, regions_dir: Path | None = None) -> Region:
 def load_region_by_fips(
     fips: str,
     tiger_base_url: str = "https://tigerweb.geo.census.gov",
-    sources_config_path: Optional[Path] = None,
-) -> Optional[Region]:
+    sources_config_path: Path | None = None,
+) -> Region | None:
     response = httpx.get(
         f"{tiger_base_url}{_TIGER_COUNTIES_PATH}",
         params={

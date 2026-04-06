@@ -1,6 +1,6 @@
-import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { MapPin } from 'lucide-react';
+import React from "react";
+import { Link, useLocation } from "react-router-dom";
+import { MapPin } from "lucide-react";
 
 function NavMenu() {
   const { pathname } = useLocation();
@@ -24,9 +24,9 @@ function NavMenu() {
         <Link
           to="/"
           className={`font-sans text-sm transition-colors ${
-            pathname === '/'
-              ? 'text-ink-900 font-medium'
-              : 'text-ink-400 hover:text-ink-900'
+            pathname === "/"
+              ? "text-ink-900 font-medium"
+              : "text-ink-400 hover:text-ink-900"
           }`}
         >
           Map
@@ -34,9 +34,9 @@ function NavMenu() {
         <Link
           to="/cache-inspector"
           className={`font-sans text-sm transition-colors ${
-            pathname === '/cache-inspector'
-              ? 'text-ink-900 font-medium'
-              : 'text-ink-400 hover:text-ink-900'
+            pathname === "/cache-inspector"
+              ? "text-ink-900 font-medium"
+              : "text-ink-400 hover:text-ink-900"
           }`}
         >
           Cache

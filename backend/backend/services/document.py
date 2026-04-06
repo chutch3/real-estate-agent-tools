@@ -41,9 +41,7 @@ class DocumentService:
             raise ValueError("Invalid PDF content")
 
         doc_id = str(uuid.uuid4())
-        embeddings = await asyncio.gather(
-            *[self._client.create_embeddings(text) for text in pages_text]
-        )
+        embeddings = await asyncio.gather(*[self._client.create_embeddings(text) for text in pages_text])
         await self._repository.batch_insert_embeddings(doc_id, list(zip(pages_text, embeddings)))
         await asyncio.to_thread(self._storage_repository.save, doc_id, content)
         return doc_id

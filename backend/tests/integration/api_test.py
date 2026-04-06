@@ -5,6 +5,12 @@ from unittest.mock import AsyncMock, patch
 
 import boto3
 import pytest
+from fastapi.testclient import TestClient
+from pymilvus import MilvusClient
+from pymilvus.exceptions import MilvusException
+from pytest_httpserver import HTTPServer
+from werkzeug.wrappers import Response as WerkzeugResponse
+
 from backend.container import Container
 from backend.main import create_app
 from backend.models import (
@@ -17,13 +23,8 @@ from backend.models import (
     PropertyInfo,
     TemplateResponse,
 )
-from backend.schema import create_document_embeddings_schema, drop_document_embeddings_schema
+from backend.schema import drop_document_embeddings_schema
 from backend.template_loader import TEMPLATE_DIR
-from fastapi.testclient import TestClient
-from pymilvus import MilvusClient
-from pymilvus.exceptions import MilvusException
-from pytest_httpserver import HTTPServer
-from werkzeug.wrappers import Response as WerkzeugResponse
 
 MILVUS_URI = "http://localhost:19530"
 _MOTO_URL = "http://localhost:5005"
@@ -32,8 +33,9 @@ _S3_BUCKET = "test-documents"
 
 def _make_test_png() -> bytes:
     from io import BytesIO
-    from PIL import Image
+
     import numpy as np
+    from PIL import Image
 
     rgba = np.zeros((256, 256, 4), dtype=np.uint8)
     rgba[:, :, 0] = 100
@@ -43,7 +45,6 @@ def _make_test_png() -> bytes:
     return buf.getvalue()
 
 
-
 class TestApp:
     def test_health_check(self, subject):
         response = subject.get("/health")
@@ -51,29 +52,42 @@ class TestApp:
         assert response.json() == {"status": "ok"}
 
     def test_generate_post(self, subject, httpserver: HTTPServer):
-        httpserver.expect_request("/properties").respond_with_json([
+        httpserver.expect_request("/properties").respond_with_json(
+            [
+                {
+                    "id": "prop-1",
+                    "formattedAddress": "1600 Amphitheatre Pkwy, Mountain View, CA 94043",
+                    "addressLine1": "1600 Amphitheatre Pkwy",
+                    "city": "Mountain View",
+                    "state": "CA",
+                    "zipCode": "94043",
+                    "latitude": 37.4225103,
+                    "longitude": -122.0847089,
+                }
+            ]
+        )
+        httpserver.expect_request("/v1/embeddings").respond_with_json(
             {
-                "id": "prop-1",
-                "formattedAddress": "1600 Amphitheatre Pkwy, Mountain View, CA 94043",
-                "addressLine1": "1600 Amphitheatre Pkwy",
-                "city": "Mountain View",
-                "state": "CA",
-                "zipCode": "94043",
-                "latitude": 37.4225103,
-                "longitude": -122.0847089,
+                "data": [{"embedding": [0.1] * 1536, "index": 0, "object": "embedding"}],
+                "model": "text-embedding-ada-002",
+                "object": "list",
+                "usage": {"prompt_tokens": 5, "total_tokens": 5},
             }
-        ])
-        httpserver.expect_request("/v1/embeddings").respond_with_json({
-            "data": [{"embedding": [0.1] * 1536, "index": 0, "object": "embedding"}],
-            "model": "text-embedding-ada-002",
-            "object": "list",
-            "usage": {"prompt_tokens": 5, "total_tokens": 5},
-        })
-        httpserver.expect_request("/v1/chat/completions").respond_with_json({
-            "choices": [{"message": {"content": "John Doe from John Doe Real Estate — Mountain View, CA. Contact: john.doe@example.com", "role": "assistant"}}],
-            "model": "gpt-4",
-            "object": "chat.completion",
-        })
+        )
+        httpserver.expect_request("/v1/chat/completions").respond_with_json(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": "John Doe from John Doe Real Estate — Mountain View, CA. Contact: john.doe@example.com",
+                            "role": "assistant",
+                        }
+                    }
+                ],
+                "model": "gpt-4",
+                "object": "chat.completion",
+            }
+        )
 
         response = subject.post(
             "/api/posts",
@@ -95,27 +109,23 @@ class TestApp:
         assert "Mountain View, CA" in response_json["post"]
 
     def test_geocode(self, subject, httpserver: HTTPServer):
-        httpserver.expect_request("/maps/api/geocode/json").respond_with_json({
-            "results": [
-                {"geometry": {"location": {"lat": 37.4225103, "lng": -122.0847089}}}
-            ]
-        })
+        httpserver.expect_request("/maps/api/geocode/json").respond_with_json(
+            {"results": [{"geometry": {"location": {"lat": 37.4225103, "lng": -122.0847089}}}]}
+        )
 
         response = subject.post(
             "/api/geocode",
-            json=GeocodeRequest(
-                address="1600 Amphitheatre Parkway Mountain View, CA 94043, USA"
-            ).model_dump(),
+            json=GeocodeRequest(address="1600 Amphitheatre Parkway Mountain View, CA 94043, USA").model_dump(),
         )
         assert response.status_code == HTTPStatus.CREATED
-        assert response.json() == GeocodeResponse(
-            location=GeocodeLocation(lat=37.4225103, lng=-122.0847089)
-        ).model_dump()
+        assert (
+            response.json() == GeocodeResponse(location=GeocodeLocation(lat=37.4225103, lng=-122.0847089)).model_dump()
+        )
 
     def test_get_default_template(self, subject):
         response = subject.get("/api/templates/default")
         assert response.status_code == HTTPStatus.OK
-        with open(f"{TEMPLATE_DIR}/post_prompt.txt", "r") as file:
+        with open(f"{TEMPLATE_DIR}/post_prompt.txt") as file:
             assert response.json() == TemplateResponse(template=file.read()).model_dump()
 
     @pytest.mark.parametrize(
@@ -143,9 +153,7 @@ class TestApp:
         )
 
         assert response.status_code == expected_status_code
-        assert (
-            response.headers.get("Access-Control-Allow-Origin") == expected_allow_origin
-        )
+        assert response.headers.get("Access-Control-Allow-Origin") == expected_allow_origin
         assert all(
             method in response.headers["Access-Control-Allow-Methods"]
             for method in ["DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT"]
@@ -158,12 +166,14 @@ class TestApp:
         assert response.json() == []
 
     def test_create_and_list_properties(self, subject, httpserver: HTTPServer):
-        httpserver.expect_request("/v1/embeddings").respond_with_json({
-            "data": [{"embedding": [0.1] * 1536, "index": 0, "object": "embedding"}],
-            "model": "text-embedding-ada-002",
-            "object": "list",
-            "usage": {"prompt_tokens": 5, "total_tokens": 5},
-        })
+        httpserver.expect_request("/v1/embeddings").respond_with_json(
+            {
+                "data": [{"embedding": [0.1] * 1536, "index": 0, "object": "embedding"}],
+                "model": "text-embedding-ada-002",
+                "object": "list",
+                "usage": {"prompt_tokens": 5, "total_tokens": 5},
+            }
+        )
 
         upload_response = subject.post(
             "/api/documents",
@@ -193,12 +203,14 @@ class TestApp:
         assert properties[0]["id"] == created_id
 
     def test_upload_and_retrieve_pdf(self, subject, httpserver: HTTPServer):
-        httpserver.expect_request("/v1/embeddings").respond_with_json({
-            "data": [{"embedding": [0.1] * 1536, "index": 0, "object": "embedding"}],
-            "model": "text-embedding-ada-002",
-            "object": "list",
-            "usage": {"prompt_tokens": 5, "total_tokens": 5},
-        })
+        httpserver.expect_request("/v1/embeddings").respond_with_json(
+            {
+                "data": [{"embedding": [0.1] * 1536, "index": 0, "object": "embedding"}],
+                "model": "text-embedding-ada-002",
+                "object": "list",
+                "usage": {"prompt_tokens": 5, "total_tokens": 5},
+            }
+        )
 
         with open("tests/integration/fixtures/mls_sheet.pdf", "rb") as f:
             original_bytes = f.read()
@@ -220,12 +232,14 @@ class TestApp:
         assert response.status_code == HTTPStatus.NOT_FOUND
 
     def test_delete_document_from_property(self, subject, httpserver: HTTPServer):
-        httpserver.expect_request("/v1/embeddings").respond_with_json({
-            "data": [{"embedding": [0.1] * 1536, "index": 0, "object": "embedding"}],
-            "model": "text-embedding-ada-002",
-            "object": "list",
-            "usage": {"prompt_tokens": 5, "total_tokens": 5},
-        })
+        httpserver.expect_request("/v1/embeddings").respond_with_json(
+            {
+                "data": [{"embedding": [0.1] * 1536, "index": 0, "object": "embedding"}],
+                "model": "text-embedding-ada-002",
+                "object": "list",
+                "usage": {"prompt_tokens": 5, "total_tokens": 5},
+            }
+        )
 
         upload_response = subject.post(
             "/api/documents",
@@ -260,12 +274,14 @@ class TestApp:
         assert response.status_code == HTTPStatus.NOT_FOUND
 
     def test_upload_pdf(self, subject, httpserver: HTTPServer, milvus_client, test_container: Container):
-        httpserver.expect_request("/v1/embeddings").respond_with_json({
-            "data": [{"embedding": [0.1] * 1536, "index": 0, "object": "embedding"}],
-            "model": "text-embedding-ada-002",
-            "object": "list",
-            "usage": {"prompt_tokens": 5, "total_tokens": 5},
-        })
+        httpserver.expect_request("/v1/embeddings").respond_with_json(
+            {
+                "data": [{"embedding": [0.1] * 1536, "index": 0, "object": "embedding"}],
+                "model": "text-embedding-ada-002",
+                "object": "list",
+                "usage": {"prompt_tokens": 5, "total_tokens": 5},
+            }
+        )
 
         response = subject.post(
             "/api/documents",
@@ -275,30 +291,28 @@ class TestApp:
         assert response.json().get("id") is not None
         collection_name = test_container.embeddings_collection_name()
         assert milvus_client.has_collection(collection_name)
-        actual = milvus_client.query(
-            collection_name=collection_name, filter=f'doc_id == "{response.json().get("id")}"'
-        )
+        actual = milvus_client.query(collection_name=collection_name, filter=f'doc_id == "{response.json().get("id")}"')
         assert len(actual) == 12
         assert any(
-            "Buyers Brokers Only, LLC \n| \nExclusive Buyer Agents - MA & NH \n| Tel: 617.501.0233"
-            in chunk.get("text") for chunk in actual
+            "Buyers Brokers Only, LLC \n| \nExclusive Buyer Agents - MA & NH \n| Tel: 617.501.0233" in chunk.get("text")
+            for chunk in actual
         )
         assert actual[0].get("embedding") is not None
 
     def test_chat_with_property(self, subject, httpserver: HTTPServer):
-        httpserver.expect_request("/v1/embeddings").respond_with_json({
-            "data": [{"embedding": [0.1] * 1536, "index": 0, "object": "embedding"}],
-            "model": "text-embedding-ada-002",
-            "object": "list",
-            "usage": {"prompt_tokens": 5, "total_tokens": 5},
-        })
+        httpserver.expect_request("/v1/embeddings").respond_with_json(
+            {
+                "data": [{"embedding": [0.1] * 1536, "index": 0, "object": "embedding"}],
+                "model": "text-embedding-ada-002",
+                "object": "list",
+                "usage": {"prompt_tokens": 5, "total_tokens": 5},
+            }
+        )
         sse_body = (
             'data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"This property is located in Mountain View"},"finish_reason":null}]}\n\n'
             "data: [DONE]\n\n"
         )
-        httpserver.expect_request("/v1/chat/completions").respond_with_data(
-            sse_body, content_type="text/event-stream"
-        )
+        httpserver.expect_request("/v1/chat/completions").respond_with_data(sse_body, content_type="text/event-stream")
 
         property_data = PropertyInfo(
             latitude=37.4225103,
@@ -325,12 +339,14 @@ class TestApp:
         assert "Mountain View" in assistant_msg["content"]
 
     def test_chat_with_document_context(self, subject, httpserver: HTTPServer):
-        httpserver.expect_request("/v1/embeddings").respond_with_json({
-            "data": [{"embedding": [0.1] * 1536, "index": 0, "object": "embedding"}],
-            "model": "text-embedding-ada-002",
-            "object": "list",
-            "usage": {"prompt_tokens": 5, "total_tokens": 5},
-        })
+        httpserver.expect_request("/v1/embeddings").respond_with_json(
+            {
+                "data": [{"embedding": [0.1] * 1536, "index": 0, "object": "embedding"}],
+                "model": "text-embedding-ada-002",
+                "object": "list",
+                "usage": {"prompt_tokens": 5, "total_tokens": 5},
+            }
+        )
 
         upload_response = subject.post(
             "/api/documents",
@@ -341,7 +357,7 @@ class TestApp:
         property_data = PropertyInfo(
             latitude=37.4225103,
             longitude=-122.0847089,
-            documents=[DocumentInfo(id=doc_id, filename="mls_sheet.pdf")]
+            documents=[DocumentInfo(id=doc_id, filename="mls_sheet.pdf")],
         )
         create_response = subject.post("/api/properties", json=property_data.model_dump())
         property_id = create_response.json()["id"]
@@ -369,12 +385,14 @@ class TestApp:
         assert "Buyers Brokers Only, LLC" in system_message["content"]
 
     def test_chat_returns_503_when_milvus_unavailable(self, subject, httpserver: HTTPServer, test_container: Container):
-        httpserver.expect_request("/v1/embeddings").respond_with_json({
-            "data": [{"embedding": [0.1] * 1536, "index": 0, "object": "embedding"}],
-            "model": "text-embedding-ada-002",
-            "object": "list",
-            "usage": {"prompt_tokens": 5, "total_tokens": 5},
-        })
+        httpserver.expect_request("/v1/embeddings").respond_with_json(
+            {
+                "data": [{"embedding": [0.1] * 1536, "index": 0, "object": "embedding"}],
+                "model": "text-embedding-ada-002",
+                "object": "list",
+                "usage": {"prompt_tokens": 5, "total_tokens": 5},
+            }
+        )
 
         property_data = PropertyInfo(latitude=37.4225103, longitude=-122.0847089)
         create_response = subject.post("/api/properties", json=property_data.model_dump())
@@ -397,13 +415,15 @@ class TestApp:
             s3_client.put_object(
                 Bucket=_S3_BUCKET,
                 Key=f"tiles/meta/{layer_id}/21111/meta.json",
-                Body=json.dumps({
-                    "date_from": "2025-04-01",
-                    "date_to": "2026-04-01",
-                    "record_count": 42,
-                    "bbox": [-86.035, 37.997, -85.404, 38.375],
-                    "tile_zoom": 12,
-                }).encode(),
+                Body=json.dumps(
+                    {
+                        "date_from": "2025-04-01",
+                        "date_to": "2026-04-01",
+                        "record_count": 42,
+                        "bbox": [-86.035, 37.997, -85.404, 38.375],
+                        "tile_zoom": 12,
+                    }
+                ).encode(),
                 ContentType="application/json",
             )
 
@@ -478,27 +498,31 @@ class TestApp:
     def test_create_property_enriches_with_county_polygon(self, subject, httpserver: HTTPServer):
         httpserver.expect_request(
             "/geocoder/geographies/coordinates",
-        ).respond_with_json({
-            "result": {
-                "geographies": {
-                    "Counties": [{"GEOID": "21111", "NAME": "Jefferson", "STATE": "21"}]
-                }
-            }
-        })
+        ).respond_with_json(
+            {"result": {"geographies": {"Counties": [{"GEOID": "21111", "NAME": "Jefferson", "STATE": "21"}]}}}
+        )
         httpserver.expect_request(
             "/arcgis/rest/services/TIGERweb/State_County/MapServer/1/query",
-        ).respond_with_json({
-            "features": [{
-                "geometry": {
-                    "rings": [[
-                        [-86.035, 37.997], [-85.404, 37.997],
-                        [-85.404, 38.375], [-86.035, 38.375],
-                        [-86.035, 37.997],
-                    ]],
-                    "spatialReference": {"wkid": 4326},
-                }
-            }]
-        })
+        ).respond_with_json(
+            {
+                "features": [
+                    {
+                        "geometry": {
+                            "rings": [
+                                [
+                                    [-86.035, 37.997],
+                                    [-85.404, 37.997],
+                                    [-85.404, 38.375],
+                                    [-86.035, 38.375],
+                                    [-86.035, 37.997],
+                                ]
+                            ],
+                            "spatialReference": {"wkid": 4326},
+                        }
+                    }
+                ]
+            }
+        )
 
         response = subject.post(
             "/api/properties",
@@ -510,11 +534,15 @@ class TestApp:
         assert body["county_fips"] == "21111"
         assert body["county_polygon"] == {
             "type": "Polygon",
-            "coordinates": [[
-                [-86.035, 37.997], [-85.404, 37.997],
-                [-85.404, 38.375], [-86.035, 38.375],
-                [-86.035, 37.997],
-            ]],
+            "coordinates": [
+                [
+                    [-86.035, 37.997],
+                    [-85.404, 37.997],
+                    [-85.404, 38.375],
+                    [-86.035, 38.375],
+                    [-86.035, 37.997],
+                ]
+            ],
         }
 
     def test_create_property_reuses_county_boundary_for_same_fips(self, subject, httpserver: HTTPServer):
@@ -524,31 +552,40 @@ class TestApp:
         }
         httpserver.expect_request(
             "/geocoder/geographies/coordinates",
-        ).respond_with_json({
-            "result": {
-                "geographies": {
-                    "Counties": [{"GEOID": "21111", "NAME": "Jefferson", "STATE": "21"}]
-                }
-            }
-        })
+        ).respond_with_json(
+            {"result": {"geographies": {"Counties": [{"GEOID": "21111", "NAME": "Jefferson", "STATE": "21"}]}}}
+        )
         # oneshot — only handles one request; a second call would return 500
         httpserver.expect_oneshot_request(
             "/arcgis/rest/services/TIGERweb/State_County/MapServer/1/query",
-        ).respond_with_json({
-            "features": [{
-                "geometry": {
-                    "rings": [[[-86.035, 37.997], [-85.404, 37.997], [-85.404, 38.375], [-86.035, 37.997]]],
-                    "spatialReference": {"wkid": 4326},
-                }
-            }]
-        })
+        ).respond_with_json(
+            {
+                "features": [
+                    {
+                        "geometry": {
+                            "rings": [
+                                [
+                                    [-86.035, 37.997],
+                                    [-85.404, 37.997],
+                                    [-85.404, 38.375],
+                                    [-86.035, 37.997],
+                                ]
+                            ],
+                            "spatialReference": {"wkid": 4326},
+                        }
+                    }
+                ]
+            }
+        )
 
         responses = []
         for _ in range(2):
-            responses.append(subject.post(
-                "/api/properties",
-                json=PropertyInfo(latitude=38.254, longitude=-85.759).model_dump(),
-            ))
+            responses.append(
+                subject.post(
+                    "/api/properties",
+                    json=PropertyInfo(latitude=38.254, longitude=-85.759).model_dump(),
+                )
+            )
 
         assert all(r.status_code == HTTPStatus.CREATED for r in responses)
         assert responses[0].json()["county_polygon"] == polygon
@@ -557,27 +594,31 @@ class TestApp:
     def test_get_internal_counties_returns_distinct_fips(self, subject, httpserver: HTTPServer):
         httpserver.expect_request(
             "/geocoder/geographies/coordinates",
-        ).respond_with_json({
-            "result": {
-                "geographies": {
-                    "Counties": [{"GEOID": "21111", "NAME": "Jefferson", "STATE": "21"}]
-                }
-            }
-        })
+        ).respond_with_json(
+            {"result": {"geographies": {"Counties": [{"GEOID": "21111", "NAME": "Jefferson", "STATE": "21"}]}}}
+        )
         httpserver.expect_request(
             "/arcgis/rest/services/TIGERweb/State_County/MapServer/1/query",
-        ).respond_with_json({
-            "features": [{
-                "geometry": {
-                    "rings": [[
-                        [-86.035, 37.997], [-85.404, 37.997],
-                        [-85.404, 38.375], [-86.035, 38.375],
-                        [-86.035, 37.997],
-                    ]],
-                    "spatialReference": {"wkid": 4326},
-                }
-            }]
-        })
+        ).respond_with_json(
+            {
+                "features": [
+                    {
+                        "geometry": {
+                            "rings": [
+                                [
+                                    [-86.035, 37.997],
+                                    [-85.404, 37.997],
+                                    [-85.404, 38.375],
+                                    [-86.035, 38.375],
+                                    [-86.035, 37.997],
+                                ]
+                            ],
+                            "spatialReference": {"wkid": 4326},
+                        }
+                    }
+                ]
+            }
+        )
 
         for _ in range(2):
             subject.post(
@@ -597,13 +638,15 @@ class TestApp:
             s3_client.put_object(
                 Bucket=_S3_BUCKET,
                 Key=f"tiles/meta/{layer_id}/{county_fips}/meta.json",
-                Body=json.dumps({
-                    "date_from": "2025-04-01",
-                    "date_to": "2026-04-01",
-                    "record_count": 42,
-                    "bbox": [-86.035, 37.997, -85.404, 38.375],
-                    "tile_zoom": 12,
-                }).encode(),
+                Body=json.dumps(
+                    {
+                        "date_from": "2025-04-01",
+                        "date_to": "2026-04-01",
+                        "record_count": 42,
+                        "bbox": [-86.035, 37.997, -85.404, 38.375],
+                        "tile_zoom": 12,
+                    }
+                ).encode(),
                 ContentType="application/json",
             )
 

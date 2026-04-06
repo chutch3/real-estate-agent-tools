@@ -23,9 +23,7 @@ class TestSocrataSource:
             base_url=httpserver.url_for("").rstrip("/"),
         )
 
-    def test_fetch_returns_geodataframe_with_canonical_schema(
-        self, subject: SocrataSource, httpserver: HTTPServer
-    ):
+    def test_fetch_returns_geodataframe_with_canonical_schema(self, subject: SocrataSource, httpserver: HTTPServer):
         httpserver.expect_request("/resource/4sxa-cwis.json").respond_with_json(
             [
                 {
@@ -47,9 +45,7 @@ class TestSocrataSource:
         assert result.iloc[0]["source"] == "louisville-metro-pd"
         assert result.crs.to_epsg() == 4326
 
-    def test_fetch_returns_empty_dataframe_on_empty_response(
-        self, subject: SocrataSource, httpserver: HTTPServer
-    ):
+    def test_fetch_returns_empty_dataframe_on_empty_response(self, subject: SocrataSource, httpserver: HTTPServer):
         httpserver.expect_request("/resource/4sxa-cwis.json").respond_with_json([])
 
         result = subject.fetch(_LOUISVILLE_BBOX, date(2025, 1, 1), date(2025, 12, 31))
@@ -57,9 +53,7 @@ class TestSocrataSource:
         assert len(result) == 0
         assert result.crs.to_epsg() == 4326
 
-    def test_fetch_skips_rows_with_missing_coordinates(
-        self, subject: SocrataSource, httpserver: HTTPServer
-    ):
+    def test_fetch_skips_rows_with_missing_coordinates(self, subject: SocrataSource, httpserver: HTTPServer):
         httpserver.expect_request("/resource/4sxa-cwis.json").respond_with_json(
             [
                 {"date_occured": "2025-06-15T00:00:00.000", "offense": "THEFT"},
@@ -76,18 +70,14 @@ class TestSocrataSource:
 
         assert len(result) == 1
 
-    def test_fetch_sends_app_token_header_when_configured(
-        self, httpserver: HTTPServer
-    ):
+    def test_fetch_sends_app_token_header_when_configured(self, httpserver: HTTPServer):
         received_headers: dict[str, str] = {}
 
         def capture_handler(request):
             received_headers.update(dict(request.headers))
             return Response(b"[]", content_type="application/json")
 
-        httpserver.expect_request("/resource/4sxa-cwis.json").respond_with_handler(
-            capture_handler
-        )
+        httpserver.expect_request("/resource/4sxa-cwis.json").respond_with_handler(capture_handler)
         source = SocrataSource(
             name="louisville-metro-pd",
             dataset_id="4sxa-cwis",

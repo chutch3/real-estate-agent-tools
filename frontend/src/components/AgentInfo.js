@@ -1,5 +1,5 @@
-import React from 'react';
-import { TextField, Box } from '@mui/material';
+import React from "react";
+import { TextField, Box } from "@mui/material";
 
 function AgentInfo({ agentInfo, setAgentInfo }) {
   const handleChange = (field) => (event) => {
@@ -7,29 +7,29 @@ function AgentInfo({ agentInfo, setAgentInfo }) {
   };
 
   return (
-    <Box sx={{ width: '100%', maxWidth: '600px', margin: '0 auto' }}>
+    <Box sx={{ width: "100%", maxWidth: "600px", margin: "0 auto" }}>
       <TextField
         fullWidth
         label="Agent Name"
         variant="outlined"
-        value={agentInfo.agent_name || ''}
-        onChange={handleChange('agent_name')}
+        value={agentInfo.agent_name || ""}
+        onChange={handleChange("agent_name")}
         margin="normal"
       />
       <TextField
         fullWidth
         label="Agent Company"
         variant="outlined"
-        value={agentInfo.agent_company || ''}
-        onChange={handleChange('agent_company')}
+        value={agentInfo.agent_company || ""}
+        onChange={handleChange("agent_company")}
         margin="normal"
       />
       <TextField
         fullWidth
         label="Agent Contact"
         variant="outlined"
-        value={agentInfo.agent_contact || ''}
-        onChange={handleChange('agent_contact')}
+        value={agentInfo.agent_contact || ""}
+        onChange={handleChange("agent_contact")}
         margin="normal"
       />
     </Box>

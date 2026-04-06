@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { MapPin, Plus, Bed, Bath } from 'lucide-react';
-import PropertyMap from './PropertyMap';
-import PropertyDetailPanel from './PropertyDetailPanel';
-import apiClient from '../apiClient';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { MapPin, Plus, Bed, Bath } from "lucide-react";
+import PropertyMap from "./PropertyMap";
+import PropertyDetailPanel from "./PropertyDetailPanel";
+import apiClient from "../apiClient";
 
 function HomeScreen() {
   const navigate = useNavigate();
@@ -13,12 +13,14 @@ function HomeScreen() {
   const [uploadError, setUploadError] = useState(null);
   const [deleteError, setDeleteError] = useState(null);
 
-  const selectedProperty = properties.find(p => p.id === selectedPropertyId) ?? null;
+  const selectedProperty =
+    properties.find((p) => p.id === selectedPropertyId) ?? null;
 
   useEffect(() => {
-    apiClient.listProperties()
+    apiClient
+      .listProperties()
       .then(setProperties)
-      .catch((err) => console.error('Error loading properties:', err));
+      .catch((err) => console.error("Error loading properties:", err));
   }, []);
 
   const handleUploadDocument = async (property, files) => {
@@ -28,11 +30,17 @@ function HomeScreen() {
       let updated = property;
       for (const file of files) {
         const docId = await apiClient.uploadDocument(file);
-        updated = await apiClient.addDocumentToProperty(updated.id, docId, file.name);
+        updated = await apiClient.addDocumentToProperty(
+          updated.id,
+          docId,
+          file.name,
+        );
       }
-      setProperties(prev => prev.map(p => p.id === updated.id ? updated : p));
+      setProperties((prev) =>
+        prev.map((p) => (p.id === updated.id ? updated : p)),
+      );
     } catch {
-      setUploadError('Upload failed. Please try again.');
+      setUploadError("Upload failed. Please try again.");
     } finally {
       setIsUploading(false);
     }
@@ -42,37 +50,42 @@ function HomeScreen() {
     setDeleteError(null);
     try {
       const updated = await apiClient.deleteDocument(property.id, docId);
-      setProperties(prev => prev.map(p => p.id === updated.id ? updated : p));
+      setProperties((prev) =>
+        prev.map((p) => (p.id === updated.id ? updated : p)),
+      );
     } catch {
-      setDeleteError('Failed to delete document. Please try again.');
+      setDeleteError("Failed to delete document. Please try again.");
     }
   };
 
   const handleGeneratePost = (property) => {
-    navigate('/generate-post', { state: { property } });
+    navigate("/generate-post", { state: { property } });
   };
 
   const handleChat = (property) => {
-    navigate('/chat', { state: { property } });
+    navigate("/chat", { state: { property } });
   };
 
   return (
     <div
       className="fixed inset-0 flex"
-      style={{ top: '56px' }}
+      style={{ top: "56px" }}
       aria-label="Property map and listings"
     >
       {/* Sidebar */}
       <aside
         className="flex flex-col bg-white border-r border-linen-200 overflow-hidden shrink-0"
-        style={{ width: '340px' }}
+        style={{ width: "340px" }}
         aria-label="Property list"
       >
         {/* Sidebar header */}
         <div className="px-5 py-4 border-b border-linen-200">
-          <h1 className="font-serif text-2xl text-ink-900 leading-none">Properties</h1>
+          <h1 className="font-serif text-2xl text-ink-900 leading-none">
+            Properties
+          </h1>
           <p className="font-sans text-xs text-ink-400 mt-1.5 tracking-wide">
-            {properties.length} {properties.length === 1 ? 'listing' : 'listings'}
+            {properties.length}{" "}
+            {properties.length === 1 ? "listing" : "listings"}
           </p>
         </div>
 
@@ -82,7 +95,9 @@ function HomeScreen() {
             <div className="flex flex-col items-center justify-center h-48 text-ink-300 px-6 text-center">
               <MapPin size={28} strokeWidth={1} className="mb-3" />
               <p className="font-sans text-sm">No properties yet</p>
-              <p className="font-sans text-xs text-ink-200 mt-1">Add your first property below</p>
+              <p className="font-sans text-xs text-ink-200 mt-1">
+                Add your first property below
+              </p>
             </div>
           ) : (
             properties.map((property, i) => (
@@ -90,8 +105,11 @@ function HomeScreen() {
                 key={property.id}
                 onClick={() => setSelectedPropertyId(property.id)}
                 className={`w-full text-left px-5 py-4 border-b border-linen-100 transition-colors hover:bg-linen-50 focus:outline-none focus:bg-linen-100 animate-fade-up opacity-0
-                  ${selectedProperty?.id === property.id ? 'bg-linen-100 border-l-2 border-l-bronze-400' : ''}`}
-                style={{ animationDelay: `${i * 40}ms`, animationFillMode: 'forwards' }}
+                  ${selectedProperty?.id === property.id ? "bg-linen-100 border-l-2 border-l-bronze-400" : ""}`}
+                style={{
+                  animationDelay: `${i * 40}ms`,
+                  animationFillMode: "forwards",
+                }}
                 aria-pressed={selectedProperty?.id === property.id}
                 aria-label={`Select ${property.formatted_address}`}
               >
@@ -134,7 +152,7 @@ function HomeScreen() {
         {/* Add property button */}
         <div className="p-4 border-t border-linen-200">
           <button
-            onClick={() => navigate('/add-property')}
+            onClick={() => navigate("/add-property")}
             className="w-full flex items-center justify-center gap-2 bg-bronze-500 hover:bg-bronze-600 active:bg-bronze-700 text-white font-sans text-sm font-medium py-2.5 px-4 rounded transition-colors focus:outline-none focus:ring-2 focus:ring-bronze-400 focus:ring-offset-1"
             aria-label="Add new property"
           >

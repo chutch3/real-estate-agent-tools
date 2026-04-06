@@ -1,9 +1,11 @@
 import uuid
-from datetime import datetime, timezone
-from typing import Any, List, Optional
+from datetime import UTC, datetime
+from typing import Any
+
 from fastapi import UploadFile
-from pydantic import BaseModel, Field as PydanticField, field_validator
-from sqlalchemy import Column, JSON, String, TypeDecorator
+from pydantic import BaseModel, field_validator
+from pydantic import Field as PydanticField
+from sqlalchemy import JSON, Column, String, TypeDecorator
 from sqlmodel import Field, SQLModel
 
 
@@ -16,7 +18,7 @@ class AgentInfo(BaseModel):
 class PostGenerationRequest(BaseModel):
     address: str
     agent_info: AgentInfo
-    custom_template: Optional[str] = None
+    custom_template: str | None = None
 
 
 class GeocodeRequest(BaseModel):
@@ -41,22 +43,20 @@ class PostGenerationResponse(BaseModel):
 
 
 class PropertyFeatures(BaseModel):
-    architecture_type: Optional[str] = PydanticField(
-        None, serialization_alias="architectureType"
-    )
-    cooling: Optional[bool] = True
-    cooling_type: Optional[str] = PydanticField(None, serialization_alias="coolingType")
-    exterior_type: Optional[str] = PydanticField(None, serialization_alias="exteriorType")
-    floor_count: Optional[int] = PydanticField(0, serialization_alias="floorCount")
-    foundation_type: Optional[str] = PydanticField(None, serialization_alias="foundationType")
-    garage: Optional[bool] = True
-    garage_type: Optional[str] = PydanticField(None, serialization_alias="garageType")
-    heating: Optional[bool] = True
-    heating_type: Optional[str] = PydanticField(None, serialization_alias="heatingType")
-    pool: Optional[bool] = True
-    roof_type: Optional[str] = PydanticField(None, serialization_alias="roofType")
-    room_count: Optional[int] = PydanticField(0, serialization_alias="roomCount")
-    unit_count: Optional[int] = PydanticField(0, serialization_alias="unitCount")
+    architecture_type: str | None = PydanticField(None, serialization_alias="architectureType")
+    cooling: bool | None = True
+    cooling_type: str | None = PydanticField(None, serialization_alias="coolingType")
+    exterior_type: str | None = PydanticField(None, serialization_alias="exteriorType")
+    floor_count: int | None = PydanticField(0, serialization_alias="floorCount")
+    foundation_type: str | None = PydanticField(None, serialization_alias="foundationType")
+    garage: bool | None = True
+    garage_type: str | None = PydanticField(None, serialization_alias="garageType")
+    heating: bool | None = True
+    heating_type: str | None = PydanticField(None, serialization_alias="heatingType")
+    pool: bool | None = True
+    roof_type: str | None = PydanticField(None, serialization_alias="roofType")
+    room_count: int | None = PydanticField(0, serialization_alias="roomCount")
+    unit_count: int | None = PydanticField(0, serialization_alias="unitCount")
 
 
 class PropertyFeaturesType(TypeDecorator):
@@ -104,46 +104,42 @@ class CountyBoundary(SQLModel, table=True):
     __tablename__ = "county_boundary"
 
     fips: str = Field(primary_key=True)
-    geometry: Optional[dict] = Field(default=None, sa_column=Column(JSON))
+    geometry: dict | None = Field(default=None, sa_column=Column(JSON))
 
 
 class PropertyInfo(SQLModel, table=True):
     __tablename__ = "property_info"
 
-    id: Optional[str] = Field(
+    id: str | None = Field(
         default=None,
         sa_column=Column(String, primary_key=True, default=lambda: str(uuid.uuid4())),
     )
-    rentcast_id: Optional[str] = Field(None, alias="rentcastID")
-    formatted_address: Optional[str] = Field(None, alias="formattedAddress")
-    address_line1: Optional[str] = Field(None, alias="addressLine1")
-    address_line2: Optional[str] = Field(None, alias="addressLine2")
-    city: Optional[str] = None
-    state: Optional[str] = None
-    zip_code: Optional[str] = Field(None, alias="zipCode")
-    county: Optional[str] = None
-    county_fips: Optional[str] = None
-    latitude: Optional[float] = 0
-    longitude: Optional[float] = 0
-    property_type: Optional[str] = Field(None, alias="propertyType")
-    bedrooms: Optional[float] = 0
-    bathrooms: Optional[float] = 0
-    square_footage: Optional[int] = Field(0, alias="squareFootage")
-    lot_size: Optional[int] = Field(0, alias="lotSize")
-    year_built: Optional[int] = Field(0, alias="yearBuilt")
-    assessor_id: Optional[str] = Field(None, alias="assessorID")
-    legal_description: Optional[str] = Field(None, alias="legalDescription")
-    subdivision: Optional[str] = None
-    zoning: Optional[str] = None
-    last_sale_date: Optional[str] = Field(None, alias="lastSaleDate")
-    last_sale_price: Optional[int] = Field(0, alias="lastSalePrice")
-    features: Optional[PropertyFeatures] = Field(
-        default=None, sa_column=Column(PropertyFeaturesType)
-    )
-    owner_occupied: Optional[bool] = Field(True, alias="ownerOccupied")
-    documents: Optional[List[DocumentInfo]] = Field(
-        default=None, sa_column=Column(DocumentInfoListType)
-    )
+    rentcast_id: str | None = Field(None, alias="rentcastID")
+    formatted_address: str | None = Field(None, alias="formattedAddress")
+    address_line1: str | None = Field(None, alias="addressLine1")
+    address_line2: str | None = Field(None, alias="addressLine2")
+    city: str | None = None
+    state: str | None = None
+    zip_code: str | None = Field(None, alias="zipCode")
+    county: str | None = None
+    county_fips: str | None = None
+    latitude: float | None = 0
+    longitude: float | None = 0
+    property_type: str | None = Field(None, alias="propertyType")
+    bedrooms: float | None = 0
+    bathrooms: float | None = 0
+    square_footage: int | None = Field(0, alias="squareFootage")
+    lot_size: int | None = Field(0, alias="lotSize")
+    year_built: int | None = Field(0, alias="yearBuilt")
+    assessor_id: str | None = Field(None, alias="assessorID")
+    legal_description: str | None = Field(None, alias="legalDescription")
+    subdivision: str | None = None
+    zoning: str | None = None
+    last_sale_date: str | None = Field(None, alias="lastSaleDate")
+    last_sale_price: int | None = Field(0, alias="lastSalePrice")
+    features: PropertyFeatures | None = Field(default=None, sa_column=Column(PropertyFeaturesType))
+    owner_occupied: bool | None = Field(True, alias="ownerOccupied")
+    documents: list[DocumentInfo] | None = Field(default=None, sa_column=Column(DocumentInfoListType))
 
     @field_validator("features", mode="before")
     @classmethod
@@ -165,34 +161,34 @@ class PropertyInfo(SQLModel, table=True):
 class PropertyResponse(BaseModel):
     model_config = {"populate_by_name": True}
 
-    id: Optional[str] = None
-    rentcast_id: Optional[str] = Field(None, alias="rentcastID")
-    formatted_address: Optional[str] = Field(None, alias="formattedAddress")
-    address_line1: Optional[str] = Field(None, alias="addressLine1")
-    address_line2: Optional[str] = Field(None, alias="addressLine2")
-    city: Optional[str] = None
-    state: Optional[str] = None
-    zip_code: Optional[str] = Field(None, alias="zipCode")
-    county: Optional[str] = None
-    county_fips: Optional[str] = None
-    county_polygon: Optional[dict] = None
-    latitude: Optional[float] = 0
-    longitude: Optional[float] = 0
-    property_type: Optional[str] = Field(None, alias="propertyType")
-    bedrooms: Optional[float] = 0
-    bathrooms: Optional[float] = 0
-    square_footage: Optional[int] = Field(0, alias="squareFootage")
-    lot_size: Optional[int] = Field(0, alias="lotSize")
-    year_built: Optional[int] = Field(0, alias="yearBuilt")
-    assessor_id: Optional[str] = Field(None, alias="assessorID")
-    legal_description: Optional[str] = Field(None, alias="legalDescription")
-    subdivision: Optional[str] = None
-    zoning: Optional[str] = None
-    last_sale_date: Optional[str] = Field(None, alias="lastSaleDate")
-    last_sale_price: Optional[int] = Field(0, alias="lastSalePrice")
-    features: Optional[PropertyFeatures] = None
-    owner_occupied: Optional[bool] = Field(True, alias="ownerOccupied")
-    documents: Optional[List[DocumentInfo]] = None
+    id: str | None = None
+    rentcast_id: str | None = Field(None, alias="rentcastID")
+    formatted_address: str | None = Field(None, alias="formattedAddress")
+    address_line1: str | None = Field(None, alias="addressLine1")
+    address_line2: str | None = Field(None, alias="addressLine2")
+    city: str | None = None
+    state: str | None = None
+    zip_code: str | None = Field(None, alias="zipCode")
+    county: str | None = None
+    county_fips: str | None = None
+    county_polygon: dict | None = None
+    latitude: float | None = 0
+    longitude: float | None = 0
+    property_type: str | None = Field(None, alias="propertyType")
+    bedrooms: float | None = 0
+    bathrooms: float | None = 0
+    square_footage: int | None = Field(0, alias="squareFootage")
+    lot_size: int | None = Field(0, alias="lotSize")
+    year_built: int | None = Field(0, alias="yearBuilt")
+    assessor_id: str | None = Field(None, alias="assessorID")
+    legal_description: str | None = Field(None, alias="legalDescription")
+    subdivision: str | None = None
+    zoning: str | None = None
+    last_sale_date: str | None = Field(None, alias="lastSaleDate")
+    last_sale_price: int | None = Field(0, alias="lastSalePrice")
+    features: PropertyFeatures | None = None
+    owner_occupied: bool | None = Field(True, alias="ownerOccupied")
+    documents: list[DocumentInfo] | None = None
 
 
 class DocumentUploadResponse(BaseModel):
@@ -201,8 +197,8 @@ class DocumentUploadResponse(BaseModel):
 
 class CreatePropertyFormData(BaseModel):
     property_data: PropertyInfo
-    images: List[UploadFile]
-    supporting_docs: List[UploadFile]
+    images: list[UploadFile]
+    supporting_docs: list[UploadFile]
 
 
 class File(BaseModel):
@@ -213,16 +209,14 @@ class File(BaseModel):
 class ChatMessage(SQLModel, table=True):
     __tablename__ = "chat_message"
 
-    id: Optional[str] = Field(
+    id: str | None = Field(
         default=None,
         sa_column=Column(String, primary_key=True, default=lambda: str(uuid.uuid4())),
     )
     property_id: str = Field(sa_column=Column(String, index=True))
     role: str
     content: str
-    created_at: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    created_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
 
 
 class ChatRequest(BaseModel):

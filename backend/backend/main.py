@@ -1,6 +1,5 @@
 import os
 from contextlib import asynccontextmanager
-from typing import Optional
 
 import uvicorn
 from dotenv import load_dotenv
@@ -12,7 +11,7 @@ from backend.container import Container
 from backend.startup import _on_startup
 
 
-def create_app(container: Optional[Container] = None):
+def create_app(container: Container | None = None):
     """
     Create the FastAPI app instance.
 
@@ -25,15 +24,9 @@ def create_app(container: Optional[Container] = None):
     if container is None:
         container = Container()
 
-    container.config.openai.model.from_env(
-        "OPENAI_MODEL", default="gpt-4-turbo-preview"
-    )
-    container.config.openai.embeddings_model.from_env(
-        "OPENAI_EMBEDDINGS_MODEL", default="text-embedding-ada-002"
-    )
-    container.config.openai.embeddings_dimension.from_env(
-        "OPENAI_EMBEDDINGS_DIMENSION", default=1536
-    )
+    container.config.openai.model.from_env("OPENAI_MODEL", default="gpt-4-turbo-preview")
+    container.config.openai.embeddings_model.from_env("OPENAI_EMBEDDINGS_MODEL", default="text-embedding-ada-002")
+    container.config.openai.embeddings_dimension.from_env("OPENAI_EMBEDDINGS_DIMENSION", default=1536)
     container.config.openai.api_key.from_env("OPENAI_API_KEY")
     container.config.openai.base_url.from_env("OPENAI_BASE_URL", default=None)
     container.config.rentcast.api_key.from_env("RENTCAST_API_KEY")
@@ -51,9 +44,7 @@ def create_app(container: Optional[Container] = None):
     container.config.census_geocoder.base_url.from_env(
         "CENSUS_GEOCODER_BASE_URL", default="https://geocoding.geo.census.gov"
     )
-    container.config.tiger.base_url.from_env(
-        "TIGER_BASE_URL", default="https://tigerweb.geo.census.gov"
-    )
+    container.config.tiger.base_url.from_env("TIGER_BASE_URL", default="https://tigerweb.geo.census.gov")
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -65,9 +56,7 @@ def create_app(container: Optional[Container] = None):
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=os.getenv(
-            "ALLOWED_ORIGINS", "http://localhost,http://localhost:3001"
-        ).split(","),
+        allow_origins=os.getenv("ALLOWED_ORIGINS", "http://localhost,http://localhost:3001").split(","),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

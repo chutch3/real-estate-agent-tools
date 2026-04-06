@@ -5,7 +5,10 @@ from backend.database import Database
 from backend.models import CountyBoundary
 from backend.repositories.county_boundary import CountyBoundaryRepository
 
-_POLYGON = {"type": "Polygon", "coordinates": [[[-86.0, 38.0], [-85.4, 38.0], [-85.4, 38.4], [-86.0, 38.4], [-86.0, 38.0]]]}
+_POLYGON = {
+    "type": "Polygon",
+    "coordinates": [[[-86.0, 38.0], [-85.4, 38.0], [-85.4, 38.4], [-86.0, 38.4], [-86.0, 38.0]]],
+}
 
 
 class TestCountyBoundaryRepository:
@@ -32,7 +35,10 @@ class TestCountyBoundaryRepository:
 
     def test_upsert_updates_existing_boundary(self, subject: CountyBoundaryRepository):
         subject.upsert(CountyBoundary(fips="21111", geometry=_POLYGON))
-        updated_polygon = {"type": "Polygon", "coordinates": [[[-87.0, 38.0], [-86.0, 38.0], [-86.0, 39.0], [-87.0, 39.0], [-87.0, 38.0]]]}
+        updated_polygon = {
+            "type": "Polygon",
+            "coordinates": [[[-87.0, 38.0], [-86.0, 38.0], [-86.0, 39.0], [-87.0, 39.0], [-87.0, 38.0]]],
+        }
 
         result = subject.upsert(CountyBoundary(fips="21111", geometry=updated_polygon))
 

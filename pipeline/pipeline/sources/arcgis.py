@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import geopandas as gpd
 import httpx
@@ -8,14 +8,35 @@ from shapely.geometry import Polygon
 
 _logger = logging.getLogger(__name__)
 
-_VIOLENT_PREFIXES = frozenset([
-    "MURDER", "MANSLAUGHTER", "RAPE", "SODOMY", "SEX", "ROBBERY",
-    "ASSAULT", "INTIMIDATION", "KIDNAP", "HUMAN TRAFFICKING",
-])
-_PROPERTY_PREFIXES = frozenset([
-    "ARSON", "BURGLARY", "LARCENY", "THEFT", "MOTOR VEHICLE", "VANDALISM",
-    "DESTRUCTION", "EMBEZZLEMENT", "FRAUD", "COUNTERFEITING", "STOLEN",
-])
+_VIOLENT_PREFIXES = frozenset(
+    [
+        "MURDER",
+        "MANSLAUGHTER",
+        "RAPE",
+        "SODOMY",
+        "SEX",
+        "ROBBERY",
+        "ASSAULT",
+        "INTIMIDATION",
+        "KIDNAP",
+        "HUMAN TRAFFICKING",
+    ]
+)
+_PROPERTY_PREFIXES = frozenset(
+    [
+        "ARSON",
+        "BURGLARY",
+        "LARCENY",
+        "THEFT",
+        "MOTOR VEHICLE",
+        "VANDALISM",
+        "DESTRUCTION",
+        "EMBEZZLEMENT",
+        "FRAUD",
+        "COUNTERFEITING",
+        "STOLEN",
+    ]
+)
 
 
 def _map_nibrs_category(offense_classification: str | None) -> str:
@@ -61,13 +82,15 @@ class ArcGISFeatureSource:
             f"{self.date_field} >= timestamp '{date_from.isoformat()} 00:00:00'"
             f" AND {self.date_field} <= timestamp '{date_to.isoformat()} 23:59:59'"
         )
-        out_fields = ",".join([
-            self.date_field,
-            self.category_field,
-            self.address_field,
-            self.city_field,
-            self.zip_field,
-        ])
+        out_fields = ",".join(
+            [
+                self.date_field,
+                self.category_field,
+                self.address_field,
+                self.city_field,
+                self.zip_field,
+            ]
+        )
 
         records = []
         skipped = 0
@@ -95,22 +118,24 @@ class ArcGISFeatureSource:
                 try:
                     date_ms = attrs[self.date_field]
                     date_str = (
-                        datetime.fromtimestamp(date_ms / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
+                        datetime.fromtimestamp(date_ms / 1000, tz=UTC).strftime("%Y-%m-%d")
                         if date_ms is not None
                         else ""
                     )
-                    records.append({
-                        "lat": None,
-                        "lon": None,
-                        "category": _map_nibrs_category(attrs.get(self.category_field, "")),
-                        "date": date_str,
-                        "source": self.name,
-                        "address": attrs.get(self.address_field, ""),
-                        "city": attrs.get(self.city_field, ""),
-                        "zip_code": attrs.get(self.zip_field, ""),
-                        "state": self.state_code,
-                        "geometry": None,
-                    })
+                    records.append(
+                        {
+                            "lat": None,
+                            "lon": None,
+                            "category": _map_nibrs_category(attrs.get(self.category_field, "")),
+                            "date": date_str,
+                            "source": self.name,
+                            "address": attrs.get(self.address_field, ""),
+                            "city": attrs.get(self.city_field, ""),
+                            "zip_code": attrs.get(self.zip_field, ""),
+                            "state": self.state_code,
+                            "geometry": None,
+                        }
+                    )
                 except (KeyError, TypeError, ValueError):
                     skipped += 1
 
@@ -127,8 +152,18 @@ class ArcGISFeatureSource:
 
         if not records:
             return gpd.GeoDataFrame(
-                columns=["lat", "lon", "category", "date", "source",
-                         "address", "city", "zip_code", "state", "geometry"],
+                columns=[
+                    "lat",
+                    "lon",
+                    "category",
+                    "date",
+                    "source",
+                    "address",
+                    "city",
+                    "zip_code",
+                    "state",
+                    "geometry",
+                ],
                 geometry="geometry",
                 crs="EPSG:4326",
             )

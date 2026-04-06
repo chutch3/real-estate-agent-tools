@@ -1,6 +1,5 @@
-from typing import List, Optional
-from backend.services import PropertyService, PostGenerationService
-from backend.models import AgentInfo, GeocodeLocation
+from backend.models import AgentInfo
+from backend.services import PostGenerationService, PropertyService
 
 
 class PostCoordinator:
@@ -9,7 +8,6 @@ class PostCoordinator:
         property_service: PropertyService,
         post_generation_service: PostGenerationService,
     ):
-
         self._property_service = property_service
         self._post_generation_service = post_generation_service
 
@@ -17,7 +15,7 @@ class PostCoordinator:
         self,
         address: str,
         agent_info: AgentInfo,
-        custom_template: Optional[str] = None,
+        custom_template: str | None = None,
     ):
         """
         Generate a post for a property.
@@ -31,9 +29,7 @@ class PostCoordinator:
             str: The generated post.
         """
         property = await self._property_service.search_property(address)
-        return await self._post_generation_service.generate_post(
-            property, agent_info, custom_template
-        )
+        return await self._post_generation_service.generate_post(property, agent_info, custom_template)
 
     async def post_to_instagram(self, post):
         raise NotImplementedError("Not implemented yet")

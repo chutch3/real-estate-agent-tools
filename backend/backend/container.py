@@ -1,31 +1,29 @@
 import boto3
+from dependency_injector import containers, providers
+from pymilvus import MilvusClient
+from rentcast_client.api.default_rentcast import DefaultRentcast
+from rentcast_client.api_client import ApiClient
+from rentcast_client.configuration import Configuration
 
 from backend.clients.census_geocoder import CensusGeocoderClient
 from backend.clients.google_maps import GoogleMapsClient
 from backend.clients.openai import OpenAIClient
 from backend.clients.tiger import TigerWebClient
 from backend.database import Database
+from backend.embeddings import collection_name as make_collection_name
 from backend.post_coordinator import PostCoordinator
 from backend.repositories.chat_messages import ChatMessageRepository
+from backend.repositories.county_boundary import CountyBoundaryRepository
 from backend.repositories.document_embeddings import DocumentEmbeddingRepository
 from backend.repositories.document_storage import DocumentStorageRepository
-from backend.embeddings import collection_name as make_collection_name
-from backend.repositories.county_boundary import CountyBoundaryRepository
-from backend.repositories.properties import PropertyRepository
 from backend.repositories.layer import LayerRepository
+from backend.repositories.properties import PropertyRepository
 from backend.services.chat import ChatService
-from backend.services.layer import LayerService
 from backend.services.document import DocumentService
+from backend.services.layer import LayerService
 from backend.services.post_generation import PostGenerationService
 from backend.services.property import PropertyService
 from backend.template_loader import TemplateLoader
-from dependency_injector import containers, providers
-
-from rentcast_client.api.default_rentcast import DefaultRentcast
-from rentcast_client.api_client import ApiClient
-from rentcast_client.configuration import Configuration
-from pymilvus import MilvusClient
-
 
 
 async def init_rentcast_client(api_key: str, base_url: str = None):

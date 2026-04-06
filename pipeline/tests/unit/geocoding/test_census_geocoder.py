@@ -22,9 +22,7 @@ class TestCensusGeocoder:
         return CensusGeocoder(url=httpserver.url_for("/geocoder"))
 
     def _expect(self, httpserver: HTTPServer, body: str) -> None:
-        httpserver.expect_request("/geocoder").respond_with_data(
-            body, content_type="text/plain"
-        )
+        httpserver.expect_request("/geocoder").respond_with_data(body, content_type="text/plain")
 
     def test_geocode_returns_lat_lon_for_matched_addresses(self, subject, httpserver):
         self._expect(httpserver, _match_row(0, -85.7573, 38.2567))
@@ -46,10 +44,12 @@ class TestCensusGeocoder:
             _match_row(1, -85.7573, 38.2567) + _no_match_row(2),
         )
 
-        result = subject.geocode([
-            (1, "100 N 4TH ST", "LOUISVILLE", "KY", "40202"),
-            (2, "999 FAKE ST", "LOUISVILLE", "KY", "40202"),
-        ])
+        result = subject.geocode(
+            [
+                (1, "100 N 4TH ST", "LOUISVILLE", "KY", "40202"),
+                (2, "999 FAKE ST", "LOUISVILLE", "KY", "40202"),
+            ]
+        )
 
         assert 1 in result
         assert 2 not in result

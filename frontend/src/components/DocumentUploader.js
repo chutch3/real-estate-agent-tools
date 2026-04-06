@@ -1,13 +1,13 @@
-import React from 'react';
-import './DocumentUploader.css'; // We'll create this CSS file
+import React from "react";
+import "./DocumentUploader.css"; // We'll create this CSS file
 
 function DocumentUploader({ onUpload, uploadedDocumentId }) {
   const handleFileChange = (event) => {
     const file = event.target.files[0];
-    if (file && file.type === 'application/pdf') {
+    if (file && file.type === "application/pdf") {
       onUpload(file);
     } else {
-      alert('Please select a PDF file.');
+      alert("Please select a PDF file.");
     }
   };
 
@@ -18,12 +18,14 @@ function DocumentUploader({ onUpload, uploadedDocumentId }) {
         accept=".pdf"
         onChange={handleFileChange}
         id="document-upload"
-        style={{ display: 'none' }}
+        style={{ display: "none" }}
       />
       <label htmlFor="document-upload" className="upload-button">
-        {uploadedDocumentId ? 'Change Document' : 'Upload PDF'}
+        {uploadedDocumentId ? "Change Document" : "Upload PDF"}
       </label>
-      {uploadedDocumentId && <p className="upload-success">Document uploaded successfully</p>}
+      {uploadedDocumentId && (
+        <p className="upload-success">Document uploaded successfully</p>
+      )}
     </div>
   );
 }

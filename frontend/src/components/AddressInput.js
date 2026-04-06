@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { MapPin } from 'lucide-react';
-import apiClient from '../apiClient';
+import React, { useState } from "react";
+import { MapPin } from "lucide-react";
+import apiClient from "../apiClient";
 
 function AddressInput({ onGeocodeComplete }) {
-  const [address, setAddress] = useState('');
+  const [address, setAddress] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -14,7 +14,10 @@ function AddressInput({ onGeocodeComplete }) {
 
   return (
     <form onSubmit={handleSubmit} role="form">
-      <label htmlFor="address-input" className="block font-sans text-xs uppercase tracking-widest text-ink-400 mb-1.5">
+      <label
+        htmlFor="address-input"
+        className="block font-sans text-xs uppercase tracking-widest text-ink-400 mb-1.5"
+      >
         Property Address
       </label>
       <div className="relative">

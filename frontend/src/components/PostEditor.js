@@ -1,8 +1,15 @@
-import React from 'react';
-import { TextField } from '@mui/material';
+import React from "react";
+import { TextField } from "@mui/material";
 
-function PostEditor({ post, setPost, postStatus, setPostStatus, setIsLoading, setError, selectedImages }) {
-
+function PostEditor({
+  post,
+  setPost,
+  postStatus,
+  setPostStatus,
+  setIsLoading,
+  setError,
+  selectedImages,
+}) {
   return (
     <div className="post-editor">
       <TextField
