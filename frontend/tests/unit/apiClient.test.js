@@ -135,4 +135,40 @@ describe('ApiClient', () => {
       expect(result).toEqual({ location });
     });
   });
+
+  describe('getMe', () => {
+    it('calls GET /users/me and returns the data', async () => {
+      const user = { id: 'u1', email: 'agent@acme.com', role: 'AGENT' };
+      mockAxiosInstance.get.mockResolvedValue({ data: user });
+
+      const result = await subject.getMe();
+
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/users/me');
+      expect(result).toEqual(user);
+    });
+  });
+
+  describe('login', () => {
+    it('calls POST /auth/token with url-encoded credentials', async () => {
+      mockAxiosInstance.post.mockResolvedValue({ data: { token_type: 'bearer' } });
+
+      await subject.login('agent@acme.com', 'password123');
+
+      const [path, body, config] = mockAxiosInstance.post.mock.calls[0];
+      expect(path).toBe('/auth/token');
+      expect(body.get('username')).toBe('agent@acme.com');
+      expect(body.get('password')).toBe('password123');
+      expect(config.headers['Content-Type']).toBe('application/x-www-form-urlencoded');
+    });
+  });
+
+  describe('logout', () => {
+    it('calls POST /auth/logout', async () => {
+      mockAxiosInstance.post.mockResolvedValue({ data: {} });
+
+      await subject.logout();
+
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith('/auth/logout');
+    });
+  });
 });
