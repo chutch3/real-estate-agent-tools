@@ -8,11 +8,11 @@ const mockFlyTo = jest.fn();
 jest.mock("react-map-gl/mapbox", () => {
   const React = require("react");
   return {
-    Map: React.forwardRef(function MockMap({ children }, ref) {
+    Map: React.forwardRef(function MockMap({ children, mapStyle }, ref) {
       React.useImperativeHandle(ref, () => ({ flyTo: mockFlyTo }), []);
       return React.createElement(
         "div",
-        { "data-testid": "mapbox-map" },
+        { "data-testid": "mapbox-map", "data-mapstyle": mapStyle },
         children,
       );
     }),
@@ -223,9 +223,57 @@ describe("PropertyMap", () => {
       />,
     );
     const geojsonCall = Source.mock.calls.find(
-      ([props]) => props.type === "geojson",
+      ([props]) => props.type === "geojson" && props.data === null,
     );
     expect(geojsonCall).toBeUndefined();
+  });
+
+  it("renders a GeoJSON Source for the parcel boundary when selectedProperty has parcel_polygon", () => {
+    const { Source } = require("react-map-gl/mapbox");
+    const polygon = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [-86.035, 37.997],
+          [-85.404, 37.997],
+          [-85.404, 38.375],
+          [-86.035, 38.375],
+          [-86.035, 37.997],
+        ],
+      ],
+    };
+    const property = { county_fips: "21111", parcel_polygon: polygon };
+    render(
+      <PropertyMap
+        properties={[]}
+        onPropertySelect={jest.fn()}
+        selectedProperty={property}
+      />,
+    );
+    expect(Source).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "geojson",
+        data: polygon,
+        id: "parcel-boundary",
+      }),
+      {},
+    );
+  });
+
+  it("does not render parcel boundary Source when selectedProperty has no parcel_polygon", () => {
+    const { Source } = require("react-map-gl/mapbox");
+    const property = { county_fips: "21111", parcel_polygon: null };
+    render(
+      <PropertyMap
+        properties={[]}
+        onPropertySelect={jest.fn()}
+        selectedProperty={property}
+      />,
+    );
+    const parcelGeojsonCall = Source.mock.calls.find(
+      ([props]) => props.type === "geojson" && props.id === "parcel-boundary",
+    );
+    expect(parcelGeojsonCall).toBeUndefined();
   });
 
   it("renders a raster Source for the active layer with maxzoom and bounds", () => {
@@ -313,5 +361,46 @@ describe("PropertyMap", () => {
       ([props]) => props.type === "raster",
     );
     expect(rasterCall).toBeUndefined();
+  });
+
+  it("toggles between light and satellite map styles using a thumbnail-style button", () => {
+    const { fireEvent } = require("@testing-library/react");
+
+    render(<PropertyMap properties={[]} onPropertySelect={jest.fn()} />);
+
+    // Initially should be light style
+    let mapEl = screen.getByTestId("mapbox-map");
+    expect(mapEl).toHaveAttribute(
+      "data-mapstyle",
+      "mapbox://styles/mapbox/light-v11",
+    );
+
+    // The button should show the "Satellite" text
+    const toggleButton = screen.getByRole("button", {
+      name: "Toggle satellite view",
+    });
+    expect(toggleButton).toHaveTextContent("Satellite");
+
+    // Click toggle button
+    fireEvent.click(toggleButton);
+
+    // Should be satellite style
+    expect(mapEl).toHaveAttribute(
+      "data-mapstyle",
+      "mapbox://styles/mapbox/satellite-streets-v12",
+    );
+
+    // The button should now show the "Map" text
+    expect(toggleButton).toHaveTextContent("Map");
+
+    // Click again to toggle back
+    fireEvent.click(toggleButton);
+
+    // Should be light style again
+    expect(mapEl).toHaveAttribute(
+      "data-mapstyle",
+      "mapbox://styles/mapbox/light-v11",
+    );
+    expect(toggleButton).toHaveTextContent("Satellite");
   });
 });
