@@ -10,6 +10,8 @@ jest.mock('../../../src/apiClient', () => ({
 describe('AddressInput', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    global.fetch = jest.fn();
+    process.env.REACT_APP_MAPBOX_TOKEN = "test-token";
   });
 
   it('renders an address input field', () => {
@@ -17,11 +19,62 @@ describe('AddressInput', () => {
     expect(screen.getByLabelText('Enter address')).toBeInTheDocument();
   });
 
-  it('updates the displayed address as the user types', () => {
+  it('fetches and displays address suggestions from Mapbox as the user types', async () => {
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        features: [
+          { id: "1", place_name: "123 Main St, Louisville, KY", center: [-85.75, 38.25] },
+          { id: "2", place_name: "123 Main St, Jeffersonville, IN", center: [-85.73, 38.27] }
+        ]
+      })
+    });
+
     render(<AddressInput onGeocodeComplete={jest.fn()} />);
     const input = screen.getByLabelText('Enter address');
+
     fireEvent.change(input, { target: { value: '123 Main St' } });
     expect(input.value).toBe('123 Main St');
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining("api.mapbox.com/geocoding/v5/mapbox.places/123%20Main%20St.json")
+      );
+    });
+
+    const suggestions = await screen.findAllByRole('listitem');
+    expect(suggestions).toHaveLength(2);
+    expect(suggestions[0]).toHaveTextContent("123 Main St, Louisville, KY");
+    expect(suggestions[1]).toHaveTextContent("123 Main St, Jeffersonville, IN");
+  });
+
+  it('calls onGeocodeComplete when a suggestion is clicked', async () => {
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        features: [
+          { id: "1", place_name: "123 Main St, Louisville, KY", center: [-85.75, 38.25] }
+        ]
+      })
+    });
+
+    apiClient.geocodeAddress.mockResolvedValueOnce({ location: { lat: 38.251, lng: -85.751 } });
+
+    const onGeocodeComplete = jest.fn();
+    render(<AddressInput onGeocodeComplete={onGeocodeComplete} />);
+    const input = screen.getByLabelText('Enter address');
+
+    fireEvent.change(input, { target: { value: '123 Main' } });
+
+    const suggestion = await screen.findByText("123 Main St, Louisville, KY");
+    fireEvent.click(suggestion);
+
+    expect(input.value).toBe("123 Main St, Louisville, KY");
+
+    await waitFor(() => {
+      expect(apiClient.geocodeAddress).toHaveBeenCalledWith("123 Main St, Louisville, KY");
+      expect(onGeocodeComplete).toHaveBeenCalledWith("123 Main St, Louisville, KY", { lat: 38.251, lng: -85.751 });
+    });
   });
 
   it('calls onGeocodeComplete with address and location when address is submitted', async () => {
