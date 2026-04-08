@@ -100,10 +100,78 @@ class DocumentInfoListType(TypeDecorator):
         return [DocumentInfo.model_validate(doc) for doc in value]
 
 
+class Brokerage(SQLModel, table=True):
+    __tablename__ = "brokerage"
+
+    id: str | None = Field(
+        default=None,
+        sa_column=Column(String, primary_key=True, default=lambda: str(uuid.uuid4())),
+    )
+    name: str
+    contact_info: str | None = None
+
+
+class User(SQLModel, table=True):
+    __tablename__ = "user"
+
+    id: str | None = Field(
+        default=None,
+        sa_column=Column(String, primary_key=True, default=lambda: str(uuid.uuid4())),
+    )
+    email: str = Field(sa_column=Column(String, index=True, unique=True))
+    hashed_password: str | None = None
+    role: str
+    brokerage_id: str = Field(foreign_key="brokerage.id")
+
+
+class BrokerageCreate(BaseModel):
+    name: str
+    contact_info: str | None = None
+
+
+class BrokerageResponse(BaseModel):
+    id: str
+    name: str
+    contact_info: str | None = None
+
+
+class UserCreate(BaseModel):
+    email: str
+    password: str
+    role: str
+    brokerage_id: str
+
+
+class UserResponse(BaseModel):
+    id: str
+    email: str
+    role: str
+    brokerage_id: str
+
+
+class TokenResponse(BaseModel):
+    token_type: str = "bearer"
+
+
+class MeResponse(BaseModel):
+    id: str
+    email: str
+    role: str
+    brokerage_id: str
+    brokerage: BrokerageResponse
+
+
 class CountyBoundary(SQLModel, table=True):
     __tablename__ = "county_boundary"
 
     fips: str = Field(primary_key=True)
+    geometry: dict | None = Field(default=None, sa_column=Column(JSON))
+
+
+class ParcelBoundary(SQLModel, table=True):
+    __tablename__ = "parcel_boundary"
+
+    nguid: str = Field(primary_key=True)
     geometry: dict | None = Field(default=None, sa_column=Column(JSON))
 
 
@@ -114,6 +182,8 @@ class PropertyInfo(SQLModel, table=True):
         default=None,
         sa_column=Column(String, primary_key=True, default=lambda: str(uuid.uuid4())),
     )
+    brokerage_id: str = Field(foreign_key="brokerage.id", index=True)
+    agent_id: str | None = Field(default=None, foreign_key="user.id", index=True)
     rentcast_id: str | None = Field(None, alias="rentcastID")
     formatted_address: str | None = Field(None, alias="formattedAddress")
     address_line1: str | None = Field(None, alias="addressLine1")
@@ -140,6 +210,7 @@ class PropertyInfo(SQLModel, table=True):
     features: PropertyFeatures | None = Field(default=None, sa_column=Column(PropertyFeaturesType))
     owner_occupied: bool | None = Field(True, alias="ownerOccupied")
     documents: list[DocumentInfo] | None = Field(default=None, sa_column=Column(DocumentInfoListType))
+    parcel_nguid: str | None = None
 
     @field_validator("features", mode="before")
     @classmethod
@@ -172,6 +243,7 @@ class PropertyResponse(BaseModel):
     county: str | None = None
     county_fips: str | None = None
     county_polygon: dict | None = None
+    parcel_polygon: dict | None = None
     latitude: float | None = 0
     longitude: float | None = 0
     property_type: str | None = Field(None, alias="propertyType")

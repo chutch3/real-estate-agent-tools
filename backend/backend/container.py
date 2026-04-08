@@ -5,6 +5,7 @@ from rentcast_client.api.default_rentcast import DefaultRentcast
 from rentcast_client.api_client import ApiClient
 from rentcast_client.configuration import Configuration
 
+from backend.clients.arcgis_parcels import ArcGISParcelsClient
 from backend.clients.census_geocoder import CensusGeocoderClient
 from backend.clients.google_maps import GoogleMapsClient
 from backend.clients.openai import OpenAIClient
@@ -12,17 +13,21 @@ from backend.clients.tiger import TigerWebClient
 from backend.database import Database
 from backend.embeddings import collection_name as make_collection_name
 from backend.post_coordinator import PostCoordinator
+from backend.repositories.brokerage import BrokerageRepository
 from backend.repositories.chat_messages import ChatMessageRepository
 from backend.repositories.county_boundary import CountyBoundaryRepository
 from backend.repositories.document_embeddings import DocumentEmbeddingRepository
 from backend.repositories.document_storage import DocumentStorageRepository
 from backend.repositories.layer import LayerRepository
+from backend.repositories.parcel_boundary import ParcelBoundaryRepository
 from backend.repositories.properties import PropertyRepository
+from backend.repositories.user import UserRepository
 from backend.services.chat import ChatService
 from backend.services.document import DocumentService
 from backend.services.layer import LayerService
 from backend.services.post_generation import PostGenerationService
 from backend.services.property import PropertyService
+from backend.services.security import SecurityService
 from backend.template_loader import TemplateLoader
 
 
@@ -51,7 +56,7 @@ class Container(containers.DeclarativeContainer):
     config = providers.Configuration()
 
     wiring_config = containers.WiringConfiguration(
-        modules=[".routes", ".schema", ".startup"],
+        modules=[".routes", ".identity_routes", ".schema", ".startup", ".auth"],
         auto_wire=True,
     )
 
@@ -80,6 +85,14 @@ class Container(containers.DeclarativeContainer):
     tiger_web_client = providers.Singleton(
         TigerWebClient,
         base_url=config.tiger.base_url,
+    )
+    arcgis_parcels_client = providers.Singleton(
+        ArcGISParcelsClient,
+        base_url=config.arcgis_parcels.base_url,
+    )
+    arcgis_parcels_supported_states = providers.Callable(
+        lambda s: set(s.split(",")) if s else set(),
+        config.arcgis_parcels.supported_states,
     )
     template_loader = providers.Singleton(TemplateLoader)
 
@@ -123,6 +136,26 @@ class Container(containers.DeclarativeContainer):
         session_factory=db.provided.session,
     )
 
+    parcel_boundary_repository = providers.Singleton(
+        ParcelBoundaryRepository,
+        session_factory=db.provided.session,
+    )
+
+    brokerage_repository = providers.Singleton(
+        BrokerageRepository,
+        session_factory=db.provided.session,
+    )
+
+    user_repository = providers.Singleton(
+        UserRepository,
+        session_factory=db.provided.session,
+    )
+
+    security_service = providers.Singleton(
+        SecurityService,
+        secret_key=config.jwt.secret_key,
+    )
+
     property_service = providers.Singleton(
         PropertyService,
         client=rentcast_client,
@@ -131,6 +164,9 @@ class Container(containers.DeclarativeContainer):
         census_geocoder_client=census_geocoder_client,
         tiger_web_client=tiger_web_client,
         county_boundary_repository=county_boundary_repository,
+        arcgis_parcels_client=arcgis_parcels_client,
+        parcel_boundary_repository=parcel_boundary_repository,
+        arcgis_parcels_supported_states=arcgis_parcels_supported_states,
     )
     post_generation_service = providers.Singleton(
         PostGenerationService,

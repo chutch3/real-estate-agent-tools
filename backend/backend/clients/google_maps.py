@@ -5,9 +5,9 @@ from backend.models import GeocodeLocation
 
 
 class GoogleMapsClient:
-    def __init__(self, api_key: str, base_url: str = "https://maps.googleapis.com"):
+    def __init__(self, api_key: str, base_url: str | None = None):
         self.api_key = api_key
-        self._base_url = base_url
+        self._base_url = base_url or "https://maps.googleapis.com"
 
     async def geocode(self, address: str) -> GeocodeLocation:
         async with aiohttp.ClientSession() as session:

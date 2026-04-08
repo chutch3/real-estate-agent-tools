@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend import routes
+from backend import identity_routes, routes
 from backend.container import Container
 from backend.startup import _on_startup
 
@@ -45,6 +45,12 @@ def create_app(container: Container | None = None):
         "CENSUS_GEOCODER_BASE_URL", default="https://geocoding.geo.census.gov"
     )
     container.config.tiger.base_url.from_env("TIGER_BASE_URL", default="https://tigerweb.geo.census.gov")
+    container.config.arcgis_parcels.base_url.from_env(
+        "ARCGIS_PARCELS_BASE_URL",
+        default="https://gisdata.in.gov/server/rest/services/Hosted/Parcel_Boundaries_of_Indiana_Current/FeatureServer/0",
+    )
+    container.config.arcgis_parcels.supported_states.from_env("ARCGIS_PARCELS_SUPPORTED_STATES", default="IN")
+    container.config.jwt.secret_key.from_env("JWT_SECRET_KEY", default="changeme-dev-secret")
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -53,6 +59,7 @@ def create_app(container: Container | None = None):
 
     app = FastAPI(lifespan=lifespan)
     app.include_router(routes.router, prefix="/api")
+    app.include_router(identity_routes.router, prefix="/api")
 
     app.add_middleware(
         CORSMiddleware,
