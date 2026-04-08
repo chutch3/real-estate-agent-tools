@@ -1,25 +1,43 @@
 import React from "react";
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
+import { AuthProvider } from "./context/AuthContext";
+import ProtectedRoute from "./components/ProtectedRoute";
 import NavMenu from "./components/NavMenu";
 import HomeScreen from "./components/HomeScreen";
 import AddProperty from "./components/AddProperty";
 import Chat from "./pages/Chat";
 import GeneratePost from "./pages/GeneratePost";
 import CacheInspector from "./pages/CacheInspector";
+import LoginPage from "./pages/LoginPage";
 
 function App() {
   return (
     <Router>
-      <div className="min-h-screen bg-linen-100 font-sans">
-        <NavMenu />
+      <AuthProvider>
         <Routes>
-          <Route path="/" element={<HomeScreen />} />
-          <Route path="/add-property" element={<AddProperty />} />
-          <Route path="/chat" element={<Chat />} />
-          <Route path="/generate-post" element={<GeneratePost />} />
-          <Route path="/cache-inspector" element={<CacheInspector />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route
+            path="/*"
+            element={
+              <ProtectedRoute>
+                <div className="min-h-screen bg-linen-100 font-sans">
+                  <NavMenu />
+                  <Routes>
+                    <Route path="/" element={<HomeScreen />} />
+                    <Route path="/add-property" element={<AddProperty />} />
+                    <Route path="/chat" element={<Chat />} />
+                    <Route path="/generate-post" element={<GeneratePost />} />
+                    <Route
+                      path="/cache-inspector"
+                      element={<CacheInspector />}
+                    />
+                  </Routes>
+                </div>
+              </ProtectedRoute>
+            }
+          />
         </Routes>
-      </div>
+      </AuthProvider>
     </Router>
   );
 }

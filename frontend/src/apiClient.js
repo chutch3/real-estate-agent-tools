@@ -9,7 +9,26 @@ class ApiClient {
       headers: {
         "Content-Type": "application/json",
       },
+      withCredentials: true,
     });
+  }
+
+  async getMe() {
+    const response = await this.client.get("/users/me");
+    return response.data;
+  }
+
+  async login(email, password) {
+    const params = new URLSearchParams();
+    params.append("username", email);
+    params.append("password", password);
+    await this.client.post("/auth/token", params, {
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    });
+  }
+
+  async logout() {
+    await this.client.post("/auth/logout");
   }
 
   async getDefaultTemplate() {

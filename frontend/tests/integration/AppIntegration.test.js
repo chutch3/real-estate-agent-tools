@@ -4,7 +4,15 @@ import App from '../../src/App';
 import apiClient from '../../src/apiClient';
 import useLayers from '../../src/hooks/useLayers';
 
+const _AUTHENTICATED_USER = {
+  id: 'u1', email: 'agent@test.com', role: 'AGENT',
+  brokerage_id: 'b1', brokerage: { id: 'b1', name: 'Test Brokerage' },
+};
+
 jest.mock('../../src/apiClient', () => ({
+  getMe: jest.fn(),
+  login: jest.fn(),
+  logout: jest.fn(),
   listProperties: jest.fn(),
   addProperty: jest.fn(),
   geocodeAddress: jest.fn(),
@@ -16,16 +24,28 @@ jest.mock('../../src/apiClient', () => ({
 
 jest.mock('../../src/hooks/useLayers');
 
-jest.mock('@react-google-maps/api', () => ({
-  useLoadScript: () => ({ isLoaded: true, loadError: null }),
-  GoogleMap: ({ children }) => <div data-testid="google-map">{children}</div>,
-  Marker: ({ position, onClick }) => (
-    <button
-      data-testid={`marker-${position.lat}-${position.lng}`}
-      onClick={onClick}
-    />
-  ),
-}));
+jest.mock("react-map-gl/mapbox", () => {
+  const React = require("react");
+  return {
+    Map: React.forwardRef(function MockMap({ children }, ref) {
+      React.useImperativeHandle(ref, () => ({ flyTo: jest.fn() }), []);
+      return React.createElement(
+        "div",
+        { "data-testid": "google-map" },
+        children,
+      );
+    }),
+    Marker: jest.fn(({ children, onClick, latitude, longitude }) =>
+      React.createElement(
+        "button",
+        { "data-testid": `marker-${latitude}-${longitude}`, onClick },
+        children,
+      ),
+    ),
+    Source: jest.fn(({ children }) => children || null),
+    Layer: jest.fn(() => null),
+  };
+});
 
 describe('App Integration', () => {
   const mockProperties = [
@@ -46,6 +66,7 @@ describe('App Integration', () => {
   ];
 
   beforeEach(() => {
+    apiClient.getMe.mockResolvedValue(_AUTHENTICATED_USER);
     apiClient.listProperties.mockResolvedValue(mockProperties);
     useLayers.mockReturnValue({
       groups: [],
@@ -63,11 +84,11 @@ describe('App Integration', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('google-map')).toBeInTheDocument();
+      expect(screen.getByTestId('marker-37.4225--122.0847')).toBeInTheDocument();
+      expect(screen.getByTestId('marker-37.3382--121.8863')).toBeInTheDocument();
     });
 
     expect(apiClient.listProperties).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId('marker-37.4225--122.0847')).toBeInTheDocument();
-    expect(screen.getByTestId('marker-37.3382--121.8863')).toBeInTheDocument();
   });
 
   it('opens a detail panel when a property marker is clicked', async () => {
@@ -94,9 +115,8 @@ describe('App Integration', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('google-map')).toBeInTheDocument();
+      expect(screen.getByLabelText('Add new property')).toBeInTheDocument();
     });
-
-    expect(screen.getByLabelText('Add new property')).toBeInTheDocument();
   });
 
   it('uploads a document for a property when a file is selected in the detail panel', async () => {

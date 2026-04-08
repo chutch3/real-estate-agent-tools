@@ -4,7 +4,15 @@ import App from '../../src/App';
 import apiClient from '../../src/apiClient';
 import useLayers from '../../src/hooks/useLayers';
 
+const _AUTHENTICATED_USER = {
+  id: 'u1', email: 'agent@test.com', role: 'AGENT',
+  brokerage_id: 'b1', brokerage: { id: 'b1', name: 'Test Brokerage' },
+};
+
 jest.mock('../../src/apiClient', () => ({
+  getMe: jest.fn(),
+  login: jest.fn(),
+  logout: jest.fn(),
   listProperties: jest.fn().mockResolvedValue([]),
   generatePost: jest.fn(),
   uploadDocument: jest.fn(),
@@ -32,6 +40,7 @@ jest.mock('react-map-gl/mapbox', () => {
 
 describe('App', () => {
   beforeEach(() => {
+    apiClient.getMe.mockResolvedValue(_AUTHENTICATED_USER);
     useLayers.mockReturnValue({
       groups: [],
       isActive: jest.fn().mockReturnValue(false),
