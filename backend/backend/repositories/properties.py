@@ -17,9 +17,9 @@ class PropertyRepository:
             session.refresh(property_data)
             return property_data
 
-    async def list_properties(self) -> list[PropertyInfo]:
+    async def list_properties(self, brokerage_id: str) -> list[PropertyInfo]:
         with self._session_factory() as session:
-            return list(session.exec(select(PropertyInfo)).all())
+            return list(session.exec(select(PropertyInfo).where(PropertyInfo.brokerage_id == brokerage_id)).all())
 
     async def list_county_fips(self) -> list[str]:
         with self._session_factory() as session:
@@ -32,19 +32,28 @@ class PropertyRepository:
         with self._session_factory() as session:
             return session.get(PropertyInfo, property_id)
 
-    async def append_document(self, property_id: str, document: DocumentInfo) -> PropertyInfo:
+    async def append_document(self, property_id: str, document: DocumentInfo, brokerage_id: str) -> PropertyInfo:
         with self._session_factory() as session:
             prop = session.get(PropertyInfo, property_id)
+            if prop is None or prop.brokerage_id != brokerage_id:
+                raise PropertyNotFoundError(f"Property {property_id} not found")
             prop.documents = (prop.documents or []) + [document]
             session.add(prop)
             session.commit()
             session.refresh(prop)
             return prop
 
-    async def remove_document(self, property_id: str, doc_id: str) -> PropertyInfo:
+    async def update_parcel_nguid(self, property_id: str, parcel_nguid: str) -> None:
         with self._session_factory() as session:
             prop = session.get(PropertyInfo, property_id)
-            if prop is None:
+            prop.parcel_nguid = parcel_nguid
+            session.add(prop)
+            session.commit()
+
+    async def remove_document(self, property_id: str, doc_id: str, brokerage_id: str) -> PropertyInfo:
+        with self._session_factory() as session:
+            prop = session.get(PropertyInfo, property_id)
+            if prop is None or prop.brokerage_id != brokerage_id:
                 raise PropertyNotFoundError(f"Property {property_id} not found")
             documents = prop.documents or []
             updated = [d for d in documents if d.id != doc_id]

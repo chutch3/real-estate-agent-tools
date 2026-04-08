@@ -4,6 +4,7 @@ from http import HTTPStatus
 from unittest.mock import AsyncMock, patch
 
 import boto3
+import jose.jwt as jwt
 import pytest
 from fastapi.testclient import TestClient
 from pymilvus import MilvusClient
@@ -15,6 +16,7 @@ from backend.container import Container
 from backend.main import create_app
 from backend.models import (
     AgentInfo,
+    Brokerage,
     DocumentInfo,
     GeocodeLocation,
     GeocodeRequest,
@@ -22,6 +24,7 @@ from backend.models import (
     PostGenerationRequest,
     PropertyInfo,
     TemplateResponse,
+    User,
 )
 from backend.schema import drop_document_embeddings_schema
 from backend.template_loader import TEMPLATE_DIR
@@ -29,6 +32,29 @@ from backend.template_loader import TEMPLATE_DIR
 MILVUS_URI = "http://localhost:19530"
 _MOTO_URL = "http://localhost:5005"
 _S3_BUCKET = "test-documents"
+
+_ARCGIS_PARCEL_RESPONSE = {
+    "features": [
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [-86.1590, 39.7690],
+                        [-86.1580, 39.7690],
+                        [-86.1580, 39.7680],
+                        [-86.1590, 39.7680],
+                        [-86.1590, 39.7690],
+                    ]
+                ],
+            },
+            "properties": {
+                "nguid": "urn:emergency:uid:gis:PCL:test-parcel-nguid:test.in.gov",
+            },
+        }
+    ]
+}
 
 
 def _make_test_png() -> bytes:
@@ -159,6 +185,22 @@ class TestApp:
             for method in ["DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT"]
         )
         assert response.text == expected_response
+
+    def test_create_property_returns_parcel_polygon(self, subject, httpserver: HTTPServer):
+        httpserver.expect_request("/query").respond_with_json(_ARCGIS_PARCEL_RESPONSE)
+
+        property_data = PropertyInfo(
+            rentcast_id="some-rentcast-id",
+            latitude=39.7684,
+            longitude=-86.1581,
+            state="IN",
+        )
+        response = subject.post("/api/properties", json=property_data.model_dump())
+
+        assert response.status_code == HTTPStatus.CREATED
+        body = response.json()
+        assert body["parcel_polygon"] is not None
+        assert body["parcel_polygon"]["type"] == "Polygon"
 
     def test_list_properties_returns_empty_when_no_properties(self, subject):
         response = subject.get("/api/properties/list")
@@ -660,6 +702,79 @@ class TestApp:
         assert empty_response.status_code == HTTPStatus.OK
         assert empty_response.json()["groups"] == []
 
+    def test_user_b_cannot_access_user_a_property(self, subject, test_container: Container, httpserver: HTTPServer):
+        httpserver.expect_request("/v1/embeddings").respond_with_json(
+            {"data": [{"embedding": [0.1] * 1536}], "usage": {"total_tokens": 10}}
+        )
+
+        db = test_container.db()
+        secret_key = "test-secret"
+
+        with db.session() as session:
+            brokerage_a = Brokerage(name="Brokerage A")
+            session.add(brokerage_a)
+            session.commit()
+            session.refresh(brokerage_a)
+
+            user_a = User(
+                email="agentA@brokerageA.com", hashed_password="fake-hash", role="AGENT", brokerage_id=brokerage_a.id
+            )
+            session.add(user_a)
+
+            brokerage_b = Brokerage(name="Brokerage B")
+            session.add(brokerage_b)
+            session.commit()
+            session.refresh(brokerage_b)
+
+            user_b = User(
+                email="agentB@brokerageB.com", hashed_password="fake-hash", role="AGENT", brokerage_id=brokerage_b.id
+            )
+            session.add(user_b)
+            session.commit()
+            session.refresh(user_a)
+            session.refresh(user_b)
+
+            user_a_id = user_a.id
+            user_a_role = user_a.role
+            brokerage_a_id = brokerage_a.id
+
+            user_b_id = user_b.id
+            user_b_role = user_b.role
+            brokerage_b_id = brokerage_b.id
+
+        token_a = jwt.encode(
+            {"sub": user_a_id, "org": brokerage_a_id, "role": user_a_role}, secret_key, algorithm="HS256"
+        )
+        token_b = jwt.encode(
+            {"sub": user_b_id, "org": brokerage_b_id, "role": user_b_role}, secret_key, algorithm="HS256"
+        )
+
+        # User A creates a property
+        cookies_a = {"access_token": token_a}
+        property_data = PropertyInfo(latitude=39.7684, longitude=-86.1581, state="IN")
+        create_resp = subject.post("/api/properties", json=property_data.model_dump(), cookies=cookies_a)
+
+        # We expect a 201 when auth is enforced. Currently it might be 201 without auth.
+        assert create_resp.status_code == HTTPStatus.CREATED
+        property_id = create_resp.json()["id"]
+
+        # User B attempts to access User A's property list
+        cookies_b = {"access_token": token_b}
+        list_resp_b = subject.get("/api/properties/list", cookies=cookies_b)
+        assert list_resp_b.status_code == HTTPStatus.OK
+        properties_b = list_resp_b.json()
+        assert len(properties_b) == 0  # User B should see 0 properties
+
+        # User B attempts to append a document to User A's property
+        upload_resp = subject.post(
+            "/api/documents", files={"file": open("tests/integration/fixtures/mls_sheet.pdf", "rb")}, cookies=cookies_b
+        )
+        doc_id = upload_resp.json()["id"]
+        doc_data = {"id": doc_id, "filename": "mls_sheet.pdf"}
+        append_resp_b = subject.patch(f"/api/properties/{property_id}/documents", json=doc_data, cookies=cookies_b)
+        # Should be a 404 because the property doesn't exist for User B
+        assert append_resp_b.status_code == HTTPStatus.NOT_FOUND
+
     @pytest.fixture
     def subject(self, test_container: Container, tmp_path, httpserver: HTTPServer, integration_services):
         base_url = httpserver.url_for("").rstrip("/")
@@ -682,8 +797,36 @@ class TestApp:
             "S3_ENDPOINT_URL": "http://localhost:5005",
             "CENSUS_GEOCODER_BASE_URL": base_url,
             "TIGER_BASE_URL": base_url,
+            "ARCGIS_PARCELS_BASE_URL": base_url,
+            "ARCGIS_PARCELS_SUPPORTED_STATES": "IN",
+            "JWT_SECRET_KEY": "test-secret",
         }
         with patch.dict(os.environ, env_overrides):
             with TestClient(create_app(test_container)) as client:
+                db = test_container.db()
+                with db.session() as session:
+                    brokerage = Brokerage(name="Default Brokerage")
+                    session.add(brokerage)
+                    session.commit()
+                    session.refresh(brokerage)
+
+                    user = User(
+                        email="default@brokerage.com",
+                        hashed_password="fake-hash",
+                        role="AGENT",
+                        brokerage_id=brokerage.id,
+                    )
+                    session.add(user)
+                    session.commit()
+                    session.refresh(user)
+
+                    user_id = user.id
+                    brokerage_id = brokerage.id
+                    user_role = user.role
+
+                token = jwt.encode(
+                    {"sub": user_id, "org": brokerage_id, "role": user_role}, "test-secret", algorithm="HS256"
+                )
+                client.cookies.set("access_token", token)
                 yield client
         drop_document_embeddings_schema()

@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pymilvus.exceptions import MilvusException
 
+from backend.auth import get_current_user
 from backend.clients.google_maps import GoogleMapsClient
 from backend.exceptions import (
     AddressNotFoundError,
@@ -25,6 +26,7 @@ from backend.models import (
     PostGenerationRequest,
     PropertyInfo,
     TemplateResponse,
+    User,
 )
 from backend.post_coordinator import PostCoordinator
 from backend.repositories.document_storage import DocumentStorageRepository
@@ -209,7 +211,7 @@ class TestRoutes:
 
         assert response.status_code == HTTPStatus.OK
         assert response.json() == [p.model_dump(by_alias=True) for p in expected]
-        mock_property_service.list_properties.assert_awaited_once()
+        mock_property_service.list_properties.assert_awaited_once_with(brokerage_id="brokerage-123")
 
     def test_create_property(self, subject, mock_property_service):
         property_data = PropertyInfo(
@@ -224,6 +226,7 @@ class TestRoutes:
             last_sale_price=0,
             owner_occupied=True,
             documents=[DocumentInfo(id="123", filename="listing.pdf")],
+            brokerage_id="brokerage-123",
         )
         expected_result = property_data.model_copy(update={"id": "123"})
         mock_property_service.create_property.return_value = expected_result
@@ -236,6 +239,7 @@ class TestRoutes:
         mock_property_service.create_property.assert_called_once()
         call_args = mock_property_service.create_property.call_args
         assert call_args.kwargs["property_data"].model_dump() == property_data.model_dump()
+        assert call_args.kwargs["brokerage_id"] == "brokerage-123"
 
     def test_append_document_to_property(self, subject, mock_property_service, property_info_factory):
         doc = DocumentInfo(id="doc-1", filename="listing.pdf")
@@ -246,7 +250,7 @@ class TestRoutes:
 
         assert response.status_code == HTTPStatus.OK
         assert response.json() == expected.model_dump(by_alias=True)
-        mock_property_service.append_document.assert_awaited_once_with("prop-1", doc)
+        mock_property_service.append_document.assert_awaited_once_with("prop-1", doc, brokerage_id="brokerage-123")
 
     def test_append_document_to_property_when_document_not_found(self, subject, mock_property_service):
         mock_property_service.append_document.side_effect = DocumentNotFoundError()
@@ -272,7 +276,7 @@ class TestRoutes:
 
         assert response.status_code == HTTPStatus.OK
         assert response.json() == expected.model_dump(by_alias=True)
-        mock_property_service.remove_document.assert_awaited_once_with("prop-1", "doc-1")
+        mock_property_service.remove_document.assert_awaited_once_with("prop-1", "doc-1", brokerage_id="brokerage-123")
 
     def test_delete_document_from_property_returns_404_when_doc_not_in_property(self, subject, mock_property_service):
         mock_property_service.remove_document.side_effect = DocumentNotFoundError()
@@ -386,6 +390,10 @@ class TestRoutes:
         yield AsyncMock(spec=PropertyService)
 
     @pytest.fixture
+    def mock_current_user(self):
+        return User(id="user-123", email="test@test.com", role="AGENT", brokerage_id="brokerage-123")
+
+    @pytest.fixture
     def subject(
         self,
         test_container: Container,
@@ -396,6 +404,7 @@ class TestRoutes:
         mock_property_service: AsyncMock,
         mock_chat_service: AsyncMock,
         mock_document_storage_repository: MagicMock,
+        mock_current_user: User,
     ):
         with test_container.override_providers(
             post_coordinator=mock_coordinator,
@@ -408,7 +417,9 @@ class TestRoutes:
         ):
             app = FastAPI()
             app.include_router(router)
+            app.dependency_overrides[get_current_user] = lambda: mock_current_user
             yield TestClient(app)
+            app.dependency_overrides.clear()
 
 
 class TestLayerRoutes:

@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import Response, StreamingResponse
 from pymilvus.exceptions import MilvusException
 
+from backend.auth import get_current_user
 from backend.clients.google_maps import GoogleMapsClient
 from backend.repositories.document_storage import DocumentStorageRepository
 from backend.services.chat import ChatService
@@ -33,10 +34,12 @@ from .models import (
     PostGenerationResponse,
     PropertyInfo,
     TemplateResponse,
+    User,
 )
 from .post_coordinator import PostCoordinator
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.post("/posts", status_code=HTTPStatus.CREATED)
@@ -91,7 +94,8 @@ async def geocode(
         return GeocodeResponse(location=location)
     except AddressNotFoundError:
         raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail="Address not found")
-    except Exception:
+    except Exception as e:
+        logger.error(f"Geocoding failed for address '{request.address}': {e}", exc_info=True)
         raise HTTPException(
             status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
             detail="Unable to geocode address",
@@ -164,9 +168,10 @@ async def upload_pdf(
 @router.get("/properties/list", status_code=HTTPStatus.OK)
 @inject
 async def list_properties(
+    current_user: User = Depends(get_current_user),
     property_service: PropertyService = Depends(Provide[Container.property_service]),
 ):
-    return await property_service.list_properties()
+    return await property_service.list_properties(brokerage_id=current_user.brokerage_id)
 
 
 @router.get("/properties", status_code=HTTPStatus.OK)
@@ -204,10 +209,16 @@ async def search_properties(
 async def delete_document(
     property_id: str,
     doc_id: str,
+    current_user: User = Depends(get_current_user),
     property_service: PropertyService = Depends(Provide[Container.property_service]),
 ):
     try:
-        return await property_service.remove_document(property_id, doc_id)
+        return await property_service.remove_document(property_id, doc_id, brokerage_id=current_user.brokerage_id)
+    except PropertyNotFoundError:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail="Property not found",
+        )
     except DocumentNotFoundError:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
@@ -220,10 +231,16 @@ async def delete_document(
 async def append_document(
     property_id: str,
     document: DocumentInfo,
+    current_user: User = Depends(get_current_user),
     property_service: PropertyService = Depends(Provide[Container.property_service]),
 ):
     try:
-        return await property_service.append_document(property_id, document)
+        return await property_service.append_document(property_id, document, brokerage_id=current_user.brokerage_id)
+    except PropertyNotFoundError:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail="Property not found",
+        )
     except DocumentNotFoundError:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
@@ -302,6 +319,7 @@ async def get_layer_tile(
 @inject
 async def create_property(
     property_data: PropertyInfo,
+    current_user: User = Depends(get_current_user),
     property_service: PropertyService = Depends(Provide[Container.property_service]),
 ):
     """
@@ -317,6 +335,7 @@ async def create_property(
     try:
         return await property_service.create_property(
             property_data=property_data,
+            brokerage_id=current_user.brokerage_id,
         )
     except DocumentNotFoundError:
         raise HTTPException(

@@ -26,3 +26,7 @@ class TestGoogleMapsClient:
 
         with pytest.raises(AddressNotFoundError):
             await client.geocode("nowhere")
+
+    def test_init_uses_default_base_url_when_none_provided(self):
+        client = GoogleMapsClient(api_key="fake-key", base_url=None)
+        assert client._base_url == "https://maps.googleapis.com"
