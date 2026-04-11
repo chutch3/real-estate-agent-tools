@@ -13,9 +13,21 @@ const mockProperty = {
   formatted_address: '1600 Amphitheatre Pkwy, Mountain View, CA 94043',
   latitude: 37.4225,
   longitude: -122.0847,
+  is_listing_side: true,
+  is_buyer_side: false,
   documents: [
     { id: 'doc-1', filename: 'listing.pdf' },
   ],
+};
+
+const mockBuyerProperty = {
+  id: 'prop-2',
+  formatted_address: '1 Infinite Loop, Cupertino, CA 95014',
+  latitude: 37.3382,
+  longitude: -121.8863,
+  is_listing_side: false,
+  is_buyer_side: true,
+  documents: [],
 };
 
 describe('HomeScreen', () => {
@@ -62,6 +74,19 @@ describe('HomeScreen', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(/failed to delete/i);
     });
+  });
+
+  it('shows a Listing badge for a listing-side property in the property list', async () => {
+    render(<MemoryRouter><HomeScreen /></MemoryRouter>);
+    await screen.findByLabelText('Select 1600 Amphitheatre Pkwy, Mountain View, CA 94043');
+    expect(screen.getByText('Listing')).toBeInTheDocument();
+  });
+
+  it('shows a Buyer badge for a buyer-side property in the property list', async () => {
+    apiClient.listProperties.mockResolvedValue([mockBuyerProperty]);
+    render(<MemoryRouter><HomeScreen /></MemoryRouter>);
+    await screen.findByLabelText('Select 1 Infinite Loop, Cupertino, CA 95014');
+    expect(screen.getByText('Buyer')).toBeInTheDocument();
   });
 
   it('calls apiClient.deleteDocument and updates the property when a document is deleted', async () => {

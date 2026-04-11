@@ -182,6 +182,7 @@ class Container(containers.DeclarativeContainer):
         arcgis_parcels_client=arcgis_parcels_client,
         parcel_boundary_repository=parcel_boundary_repository,
         arcgis_parcels_supported_states=arcgis_parcels_supported_states,
+        brokerage_repository=brokerage_repository,
     )
     post_generation_service = providers.Singleton(
         PostGenerationService,

@@ -12,3 +12,11 @@ class DocumentNotFoundError(Exception):
 
 class LayerNotFoundError(Exception):
     pass
+
+
+class DualAgencyNotAllowedError(Exception):
+    pass
+
+
+class NetSheetNotFoundError(Exception):
+    pass

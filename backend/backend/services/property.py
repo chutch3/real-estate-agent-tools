@@ -5,7 +5,7 @@ from rentcast_client.api.default_rentcast import DefaultRentcast
 from backend.clients.arcgis_parcels import ArcGISParcelsClient
 from backend.clients.census_geocoder import CensusGeocoderClient
 from backend.clients.tiger import TigerWebClient
-from backend.exceptions import DocumentNotFoundError, PropertyNotFoundError
+from backend.exceptions import DocumentNotFoundError, DualAgencyNotAllowedError, PropertyNotFoundError
 from backend.models import (
     CountyBoundary,
     DocumentInfo,
@@ -14,6 +14,7 @@ from backend.models import (
     PropertyInfo,
     PropertyResponse,
 )
+from backend.repositories.brokerage import BrokerageRepository
 from backend.repositories.county_boundary import CountyBoundaryRepository
 from backend.repositories.parcel_boundary import ParcelBoundaryRepository
 from backend.repositories.properties import PropertyRepository
@@ -32,6 +33,7 @@ class PropertyService:
         arcgis_parcels_client: ArcGISParcelsClient,
         parcel_boundary_repository: ParcelBoundaryRepository,
         arcgis_parcels_supported_states: set[str],
+        brokerage_repository: BrokerageRepository,
     ):
         self._client = client
         self._property_repository = property_repository
@@ -42,6 +44,7 @@ class PropertyService:
         self._arcgis_parcels_client = arcgis_parcels_client
         self._parcel_boundary_repository = parcel_boundary_repository
         self._arcgis_parcels_supported_states = arcgis_parcels_supported_states
+        self._brokerage_repository = brokerage_repository
         self._logger = logging.getLogger(self.__class__.__name__)
 
     async def search_property(self, address: str) -> PropertyInfo:
@@ -157,6 +160,11 @@ class PropertyService:
         return self._parcel_boundary_repository.upsert(ParcelBoundary(nguid=nguid, geometry=result["geometry"]))
 
     async def create_property(self, property_data: PropertyInfo, brokerage_id: str) -> PropertyResponse:
+        if property_data.is_listing_side and property_data.is_buyer_side:
+            brokerage = self._brokerage_repository.get_by_id(brokerage_id)
+            if brokerage is None or not brokerage.allow_dual_agency:
+                raise DualAgencyNotAllowedError
+
         for doc in property_data.documents or []:
             doc_id = doc["id"] if isinstance(doc, dict) else doc.id
             if not await self._document_service.exists(doc_id):

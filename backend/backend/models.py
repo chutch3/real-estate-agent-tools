@@ -109,6 +109,7 @@ class Brokerage(SQLModel, table=True):
     )
     name: str
     contact_info: str | None = None
+    allow_dual_agency: bool = False
 
 
 class User(SQLModel, table=True):
@@ -211,6 +212,9 @@ class PropertyInfo(SQLModel, table=True):
     owner_occupied: bool | None = Field(True, alias="ownerOccupied")
     documents: list[DocumentInfo] | None = Field(default=None, sa_column=Column(DocumentInfoListType))
     parcel_nguid: str | None = None
+    state_parcel_id: str | None = None
+    is_listing_side: bool = False
+    is_buyer_side: bool = False
 
     @field_validator("features", mode="before")
     @classmethod
@@ -260,6 +264,8 @@ class PropertyResponse(BaseModel):
     last_sale_price: int | None = Field(0, alias="lastSalePrice")
     features: PropertyFeatures | None = None
     owner_occupied: bool | None = Field(True, alias="ownerOccupied")
+    is_listing_side: bool = False
+    is_buyer_side: bool = False
     documents: list[DocumentInfo] | None = None
 
 

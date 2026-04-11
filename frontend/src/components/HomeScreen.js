@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapPin, Plus, Bed, Bath } from "lucide-react";
+import { MapPin, Plus, Bed, Bath, Home, Search } from "lucide-react";
 import PropertyMap from "./PropertyMap";
 import PropertyDetailPanel from "./PropertyDetailPanel";
 import apiClient from "../apiClient";
@@ -124,6 +124,18 @@ function HomeScreen() {
                       {property.formatted_address}
                     </p>
                     <div className="flex items-center gap-3 mt-1">
+                      {property.is_listing_side && (
+                        <span className="flex items-center gap-1 font-sans text-xs text-bronze-500">
+                          <Home size={10} strokeWidth={1.5} />
+                          Listing
+                        </span>
+                      )}
+                      {property.is_buyer_side && (
+                        <span className="flex items-center gap-1 font-sans text-xs text-ink-400">
+                          <Search size={10} strokeWidth={1.5} />
+                          Buyer
+                        </span>
+                      )}
                       {property.property_type && (
                         <span className="font-sans text-xs text-ink-400">
                           {property.property_type}

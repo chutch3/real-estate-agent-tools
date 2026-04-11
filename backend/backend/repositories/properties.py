@@ -28,7 +28,7 @@ class PropertyRepository:
             ).all()
             return list(rows)
 
-    async def get_property(self, property_id: str) -> PropertyInfo:
+    async def get_property(self, property_id: str) -> PropertyInfo | None:
         with self._session_factory() as session:
             return session.get(PropertyInfo, property_id)
 

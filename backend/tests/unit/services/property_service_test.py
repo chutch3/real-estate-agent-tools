@@ -10,8 +10,9 @@ from rentcast_client.models import RentcastPropertyRecords200ResponseInner
 from backend.clients.arcgis_parcels import ArcGISParcelsClient
 from backend.clients.census_geocoder import CensusGeocoderClient
 from backend.clients.tiger import TigerWebClient
-from backend.exceptions import DocumentNotFoundError, PropertyNotFoundError
+from backend.exceptions import DocumentNotFoundError, DualAgencyNotAllowedError, PropertyNotFoundError
 from backend.models import (
+    Brokerage,
     CountyBoundary,
     DocumentInfo,
     ParcelBoundary,
@@ -19,6 +20,7 @@ from backend.models import (
     PropertyInfo,
     PropertyResponse,
 )
+from backend.repositories.brokerage import BrokerageRepository
 from backend.repositories.county_boundary import CountyBoundaryRepository
 from backend.repositories.parcel_boundary import ParcelBoundaryRepository
 from backend.repositories.properties import PropertyRepository
@@ -550,6 +552,60 @@ class TestPropertyService:
         assert isinstance(actual, PropertyResponse)
         assert actual.parcel_polygon is None
 
+    @pytest.mark.asyncio
+    async def test_create_property_raises_when_dual_agency_disallowed(
+        self,
+        subject: PropertyService,
+        mock_brokerage_repository: MagicMock,
+    ):
+        mock_brokerage_repository.get_by_id.return_value = Brokerage(
+            id="brokerage-123", name="No Dual Agency Firm", allow_dual_agency=False
+        )
+        property_data = PropertyInfo(is_listing_side=True, is_buyer_side=True)
+
+        with pytest.raises(DualAgencyNotAllowedError):
+            await subject.create_property(property_data, brokerage_id="brokerage-123")
+
+    @pytest.mark.asyncio
+    async def test_create_property_allows_dual_agency_when_brokerage_permits(
+        self,
+        subject: PropertyService,
+        mock_brokerage_repository: MagicMock,
+        mock_property_repository: AsyncMock,
+        mock_census_geocoder_client: AsyncMock,
+    ):
+        mock_brokerage_repository.get_by_id.return_value = Brokerage(
+            id="brokerage-123", name="Dual Agency Firm", allow_dual_agency=True
+        )
+        property_data = PropertyInfo(is_listing_side=True, is_buyer_side=True, latitude=0.0, longitude=0.0)
+        saved = property_data.model_copy(update={"id": "new-id"})
+        mock_property_repository.insert_property.return_value = saved
+        mock_census_geocoder_client.get_county_fips.return_value = None
+
+        result = await subject.create_property(property_data, brokerage_id="brokerage-123")
+
+        assert isinstance(result, PropertyResponse)
+
+    @pytest.mark.asyncio
+    async def test_create_property_allows_single_sided(
+        self,
+        subject: PropertyService,
+        mock_brokerage_repository: MagicMock,
+        mock_property_repository: AsyncMock,
+        mock_census_geocoder_client: AsyncMock,
+    ):
+        mock_brokerage_repository.get_by_id.return_value = Brokerage(
+            id="brokerage-123", name="Firm", allow_dual_agency=False
+        )
+        property_data = PropertyInfo(is_listing_side=True, is_buyer_side=False, latitude=0.0, longitude=0.0)
+        saved = property_data.model_copy(update={"id": "new-id"})
+        mock_property_repository.insert_property.return_value = saved
+        mock_census_geocoder_client.get_county_fips.return_value = None
+
+        result = await subject.create_property(property_data, brokerage_id="brokerage-123")
+
+        assert isinstance(result, PropertyResponse)
+
     @pytest.fixture
     def mock_client(self):
         mock = AsyncMock(spec=DefaultRentcast)
@@ -587,6 +643,12 @@ class TestPropertyService:
         yield MagicMock(spec=ParcelBoundaryRepository)
 
     @pytest.fixture
+    def mock_brokerage_repository(self):
+        mock = MagicMock(spec=BrokerageRepository)
+        mock.get_by_id.return_value = Brokerage(id="brokerage-123", name="Default Firm", allow_dual_agency=False)
+        yield mock
+
+    @pytest.fixture
     def subject(
         self,
         test_container: Container,
@@ -598,6 +660,7 @@ class TestPropertyService:
         mock_county_boundary_repository: MagicMock,
         mock_arcgis_parcels_client: AsyncMock,
         mock_parcel_boundary_repository: MagicMock,
+        mock_brokerage_repository: MagicMock,
     ):
         with test_container.override_providers(
             rentcast_client=mock_client,
@@ -609,5 +672,6 @@ class TestPropertyService:
             arcgis_parcels_client=mock_arcgis_parcels_client,
             parcel_boundary_repository=mock_parcel_boundary_repository,
             arcgis_parcels_supported_states={"IN"},
+            brokerage_repository=mock_brokerage_repository,
         ):
             yield test_container.property_service()
