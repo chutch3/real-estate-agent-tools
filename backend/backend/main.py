@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend import identity_routes, routes
 from backend.container import Container
+from backend.middleware import SlidingTokenRefreshMiddleware
 from backend.startup import _on_startup
 
 
@@ -61,6 +62,7 @@ def create_app(container: Container | None = None):
     app.include_router(routes.router, prefix="/api")
     app.include_router(identity_routes.router, prefix="/api")
 
+    app.add_middleware(SlidingTokenRefreshMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=os.getenv("ALLOWED_ORIGINS", "http://localhost,http://localhost:3001").split(","),

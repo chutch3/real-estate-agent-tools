@@ -18,6 +18,10 @@ class SecurityService:
     def verify_password(self, plain: str, hashed: str) -> bool:
         return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
 
+    @property
+    def token_expire_minutes(self) -> int:
+        return self._token_expire_minutes
+
     def create_access_token(self, user_id: str, brokerage_id: str, role: str) -> str:
         expire = datetime.now(UTC) + timedelta(minutes=self._token_expire_minutes)
         claims = {"sub": user_id, "org": brokerage_id, "role": role, "exp": expire}

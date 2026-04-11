@@ -84,6 +84,16 @@ class TestSecurityService:
         with pytest.raises(JWTError):
             subject.decode_token(token)
 
+    # --- token_expire_minutes ---
+
+    def test_token_expire_minutes_returns_configured_value(self):
+        svc = SecurityService(secret_key=_SECRET, token_expire_minutes=45)
+
+        assert svc.token_expire_minutes == 45
+
+    def test_token_expire_minutes_returns_default(self, subject: SecurityService):
+        assert subject.token_expire_minutes == 30
+
     @pytest.fixture
     def subject(self) -> SecurityService:
         return SecurityService(secret_key=_SECRET)

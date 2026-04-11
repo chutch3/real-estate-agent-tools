@@ -5,7 +5,13 @@ import { TextEncoder, TextDecoder } from 'util';
 global.TextEncoder = TextEncoder;
 global.TextDecoder = TextDecoder;
 
-jest.mock('axios');
+jest.mock('axios', () => ({
+  create: jest.fn(() => ({
+    get: jest.fn(),
+    post: jest.fn(),
+    interceptors: { response: { use: jest.fn() } },
+  })),
+}));
 
 describe('ApiClient', () => {
   let subject;
@@ -15,6 +21,11 @@ describe('ApiClient', () => {
     mockAxiosInstance = {
       get: jest.fn(),
       post: jest.fn(),
+      interceptors: {
+        response: {
+          use: jest.fn(),
+        },
+      },
     };
     axios.create.mockReturnValue(mockAxiosInstance);
     subject = new ApiClient();
@@ -169,6 +180,98 @@ describe('ApiClient', () => {
       await subject.logout();
 
       expect(mockAxiosInstance.post).toHaveBeenCalledWith('/auth/logout');
+    });
+  });
+
+  describe('getNetSheet', () => {
+    it('calls GET /properties/:id/net-sheet and returns the data', async () => {
+      const sheet = { id: 'sheet-1', property_id: 'prop-1', scenarios: [] };
+      mockAxiosInstance.get.mockResolvedValue({ data: sheet });
+
+      const result = await subject.getNetSheet('prop-1');
+
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/properties/prop-1/net-sheet');
+      expect(result).toEqual(sheet);
+    });
+  });
+
+  describe('addScenario', () => {
+    it('calls POST /properties/:id/net-sheet/scenarios and returns the updated sheet', async () => {
+      const scenario = { name: 'Scenario 1', sale_price: 350000 };
+      const updatedSheet = { id: 'sheet-1', property_id: 'prop-1', scenarios: [{ id: 's-1', ...scenario }] };
+      mockAxiosInstance.post.mockResolvedValue({ data: updatedSheet });
+
+      const result = await subject.addScenario('prop-1', scenario);
+
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        '/properties/prop-1/net-sheet/scenarios',
+        scenario,
+      );
+      expect(result).toEqual(updatedSheet);
+    });
+  });
+
+  describe('updateScenario', () => {
+    it('calls PATCH /properties/:id/net-sheet/scenarios/:sid and returns the updated sheet', async () => {
+      const updates = { sale_price: 345000 };
+      const updatedSheet = { id: 'sheet-1', property_id: 'prop-1', scenarios: [{ id: 's-1', sale_price: 345000 }] };
+      mockAxiosInstance.patch = jest.fn().mockResolvedValue({ data: updatedSheet });
+
+      const result = await subject.updateScenario('prop-1', 's-1', updates);
+
+      expect(mockAxiosInstance.patch).toHaveBeenCalledWith(
+        '/properties/prop-1/net-sheet/scenarios/s-1',
+        updates,
+      );
+      expect(result).toEqual(updatedSheet);
+    });
+  });
+
+  describe('deleteScenario', () => {
+    it('calls DELETE /properties/:id/net-sheet/scenarios/:sid and returns the updated sheet', async () => {
+      const updatedSheet = { id: 'sheet-1', property_id: 'prop-1', scenarios: [] };
+      mockAxiosInstance.delete = jest.fn().mockResolvedValue({ data: updatedSheet });
+
+      const result = await subject.deleteScenario('prop-1', 's-1');
+
+      expect(mockAxiosInstance.delete).toHaveBeenCalledWith(
+        '/properties/prop-1/net-sheet/scenarios/s-1',
+      );
+      expect(result).toEqual(updatedSheet);
+    });
+  });
+
+  describe('401 interceptor', () => {
+    let onRejected;
+
+    beforeEach(() => {
+      delete window.location;
+      window.location = { href: '', pathname: '/' };
+      onRejected = mockAxiosInstance.interceptors.response.use.mock.calls[0]?.[1];
+    });
+
+    it('registers a response interceptor on construction', () => {
+      expect(mockAxiosInstance.interceptors.response.use).toHaveBeenCalledTimes(1);
+    });
+
+    it('redirects to /login on a 401 response', async () => {
+      await onRejected({ response: { status: 401 } }).catch(() => {});
+
+      expect(window.location.href).toBe('/login');
+    });
+
+    it('does not redirect when already on /login', async () => {
+      window.location.pathname = '/login';
+
+      await onRejected({ response: { status: 401 } }).catch(() => {});
+
+      expect(window.location.href).toBe('');
+    });
+
+    it('re-rejects the error so callers still receive it', async () => {
+      const error = { response: { status: 401 } };
+
+      await expect(onRejected(error)).rejects.toEqual(error);
     });
   });
 });
