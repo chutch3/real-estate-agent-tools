@@ -56,7 +56,22 @@ class Container(containers.DeclarativeContainer):
     config = providers.Configuration()
 
     wiring_config = containers.WiringConfiguration(
-        modules=[".routes", ".identity_routes", ".schema", ".startup", ".auth"],
+        modules=[
+            ".routes.properties",
+            ".routes.net_sheet",
+            ".routes.chat",
+            ".routes.documents",
+            ".routes.posts",
+            ".routes.geocode",
+            ".routes.templates",
+            ".routes.layers",
+            ".routes.internal",
+            ".identity_routes",
+            ".schema",
+            ".startup",
+            ".auth",
+            ".middleware",
+        ],
         auto_wire=True,
     )
 
