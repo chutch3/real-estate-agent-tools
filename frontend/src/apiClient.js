@@ -173,6 +173,36 @@ class ApiClient {
     }
   }
 
+  async getNetSheet(propertyId) {
+    const response = await this.client.get(
+      `/properties/${propertyId}/net-sheet`,
+    );
+    return response.data;
+  }
+
+  async addScenario(propertyId, scenario) {
+    const response = await this.client.post(
+      `/properties/${propertyId}/net-sheet/scenarios`,
+      scenario,
+    );
+    return response.data;
+  }
+
+  async updateScenario(propertyId, scenarioId, updates) {
+    const response = await this.client.patch(
+      `/properties/${propertyId}/net-sheet/scenarios/${scenarioId}`,
+      updates,
+    );
+    return response.data;
+  }
+
+  async deleteScenario(propertyId, scenarioId) {
+    const response = await this.client.delete(
+      `/properties/${propertyId}/net-sheet/scenarios/${scenarioId}`,
+    );
+    return response.data;
+  }
+
   async geocodeAddress(address) {
     try {
       const response = await this.client.post("/geocode", { address });

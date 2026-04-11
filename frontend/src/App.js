@@ -7,6 +7,7 @@ import HomeScreen from "./components/HomeScreen";
 import AddProperty from "./components/AddProperty";
 import Chat from "./pages/Chat";
 import GeneratePost from "./pages/GeneratePost";
+import NetSheet from "./pages/NetSheet";
 import CacheInspector from "./pages/CacheInspector";
 import LoginPage from "./pages/LoginPage";
 
@@ -27,6 +28,7 @@ function App() {
                     <Route path="/add-property" element={<AddProperty />} />
                     <Route path="/chat" element={<Chat />} />
                     <Route path="/generate-post" element={<GeneratePost />} />
+                    <Route path="/net-sheet" element={<NetSheet />} />
                     <Route
                       path="/cache-inspector"
                       element={<CacheInspector />}

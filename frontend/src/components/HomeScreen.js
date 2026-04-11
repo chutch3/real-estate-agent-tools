@@ -66,6 +66,10 @@ function HomeScreen() {
     navigate("/chat", { state: { property } });
   };
 
+  const handleNetSheet = (property) => {
+    navigate("/net-sheet", { state: { property } });
+  };
+
   return (
     <div
       className="fixed inset-0 flex"
@@ -186,6 +190,7 @@ function HomeScreen() {
           onClose={() => setSelectedPropertyId(null)}
           onChat={handleChat}
           onGeneratePost={handleGeneratePost}
+          onNetSheet={handleNetSheet}
           onUploadDocument={handleUploadDocument}
           onDeleteDocument={handleDeleteDocument}
           isUploading={isUploading}

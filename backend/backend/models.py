@@ -307,3 +307,116 @@ class ChatMessageResponse(BaseModel):
     role: str
     content: str
     created_at: str
+
+
+class ClosingCostItem(BaseModel):
+    label: str
+    amount: float
+
+
+class ClosingCostItemListType(TypeDecorator):
+    """Serializes List[ClosingCostItem] to/from a JSON column."""
+
+    impl = JSON
+    cache_ok = True
+
+    def process_bind_param(self, value: Any, dialect: Any) -> Any:
+        if value is None:
+            return None
+        return [item if isinstance(item, dict) else item.model_dump() for item in value]
+
+    def process_result_value(self, value: Any, dialect: Any) -> Any:
+        if value is None:
+            return None
+        return [ClosingCostItem.model_validate(item) for item in value]
+
+
+class NetSheet(SQLModel, table=True):
+    __tablename__ = "net_sheet"
+
+    id: str | None = Field(
+        default=None,
+        sa_column=Column(String, primary_key=True, default=lambda: str(uuid.uuid4())),
+    )
+    property_id: str = Field(sa_column=Column(String, index=True, unique=True))
+    brokerage_id: str = Field(foreign_key="brokerage.id", index=True)
+
+
+class NetSheetScenario(SQLModel, table=True):
+    __tablename__ = "net_sheet_scenario"
+
+    id: str | None = Field(
+        default=None,
+        sa_column=Column(String, primary_key=True, default=lambda: str(uuid.uuid4())),
+    )
+    net_sheet_id: str = Field(foreign_key="net_sheet.id", index=True)
+    name: str
+    sale_price: float = 0.0
+    mortgage_payoff: float = 0.0
+    listing_commission_pct: float = 0.0
+    buyers_agent_commission_pct: float = 0.0
+    seller_concessions: float = 0.0
+    annual_tax_amount: float = 0.0
+    closing_date: str | None = None
+    closing_cost_items: list[ClosingCostItem] | None = Field(default=None, sa_column=Column(ClosingCostItemListType))
+
+
+class NetSheetScenarioCreate(BaseModel):
+    name: str
+    sale_price: float = 0.0
+    mortgage_payoff: float = 0.0
+    listing_commission_pct: float = 0.0
+    buyers_agent_commission_pct: float = 0.0
+    seller_concessions: float = 0.0
+    annual_tax_amount: float = 0.0
+    closing_date: str | None = None
+    closing_cost_items: list[ClosingCostItem] = []
+
+
+class NetSheetScenarioUpdate(BaseModel):
+    name: str | None = None
+    sale_price: float | None = None
+    mortgage_payoff: float | None = None
+    listing_commission_pct: float | None = None
+    buyers_agent_commission_pct: float | None = None
+    seller_concessions: float | None = None
+    annual_tax_amount: float | None = None
+    closing_date: str | None = None
+    closing_cost_items: list[ClosingCostItem] | None = None
+
+
+class TaxProrationBreakdown(BaseModel):
+    annual_tax_amount: float
+    days_from_jan1: int
+    closing_date: str
+    prorated_amount: float
+    formula: str
+    method: str
+    method_note: str
+
+
+class NetSheetScenarioResponse(BaseModel):
+    id: str
+    name: str
+    sale_price: float
+    mortgage_payoff: float
+    listing_commission_pct: float
+    buyers_agent_commission_pct: float
+    seller_concessions: float
+    annual_tax_amount: float
+    closing_date: str | None
+    closing_cost_items: list[ClosingCostItem]
+    total_commission: float
+    prorated_tax: float
+    tax_proration_breakdown: TaxProrationBreakdown | None
+    total_closing_costs: float
+    total_deductions: float
+    net_proceeds: float
+    tax_lookup_url: str
+    tax_guidance: str | None = None
+
+
+class NetSheetResponse(BaseModel):
+    id: str
+    property_id: str
+    scenarios: list[NetSheetScenarioResponse]

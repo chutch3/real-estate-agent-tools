@@ -19,12 +19,14 @@ from backend.repositories.county_boundary import CountyBoundaryRepository
 from backend.repositories.document_embeddings import DocumentEmbeddingRepository
 from backend.repositories.document_storage import DocumentStorageRepository
 from backend.repositories.layer import LayerRepository
+from backend.repositories.net_sheet import NetSheetRepository
 from backend.repositories.parcel_boundary import ParcelBoundaryRepository
 from backend.repositories.properties import PropertyRepository
 from backend.repositories.user import UserRepository
 from backend.services.chat import ChatService
 from backend.services.document import DocumentService
 from backend.services.layer import LayerService
+from backend.services.net_sheet import NetSheetService
 from backend.services.post_generation import PostGenerationService
 from backend.services.property import PropertyService
 from backend.services.security import SecurityService
@@ -221,4 +223,15 @@ class Container(containers.DeclarativeContainer):
     layer_service = providers.Singleton(
         LayerService,
         repository=layer_repository,
+    )
+
+    net_sheet_repository = providers.Singleton(
+        NetSheetRepository,
+        session_factory=db.provided.session,
+    )
+
+    net_sheet_service = providers.Singleton(
+        NetSheetService,
+        net_sheet_repository=net_sheet_repository,
+        property_repository=property_repository,
     )

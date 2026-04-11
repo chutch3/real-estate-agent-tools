@@ -20,6 +20,10 @@ jest.mock('../../src/apiClient', () => ({
   uploadDocument: jest.fn().mockResolvedValue('doc-uuid-1'),
   addDocumentToProperty: jest.fn(),
   getDefaultTemplate: jest.fn(),
+  getNetSheet: jest.fn(),
+  addScenario: jest.fn(),
+  updateScenario: jest.fn(),
+  deleteScenario: jest.fn(),
 }));
 
 jest.mock('../../src/hooks/useLayers');
@@ -55,6 +59,8 @@ describe('App Integration', () => {
       latitude: 37.4225,
       longitude: -122.0847,
       formatted_address: '1600 Amphitheatre Pkwy, Mountain View, CA 94043',
+      is_listing_side: true,
+      is_buyer_side: false,
     },
     {
       id: 'prop-2',
@@ -62,12 +68,16 @@ describe('App Integration', () => {
       latitude: 37.3382,
       longitude: -121.8863,
       formatted_address: '1 Infinite Loop, Cupertino, CA 95014',
+      is_listing_side: false,
+      is_buyer_side: true,
     },
   ];
 
   beforeEach(() => {
+    window.history.pushState({}, '', '/');
     apiClient.getMe.mockResolvedValue(_AUTHENTICATED_USER);
     apiClient.listProperties.mockResolvedValue(mockProperties);
+    apiClient.getNetSheet.mockResolvedValue({ id: 'sheet-1', property_id: 'prop-1', scenarios: [] });
     useLayers.mockReturnValue({
       groups: [],
       isActive: jest.fn().mockReturnValue(false),
@@ -219,6 +229,45 @@ describe('App Integration', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('generate-post-page')).toBeInTheDocument();
+    });
+    expect(screen.getByText('1600 Amphitheatre Pkwy, Mountain View, CA 94043')).toBeInTheDocument();
+  });
+
+  it('does not show Net Sheet button for a buyer-side-only property', async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('marker-37.3382--121.8863')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('marker-37.3382--121.8863'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('property-detail-panel')).toBeInTheDocument();
+    });
+
+    const panel = screen.getByTestId('property-detail-panel');
+    expect(within(panel).queryByRole('button', { name: /net sheet/i })).not.toBeInTheDocument();
+  });
+
+  it('navigates to /net-sheet when Net Sheet is clicked for a listing-side property', async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('marker-37.4225--122.0847')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('marker-37.4225--122.0847'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('property-detail-panel')).toBeInTheDocument();
+    });
+
+    const panel = screen.getByTestId('property-detail-panel');
+    fireEvent.click(within(panel).getByRole('button', { name: /net sheet/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('net-sheet-page')).toBeInTheDocument();
     });
     expect(screen.getByText('1600 Amphitheatre Pkwy, Mountain View, CA 94043')).toBeInTheDocument();
   });

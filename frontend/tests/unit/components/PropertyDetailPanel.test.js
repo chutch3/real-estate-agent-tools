@@ -176,6 +176,50 @@ describe('PropertyDetailPanel', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Failed to delete document.');
   });
 
+  it('renders a Net Sheet button when property is on the listing side', () => {
+    render(
+      <PropertyDetailPanel
+        property={{ ...mockProperty, is_listing_side: true }}
+        onClose={jest.fn()}
+        onChat={jest.fn()}
+        onGeneratePost={jest.fn()}
+        onUploadDocument={jest.fn()}
+        onNetSheet={jest.fn()}
+      />
+    );
+    expect(screen.getByRole('button', { name: /net sheet/i })).toBeInTheDocument();
+  });
+
+  it('does not render a Net Sheet button when property is not on the listing side', () => {
+    render(
+      <PropertyDetailPanel
+        property={{ ...mockProperty, is_listing_side: false }}
+        onClose={jest.fn()}
+        onChat={jest.fn()}
+        onGeneratePost={jest.fn()}
+        onUploadDocument={jest.fn()}
+        onNetSheet={jest.fn()}
+      />
+    );
+    expect(screen.queryByRole('button', { name: /net sheet/i })).not.toBeInTheDocument();
+  });
+
+  it('calls onNetSheet with the property when Net Sheet is clicked', () => {
+    const onNetSheet = jest.fn();
+    render(
+      <PropertyDetailPanel
+        property={{ ...mockProperty, is_listing_side: true }}
+        onClose={jest.fn()}
+        onChat={jest.fn()}
+        onGeneratePost={jest.fn()}
+        onUploadDocument={jest.fn()}
+        onNetSheet={onNetSheet}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /net sheet/i }));
+    expect(onNetSheet).toHaveBeenCalledWith({ ...mockProperty, is_listing_side: true });
+  });
+
   it('calls onClose when the panel is dismissed', () => {
     const onClose = jest.fn();
     render(
