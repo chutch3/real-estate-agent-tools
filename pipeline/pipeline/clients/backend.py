@@ -9,3 +9,11 @@ class BackendClient:
         response = httpx.get(f"{self._base_url}/api/internal/counties")
         response.raise_for_status()
         return response.json()["county_fips"]
+
+    def upsert_tax_cache(self, *, records: list[dict], county_fips: str, tax_year: int) -> None:
+        response = httpx.post(
+            f"{self._base_url}/api/internal/tax-cache",
+            json={"records": records, "county_fips": county_fips, "tax_year": tax_year},
+            timeout=300,
+        )
+        response.raise_for_status()

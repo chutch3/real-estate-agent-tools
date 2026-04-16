@@ -30,3 +30,19 @@ deployments:
           AWS_ACCESS_KEY_ID: "admin"
           AWS_SECRET_ACCESS_KEY: "openmediavault"
           BACKEND_URL: "http://192.168.86.24:3000"
+
+  - name: indiana-tax-sync
+    version: "1.0.0"
+    tags: ["tax", "indiana"]
+    description: "Download DLGF Tax Bill data for Clark and Floyd counties and sync to the backend property tax cache"
+    schedule: {}
+
+    entrypoint: pipeline/flows/indiana_tax.py:indiana_property_tax_sync
+
+    work_pool:
+      name: crime-pipeline-docker
+      job_variables:
+        image: ghcr.io/chutch3/prefect-pipeline-base:latest
+        env:
+          PREFECT_API_URL: "https://prefect.diyhub.dev/api"
+          BACKEND_URL: "http://192.168.86.24:3000"
