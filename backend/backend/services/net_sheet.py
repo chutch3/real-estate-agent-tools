@@ -7,10 +7,12 @@ from backend.models import (
     NetSheetScenarioCreate,
     NetSheetScenarioResponse,
     NetSheetScenarioUpdate,
+    PropertyInfo,
     TaxProrationBreakdown,
 )
 from backend.repositories.net_sheet import NetSheetRepository
 from backend.repositories.properties import PropertyRepository
+from backend.repositories.property_tax_cache import PropertyTaxCacheRepository
 
 _DLGF_TAX_LOOKUP_URL = "https://gateway.ifionline.org/TaxBillLookUp/Default.aspx"
 
@@ -33,14 +35,17 @@ class NetSheetService:
         self,
         net_sheet_repository: NetSheetRepository,
         property_repository: PropertyRepository,
+        property_tax_cache_repository: PropertyTaxCacheRepository,
     ) -> None:
         self._repository = net_sheet_repository
         self._property_repository = property_repository
+        self._tax_cache_repository = property_tax_cache_repository
 
-    async def _require_property_access(self, property_id: str, brokerage_id: str) -> None:
+    async def _require_property_access(self, property_id: str, brokerage_id: str) -> PropertyInfo:
         prop = await self._property_repository.get_property(property_id)
-        if prop is None or prop.brokerage_id != brokerage_id:
+        if prop is None or prop.brokerage_id != brokerage_id or not prop.is_listing_side:
             raise NetSheetNotFoundError(f"Property {property_id} not found for brokerage {brokerage_id}")
+        return prop
 
     async def get_net_sheet(self, property_id: str, brokerage_id: str) -> NetSheetResponse:
         await self._require_property_access(property_id, brokerage_id)
@@ -54,7 +59,10 @@ class NetSheetService:
         brokerage_id: str,
         scenario_create: NetSheetScenarioCreate,
     ) -> NetSheetResponse:
-        await self._require_property_access(property_id, brokerage_id)
+        prop = await self._require_property_access(property_id, brokerage_id)
+        annual_tax_amount = scenario_create.annual_tax_amount
+        if not annual_tax_amount and prop.state_parcel_id:
+            annual_tax_amount = self._tax_cache_repository.lookup(prop.state_parcel_id)
         sheet = self._repository.get_or_create(property_id, brokerage_id)
         scenario = NetSheetScenario(
             net_sheet_id=sheet.id,
@@ -64,7 +72,7 @@ class NetSheetService:
             listing_commission_pct=scenario_create.listing_commission_pct,
             buyers_agent_commission_pct=scenario_create.buyers_agent_commission_pct,
             seller_concessions=scenario_create.seller_concessions,
-            annual_tax_amount=scenario_create.annual_tax_amount,
+            annual_tax_amount=annual_tax_amount,
             closing_date=scenario_create.closing_date,
             closing_cost_items=scenario_create.closing_cost_items or [],
         )

@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from http import HTTPStatus
 
 import jose.jwt as jwt
@@ -6,7 +7,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import select
 
 from backend.container import Container
-from backend.models import Brokerage, PropertyInfo, User
+from backend.models import Brokerage, PropertyInfo, PropertyTaxCache, User
 
 
 class TestNetSheet:
@@ -116,6 +117,51 @@ class TestNetSheet:
         response = subject.get(f"/api/properties/{property_id}/net-sheet")
 
         assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+    def test_net_sheet_requires_listing_side(self, subject: TestClient, test_container: Container):
+        with test_container.db().session() as session:
+            brokerage = session.exec(select(Brokerage)).first()
+            prop = PropertyInfo(brokerage_id=brokerage.id, is_listing_side=False, is_buyer_side=True)
+            session.add(prop)
+            session.commit()
+            session.refresh(prop)
+            buyer_prop_id = prop.id
+
+        response = subject.get(f"/api/properties/{buyer_prop_id}/net-sheet")
+
+        assert response.status_code == HTTPStatus.NOT_FOUND
+
+    def test_add_scenario_auto_fills_annual_tax_from_cache(self, subject: TestClient, test_container: Container):
+        with test_container.db().session() as session:
+            brokerage = session.exec(select(Brokerage)).first()
+            prop = PropertyInfo(
+                brokerage_id=brokerage.id,
+                is_listing_side=True,
+                state_parcel_id="102403200259000013",
+            )
+            session.add(prop)
+            session.commit()
+            session.refresh(prop)
+            prop_id = prop.id
+
+        test_container.property_tax_cache_repository().upsert(
+            PropertyTaxCache(
+                state_parcel_id="102403200259000013",
+                county_fips="18019",
+                tax_year=2023,
+                net_tax_amount=6480.00,
+                updated_at=datetime.now(UTC),
+            )
+        )
+
+        response = subject.post(
+            f"/api/properties/{prop_id}/net-sheet/scenarios",
+            json={"name": "Auto Tax", "sale_price": 300000.0},
+        )
+
+        assert response.status_code == HTTPStatus.CREATED
+        scenario = response.json()["scenarios"][0]
+        assert scenario["annual_tax_amount"] == pytest.approx(6480.00)
 
     def test_net_sheet_isolated_to_brokerage(self, subject: TestClient, property_id: str, test_container: Container):
         with test_container.db().session() as session:

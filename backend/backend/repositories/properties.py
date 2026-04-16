@@ -17,6 +17,10 @@ class PropertyRepository:
             session.refresh(property_data)
             return property_data
 
+    async def list_all_properties(self) -> list[PropertyInfo]:
+        with self._session_factory() as session:
+            return list(session.exec(select(PropertyInfo)).all())
+
     async def list_properties(self, brokerage_id: str) -> list[PropertyInfo]:
         with self._session_factory() as session:
             return list(session.exec(select(PropertyInfo).where(PropertyInfo.brokerage_id == brokerage_id)).all())
@@ -47,6 +51,13 @@ class PropertyRepository:
         with self._session_factory() as session:
             prop = session.get(PropertyInfo, property_id)
             prop.parcel_nguid = parcel_nguid
+            session.add(prop)
+            session.commit()
+
+    async def update_state_parcel_id(self, property_id: str, state_parcel_id: str) -> None:
+        with self._session_factory() as session:
+            prop = session.get(PropertyInfo, property_id)
+            prop.state_parcel_id = state_parcel_id
             session.add(prop)
             session.commit()
 

@@ -5,6 +5,7 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 from pytest_httpserver import HTTPServer
+from sqlmodel import select
 
 from backend.container import Container
 from backend.main import create_app
@@ -34,6 +35,7 @@ _ARCGIS_PARCEL_RESPONSE = {
             },
             "properties": {
                 "nguid": "urn:emergency:uid:gis:PCL:test-parcel-nguid:test.in.gov",
+                "state_parcel_id": "102403200259000013",
             },
         }
     ]
@@ -49,6 +51,18 @@ class TestProperties:
         body = response.json()
         assert body["parcel_polygon"] is not None
         assert body["parcel_polygon"]["type"] == "Polygon"
+
+    def test_create_property_persists_state_parcel_id(self, subject, test_container: Container, httpserver: HTTPServer):
+        httpserver.expect_request("/query").respond_with_json(_ARCGIS_PARCEL_RESPONSE)
+        property_data = PropertyInfo(rentcast_id="some-rentcast-id", latitude=39.7684, longitude=-86.1581, state="IN")
+
+        response = subject.post("/api/properties", json=property_data.model_dump())
+
+        assert response.status_code == HTTPStatus.CREATED
+        with test_container.db().session() as session:
+            saved = session.exec(select(PropertyInfo).where(PropertyInfo.state == "IN")).first()
+        assert saved is not None
+        assert saved.state_parcel_id == "102403200259000013"
 
     def test_list_properties_returns_empty_when_no_properties(self, subject):
         response = subject.get("/api/properties/list")

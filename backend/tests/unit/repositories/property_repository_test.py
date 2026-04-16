@@ -64,6 +64,24 @@ class TestPropertyRepository:
         assert third not in results
 
     @pytest.mark.asyncio
+    async def test_list_all_properties_returns_all_brokerages(
+        self,
+        subject: PropertyRepository,
+        property_info_factory,
+    ):
+        first = property_info_factory.build(brokerage_id="brokerage-1")
+        second = property_info_factory.build(brokerage_id="brokerage-2")
+
+        await subject.insert_property(first)
+        await subject.insert_property(second)
+
+        results = await subject.list_all_properties()
+
+        assert len(results) == 2
+        assert first in results
+        assert second in results
+
+    @pytest.mark.asyncio
     async def test_list_county_fips_returns_distinct_fips(
         self,
         subject: PropertyRepository,
@@ -154,6 +172,17 @@ class TestPropertyRepository:
         with db.session() as session:
             persisted = session.get(PropertyInfo, prop.id)
             assert persisted.parcel_nguid == "urn:emergency:uid:gis:PCL:test-nguid:test.in.gov"
+
+    @pytest.mark.asyncio
+    async def test_update_state_parcel_id(self, subject: PropertyRepository, property_info_factory, db: Database):
+        prop = property_info_factory.build(state_parcel_id=None)
+        await subject.insert_property(prop)
+
+        await subject.update_state_parcel_id(prop.id, "102403200259000013")
+
+        with db.session() as session:
+            persisted = session.get(PropertyInfo, prop.id)
+            assert persisted.state_parcel_id == "102403200259000013"
 
     @pytest.fixture
     def subject(self, test_container: Container, db: Database) -> PropertyRepository:

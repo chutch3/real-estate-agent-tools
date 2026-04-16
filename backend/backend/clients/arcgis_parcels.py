@@ -17,7 +17,7 @@ class ArcGISParcelsClient:
             "geometry": f"{lon},{lat}",
             "geometryType": "esriGeometryPoint",
             "spatialRel": "esriSpatialRelIntersects",
-            "outFields": "nguid",
+            "outFields": "nguid,state_parcel_id",
             "returnGeometry": "true",
             "f": "geojson",
         }
@@ -32,5 +32,6 @@ class ArcGISParcelsClient:
         feature = features[0]
         return {
             "nguid": feature["properties"]["nguid"],
+            "state_parcel_id": feature["properties"].get("state_parcel_id"),
             "geometry": feature["geometry"],
         }

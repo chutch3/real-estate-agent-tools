@@ -21,6 +21,7 @@ _ARCGIS_PARCEL_RESPONSE = {
             },
             "properties": {
                 "nguid": "urn:emergency:uid:gis:PCL:test-parcel-nguid:test.in.gov",
+                "state_parcel_id": "102403200259000013",
             },
         }
     ]
@@ -28,6 +29,7 @@ _ARCGIS_PARCEL_RESPONSE = {
 
 _EXPECTED_RESULT = {
     "nguid": "urn:emergency:uid:gis:PCL:test-parcel-nguid:test.in.gov",
+    "state_parcel_id": "102403200259000013",
     "geometry": {
         "type": "Polygon",
         "coordinates": [
@@ -66,7 +68,7 @@ class TestArcGISParcelsClient:
     ):
         httpserver.expect_request(
             "/query",
-            query_string="geometry=-86.1581,39.7684&geometryType=esriGeometryPoint&spatialRel=esriSpatialRelIntersects&outFields=nguid&returnGeometry=true&f=geojson",
+            query_string="geometry=-86.1581,39.7684&geometryType=esriGeometryPoint&spatialRel=esriSpatialRelIntersects&outFields=nguid,state_parcel_id&returnGeometry=true&f=geojson",
         ).respond_with_json(_ARCGIS_PARCEL_RESPONSE)
 
         result = await subject.get_parcel(39.7684, -86.1581)

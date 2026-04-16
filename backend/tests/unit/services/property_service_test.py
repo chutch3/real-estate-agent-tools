@@ -466,6 +466,7 @@ class TestPropertyService:
         mock_census_geocoder_client.get_county_fips.return_value = None
         mock_arcgis_parcels_client.get_parcel.return_value = {
             "nguid": "urn:emergency:uid:gis:PCL:test-nguid:test.in.gov",
+            "state_parcel_id": "102403200259000013",
             "geometry": polygon,
         }
         mock_parcel_boundary_repository.get_by_nguid.return_value = None
@@ -483,6 +484,38 @@ class TestPropertyService:
         assert inserted.parcel_nguid == "urn:emergency:uid:gis:PCL:test-nguid:test.in.gov"
         assert isinstance(actual, PropertyResponse)
         assert actual.parcel_polygon == polygon
+
+    @pytest.mark.asyncio
+    async def test_create_property_sets_state_parcel_id_from_parcel_result(
+        self,
+        subject: PropertyService,
+        mock_property_repository: AsyncMock,
+        mock_census_geocoder_client: AsyncMock,
+        mock_arcgis_parcels_client: AsyncMock,
+        mock_parcel_boundary_repository: MagicMock,
+    ):
+        polygon = {
+            "type": "Polygon",
+            "coordinates": [[[-86.159, 39.769], [-86.158, 39.769], [-86.158, 39.768], [-86.159, 39.769]]],
+        }
+        property_data = PropertyInfo(rentcast_id="rentcast-in", latitude=39.7684, longitude=-86.1581, state="IN")
+        saved = property_data.model_copy(update={"id": "new-id"})
+        mock_property_repository.insert_property.return_value = saved
+        mock_census_geocoder_client.get_county_fips.return_value = None
+        mock_arcgis_parcels_client.get_parcel.return_value = {
+            "nguid": "urn:emergency:uid:gis:PCL:test-nguid:test.in.gov",
+            "state_parcel_id": "102403200259000013",
+            "geometry": polygon,
+        }
+        mock_parcel_boundary_repository.get_by_nguid.return_value = None
+        mock_parcel_boundary_repository.upsert.return_value = ParcelBoundary(
+            nguid="urn:emergency:uid:gis:PCL:test-nguid:test.in.gov", geometry=polygon
+        )
+
+        await subject.create_property(property_data, brokerage_id="brokerage-123")
+
+        inserted = mock_property_repository.insert_property.call_args[0][0]
+        assert inserted.state_parcel_id == "102403200259000013"
 
     @pytest.mark.asyncio
     async def test_create_property_skips_parcel_for_unsupported_state(

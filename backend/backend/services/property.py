@@ -152,6 +152,7 @@ class PropertyService:
 
         nguid = result["nguid"]
         property_data.parcel_nguid = nguid
+        property_data.state_parcel_id = result.get("state_parcel_id")
 
         existing = self._parcel_boundary_repository.get_by_nguid(nguid)
         if existing:
