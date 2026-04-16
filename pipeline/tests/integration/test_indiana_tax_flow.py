@@ -1,8 +1,8 @@
 import pytest
 from pytest_httpserver import HTTPServer
 
-from pipeline.flows.indiana_tax import indiana_property_tax_sync
-from tests.taxdata import make_taxbill_zip, make_taxdata_record
+from pipeline.indiana.flows.property_tax import indiana_property_tax_sync
+from tests.indiana.taxdata import make_taxbill_zip, make_taxdata_record
 
 
 def test_indiana_property_tax_sync_upserts_both_counties(

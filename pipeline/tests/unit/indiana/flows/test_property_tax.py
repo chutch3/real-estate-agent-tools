@@ -3,13 +3,13 @@ from unittest.mock import MagicMock
 import pytest
 
 from pipeline.clients.backend import BackendClient
-from pipeline.clients.dlgf import DLGFClient
-from pipeline.flows.indiana_tax import (
-    _parse_taxbill_record,
+from pipeline.indiana.clients.dlgf import DLGFClient
+from pipeline.indiana.flows.property_tax import (
     download_taxbill,
     upsert_tax_cache,
 )
-from tests.taxdata import make_taxbill_zip, make_taxdata_record
+from pipeline.indiana.tax.parser import parse_taxbill_record
+from tests.indiana.taxdata import make_taxbill_zip, make_taxdata_record
 
 
 @pytest.fixture
@@ -22,13 +22,13 @@ def backend_client() -> MagicMock:
     return MagicMock(spec=BackendClient)
 
 
-# ── _parse_taxbill_record ──────────────────────────────────────────────────────
+# ── parse_taxbill_record ───────────────────────────────────────────────────────
 
 
 def test_parse_taxbill_record_extracts_parcel_id_and_net_tax():
     record = make_taxdata_record("102403200259000013", 6480.00)
 
-    result = _parse_taxbill_record(record)
+    result = parse_taxbill_record(record)
 
     assert result is not None
     assert result["state_parcel_id"] == "102403200259000013"
@@ -44,7 +44,7 @@ def test_parse_taxbill_record_applies_format_12_2_implied_decimal():
     record[0:18] = b"101903501334000009"
     record[736:750] = b"00000000440700"
 
-    result = _parse_taxbill_record(bytes(record))
+    result = parse_taxbill_record(bytes(record))
 
     assert result is not None
     assert result["state_parcel_id"] == "101903501334000009"
@@ -58,7 +58,7 @@ def test_parse_taxbill_record_handles_legacy_decimal_format():
     record[0:18] = b"102403200259000013"
     record[736:750] = b"00000000318.40"  # literal decimal — already in dollars
 
-    result = _parse_taxbill_record(bytes(record))
+    result = parse_taxbill_record(bytes(record))
 
     assert result is not None
     assert result["net_tax_amount"] == pytest.approx(318.40)
@@ -67,7 +67,7 @@ def test_parse_taxbill_record_handles_legacy_decimal_format():
 def test_parse_taxbill_record_returns_none_for_zero_net_tax():
     record = make_taxdata_record("102403200259000013", 0.0)
 
-    result = _parse_taxbill_record(record)
+    result = parse_taxbill_record(record)
 
     assert result is None
 
@@ -75,7 +75,7 @@ def test_parse_taxbill_record_returns_none_for_zero_net_tax():
 def test_parse_taxbill_record_returns_none_for_blank_parcel_id():
     record = make_taxdata_record("", 1234.56)
 
-    result = _parse_taxbill_record(record)
+    result = parse_taxbill_record(record)
 
     assert result is None
 

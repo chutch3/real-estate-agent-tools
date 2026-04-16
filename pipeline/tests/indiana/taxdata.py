@@ -1,7 +1,7 @@
 import io
 import zipfile
 
-from pipeline.flows.indiana_tax import (
+from pipeline.indiana.tax.parser import (
     TAXDATA_NET_TAX_START,
     TAXDATA_NET_TAX_WIDTH,
     TAXDATA_PARCEL_ID_START,
@@ -10,7 +10,7 @@ from pipeline.flows.indiana_tax import (
 
 
 def make_taxdata_record(parcel_id: str, net_tax: float) -> bytes:
-    """Build a minimal 778-char TAXDATA record with the parcel and net tax embedded."""
+    """Build a minimal TAXDATA record with the parcel and net tax embedded (Format 12.2)."""
     record = bytearray(b" " * 779)
     pid = parcel_id.ljust(TAXDATA_PARCEL_ID_WIDTH).encode()
     record[TAXDATA_PARCEL_ID_START : TAXDATA_PARCEL_ID_START + TAXDATA_PARCEL_ID_WIDTH] = pid

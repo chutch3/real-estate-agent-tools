@@ -37,7 +37,7 @@ deployments:
     description: "Download DLGF Tax Bill data for Clark and Floyd counties and sync to the backend property tax cache"
     schedule: {}
 
-    entrypoint: pipeline/flows/indiana_tax.py:indiana_property_tax_sync
+    entrypoint: pipeline/indiana/flows/property_tax.py:indiana_property_tax_sync
 
     work_pool:
       name: crime-pipeline-docker

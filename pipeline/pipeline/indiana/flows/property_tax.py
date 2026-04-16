@@ -7,7 +7,7 @@ per parcel, and upserts the results into the backend's property_tax_cache table
 via the internal API.
 
 Usage (Prefect flow):
-    prefect run pipeline/flows/indiana_tax.py
+    prefect run pipeline/indiana/flows/property_tax.py
 
 Environment variables:
     BACKEND_URL   - Base URL of the real-estate-agent backend (e.g. http://localhost:5000)
@@ -28,51 +28,15 @@ from prefect import flow, task
 from prefect.cache_policies import NO_CACHE
 
 from pipeline.clients.backend import BackendClient
-from pipeline.clients.dlgf import DLGFClient
+from pipeline.indiana.clients.dlgf import DLGFClient
+from pipeline.indiana.tax.parser import parse_taxbill_record
 
 _logger = logging.getLogger(__name__)
-
-# ── Fixed-width field layout for the 778-char TAXDATA record ──────────────────
-# Confirmed by downloading Clark County 2023 pay 2024 data and cross-validating
-# net_tax = gross_tax − circuit_breaker_credit against known parcel values.
-TAXDATA_PARCEL_ID_START = 0
-TAXDATA_PARCEL_ID_WIDTH = 18  # 18-digit state parcel number (matches ArcGIS state_parcel_id)
-TAXDATA_NET_TAX_START = 736
-TAXDATA_NET_TAX_WIDTH = (
-    14  # "Total Property Tax Due This Tax Year" per 50 IAC 26-20-8, Format 12.2 (implied 2 decimal places)
-)
 
 _COUNTY_CONFIG: dict[str, dict] = {
     "18019": {"county_num": "10", "name": "Clark"},
     "18043": {"county_num": "22", "name": "Floyd"},
 }
-
-
-def _parse_taxbill_record(record: bytes) -> dict | None:
-    """Extract state_parcel_id and net_tax_amount from one fixed-width record.
-
-    Returns None for records with a blank parcel ID or zero net tax (exempt/industrial).
-    """
-    if len(record) < TAXDATA_NET_TAX_START + TAXDATA_NET_TAX_WIDTH:
-        return None
-    state_parcel_id = (
-        record[TAXDATA_PARCEL_ID_START : TAXDATA_PARCEL_ID_START + TAXDATA_PARCEL_ID_WIDTH].decode("latin-1").strip()
-    )
-    if not state_parcel_id:
-        return None
-    net_tax_raw = (
-        record[TAXDATA_NET_TAX_START : TAXDATA_NET_TAX_START + TAXDATA_NET_TAX_WIDTH].decode("latin-1").strip()
-    )
-    try:
-        if "." in net_tax_raw:
-            net_tax_amount = float(net_tax_raw)  # old format: literal decimal, already in dollars
-        else:
-            net_tax_amount = float(net_tax_raw) / 100.0  # Format 12.2: implied decimal (50 IAC 26-20-2(a)(6))
-    except ValueError:
-        return None
-    if net_tax_amount <= 0:
-        return None
-    return {"state_parcel_id": state_parcel_id, "net_tax_amount": net_tax_amount}
 
 
 @task(cache_policy=NO_CACHE, retries=2, retry_delay_seconds=30)
@@ -93,7 +57,7 @@ def download_taxbill(*, county_num: str, year: str, dlgf_client: DLGFClient) -> 
     for line in lines[1:]:  # skip header record
         if not line.strip():
             continue
-        parsed = _parse_taxbill_record(line)
+        parsed = parse_taxbill_record(line)
         if parsed:
             records.append(parsed)
     _logger.info("Parsed %d taxable parcels for county=%s year=%s", len(records), county_num, year)
