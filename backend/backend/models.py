@@ -169,6 +169,20 @@ class CountyBoundary(SQLModel, table=True):
     geometry: dict | None = Field(default=None, sa_column=Column(JSON))
 
 
+class PropertyTaxCache(SQLModel, table=True):
+    __tablename__ = "property_tax_cache"
+
+    id: str | None = Field(
+        default=None,
+        sa_column=Column(String, primary_key=True, default=lambda: str(uuid.uuid4())),
+    )
+    state_parcel_id: str = Field(index=True)
+    county_fips: str
+    tax_year: int
+    net_tax_amount: float
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
 class ParcelBoundary(SQLModel, table=True):
     __tablename__ = "parcel_boundary"
 

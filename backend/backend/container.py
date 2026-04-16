@@ -22,6 +22,7 @@ from backend.repositories.layer import LayerRepository
 from backend.repositories.net_sheet import NetSheetRepository
 from backend.repositories.parcel_boundary import ParcelBoundaryRepository
 from backend.repositories.properties import PropertyRepository
+from backend.repositories.property_tax_cache import PropertyTaxCacheRepository
 from backend.repositories.user import UserRepository
 from backend.services.chat import ChatService
 from backend.services.document import DocumentService
@@ -230,8 +231,14 @@ class Container(containers.DeclarativeContainer):
         session_factory=db.provided.session,
     )
 
+    property_tax_cache_repository = providers.Singleton(
+        PropertyTaxCacheRepository,
+        session_factory=db.provided.session,
+    )
+
     net_sheet_service = providers.Singleton(
         NetSheetService,
         net_sheet_repository=net_sheet_repository,
         property_repository=property_repository,
+        property_tax_cache_repository=property_tax_cache_repository,
     )

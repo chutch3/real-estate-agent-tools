@@ -5,10 +5,11 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 from pytest_httpserver import HTTPServer
+from sqlmodel import select
 
 from backend.container import Container
 from backend.main import create_app
-from backend.models import PropertyInfo
+from backend.models import PropertyInfo, PropertyTaxCache
 from backend.schema import drop_document_embeddings_schema
 from tests.integration.conftest import make_jwt, seed_brokerage_and_user
 
@@ -90,3 +91,54 @@ class TestInternal:
                 client.cookies.set("access_token", token)
                 yield client
         drop_document_embeddings_schema()
+
+
+def test_upsert_tax_cache_persists_records(lightweight_client: TestClient, test_container: Container):
+    response = lightweight_client.post(
+        "/api/internal/tax-cache",
+        json={
+            "records": [
+                {"state_parcel_id": "102403200259000013", "net_tax_amount": 6480.00},
+                {"state_parcel_id": "102403200259000014", "net_tax_amount": 1200.00},
+            ],
+            "county_fips": "18019",
+            "tax_year": 2023,
+        },
+    )
+
+    assert response.status_code == HTTPStatus.NO_CONTENT
+
+    with test_container.db().session() as session:
+        rows = session.exec(select(PropertyTaxCache)).all()
+    assert len(rows) == 2
+    row_by_id = {r.state_parcel_id: r for r in rows}
+    assert row_by_id["102403200259000013"].net_tax_amount == pytest.approx(6480.00)
+    assert row_by_id["102403200259000013"].county_fips == "18019"
+    assert row_by_id["102403200259000013"].tax_year == 2023
+    assert row_by_id["102403200259000014"].net_tax_amount == pytest.approx(1200.00)
+
+
+def test_upsert_tax_cache_updates_existing_record(lightweight_client: TestClient, test_container: Container):
+    lightweight_client.post(
+        "/api/internal/tax-cache",
+        json={
+            "records": [{"state_parcel_id": "102403200259000013", "net_tax_amount": 6480.00}],
+            "county_fips": "18019",
+            "tax_year": 2023,
+        },
+    )
+
+    response = lightweight_client.post(
+        "/api/internal/tax-cache",
+        json={
+            "records": [{"state_parcel_id": "102403200259000013", "net_tax_amount": 7200.00}],
+            "county_fips": "18019",
+            "tax_year": 2023,
+        },
+    )
+
+    assert response.status_code == HTTPStatus.NO_CONTENT
+    with test_container.db().session() as session:
+        rows = session.exec(select(PropertyTaxCache)).all()
+    assert len(rows) == 1
+    assert rows[0].net_tax_amount == pytest.approx(7200.00)
