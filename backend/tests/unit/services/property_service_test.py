@@ -1,11 +1,7 @@
-import random
-from collections.abc import Container
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from faker import Faker
 from rentcast_client.api.default_rentcast import DefaultRentcast
-from rentcast_client.models import RentcastPropertyRecords200ResponseInner
 
 from backend.clients.arcgis_parcels import ArcGISParcelsClient
 from backend.clients.census_geocoder import CensusGeocoderClient
@@ -14,696 +10,494 @@ from backend.exceptions import DocumentNotFoundError, DualAgencyNotAllowedError,
 from backend.models import (
     Brokerage,
     CountyBoundary,
+    CreatePropertyRequest,
+    Document,
     DocumentInfo,
-    ParcelBoundary,
-    PropertyFeatures,
-    PropertyInfo,
+    Parcel,
+    Property,
     PropertyResponse,
+    Representation,
 )
 from backend.repositories.brokerage import BrokerageRepository
 from backend.repositories.county_boundary import CountyBoundaryRepository
-from backend.repositories.parcel_boundary import ParcelBoundaryRepository
+from backend.repositories.document import DocumentRepository
+from backend.repositories.parcel import ParcelRepository
 from backend.repositories.properties import PropertyRepository
+from backend.repositories.representation import RepresentationRepository
 from backend.services.document import DocumentService
 from backend.services.property import PropertyService
-from tests.factories import PropertyInfoFactory
-
-
-def fake_property_record(
-    no_features: bool = False,
-):
-    fake = Faker()
-
-    features = None
-    if not no_features:
-        features = {
-            "has_pool": fake.boolean(),
-            "has_garage": fake.boolean(),
-            "has_air_conditioning": fake.boolean(),
-            "has_heating": fake.boolean(),
-            "has_water_view": fake.boolean(),
-        }
-
-    return RentcastPropertyRecords200ResponseInner(
-        formatted_address=fake.address(),
-        city=fake.city(),
-        state=fake.state_abbr(),
-        zip_code=fake.zipcode(),
-        latitude=fake.latitude(),
-        longitude=fake.longitude(),
-        property_type=random.choice(["Single Family Home", "Apartment", "Condo", "Townhouse"]),
-        year_built=random.randint(1900, 2023),
-        legal_description=fake.text(max_nb_chars=100),
-        subdivision=fake.word(),
-        zoning=random.choice(["Residential", "Commercial", "Industrial", "Mixed-Use"]),
-        last_sale_date=fake.date_between(start_date="-5y", end_date="today").isoformat(),
-        last_sale_price=random.randint(100000, 1000000),
-        features=features,
-    )
-
-
-class AsyncMockWithValidateCall(AsyncMock):
-    def __call__(self, *args, **kwargs):
-        return super().__call__(*args, **kwargs)
-
-    def __await__(self):
-        return self().__await__()
 
 
 class TestPropertyService:
-    @pytest.mark.parametrize(
-        "address, property_records",
-        [
-            (
-                "123 Main St, Anytown, USA",
-                [fake_property_record()],
-            ),
-            (
-                "456 Elm St, Anytown, USA",
-                [
-                    fake_property_record(),
-                    fake_property_record(),
-                ],
-            ),
-        ],
-    )
     @pytest.mark.asyncio
-    async def test_search_property(
+    async def test_create_property_returns_response(
         self,
         subject: PropertyService,
-        mock_client: AsyncMock,
-        address: str,
-        property_records: list[RentcastPropertyRecords200ResponseInner],
-    ):
-        mock_client.property_records.return_value = property_records
-
-        actual = await subject.search_property(address)
-
-        assert actual == PropertyInfo(
-            id=property_records[0].id,
-            formatted_address=property_records[0].formatted_address,
-            address_line1=property_records[0].address_line1,
-            address_line2=property_records[0].address_line2,
-            city=property_records[0].city,
-            state=property_records[0].state,
-            zip_code=property_records[0].zip_code,
-            county=property_records[0].county,
-            latitude=property_records[0].latitude,
-            longitude=property_records[0].longitude,
-            property_type=property_records[0].property_type,
-            bedrooms=property_records[0].bedrooms,
-            bathrooms=property_records[0].bathrooms,
-            square_footage=property_records[0].square_footage,
-            lot_size=property_records[0].lot_size,
-            year_built=property_records[0].year_built,
-            assessor_id=property_records[0].assessor_id,
-            legal_description=property_records[0].legal_description,
-            subdivision=property_records[0].subdivision,
-            zoning=property_records[0].zoning,
-            last_sale_date=property_records[0].last_sale_date,
-            last_sale_price=property_records[0].last_sale_price,
-            features=PropertyFeatures(**property_records[0].features.model_dump()),
-            owner_occupied=property_records[0].owner_occupied,
-        )
-
-    @pytest.mark.asyncio
-    async def test_search_property_when_features_are_missing(
-        self,
-        subject: PropertyService,
-        mock_client: AsyncMock,
-    ):
-        property_records = [fake_property_record(no_features=True)]
-        mock_client.property_records.return_value = property_records
-        actual = await subject.search_property("123 Main St, Anytown, USA")
-
-        assert actual == PropertyInfo(
-            id=property_records[0].id,
-            formatted_address=property_records[0].formatted_address,
-            address_line1=property_records[0].address_line1,
-            address_line2=property_records[0].address_line2,
-            city=property_records[0].city,
-            state=property_records[0].state,
-            zip_code=property_records[0].zip_code,
-            county=property_records[0].county,
-            latitude=property_records[0].latitude,
-            longitude=property_records[0].longitude,
-            property_type=property_records[0].property_type,
-            bedrooms=property_records[0].bedrooms,
-            bathrooms=property_records[0].bathrooms,
-            square_footage=property_records[0].square_footage,
-            lot_size=property_records[0].lot_size,
-            year_built=property_records[0].year_built,
-            assessor_id=property_records[0].assessor_id,
-            legal_description=property_records[0].legal_description,
-            subdivision=property_records[0].subdivision,
-            zoning=property_records[0].zoning,
-            last_sale_date=property_records[0].last_sale_date,
-            last_sale_price=property_records[0].last_sale_price,
-            features=None,
-            owner_occupied=property_records[0].owner_occupied,
-        )
-
-    @pytest.mark.asyncio
-    async def test_create_property(
-        self,
-        subject: PropertyService,
-        mock_property_repository: AsyncMock,
-        mock_document_service: AsyncMock,
+        mock_property_repository: MagicMock,
+        mock_representation_repository: MagicMock,
         mock_census_geocoder_client: AsyncMock,
-        mock_county_boundary_repository: MagicMock,
     ):
-        property_data = PropertyInfo(
-            rentcast_id="rentcast-123",
-            latitude=37.4,
-            longitude=-122.1,
-            documents=[
-                DocumentInfo(id="doc-uuid-1", filename="listing.pdf"),
-                DocumentInfo(id="doc-uuid-2", filename="disclosure.pdf"),
-            ],
-        )
-        saved = property_data.model_copy(update={"id": "new-id"})
-        mock_property_repository.insert_property.return_value = saved
-        mock_document_service.exists.return_value = True
+        saved = Property(id="new-id", city="Jeffersonville", state="IN")
+        mock_property_repository.insert.return_value = saved
         mock_census_geocoder_client.get_county_fips.return_value = None
+        saved_rep = Representation(id="rep-id", property_id="new-id", brokerage_id="brok-1", role="listing_agent")
+        mock_representation_repository.insert.return_value = saved_rep
 
-        actual = await subject.create_property(property_data, brokerage_id="brokerage-123")
+        result = await subject.create_property(
+            CreatePropertyRequest(role="listing_agent", city="Jeffersonville", state="IN"),
+            brokerage_id="brok-1",
+        )
 
-        mock_document_service.exists.assert_any_call("doc-uuid-1")
-        mock_document_service.exists.assert_any_call("doc-uuid-2")
-        mock_property_repository.insert_property.assert_called_once()
-        assert isinstance(actual, PropertyResponse)
-        assert actual.id == "new-id"
+        assert isinstance(result, PropertyResponse)
+        assert result.id == "new-id"
+        assert result.representation_id == "rep-id"
+        assert result.role == "listing_agent"
 
     @pytest.mark.asyncio
-    async def test_create_property_enriches_with_county_polygon(
+    async def test_create_property_inserts_property_and_representation(
         self,
         subject: PropertyService,
-        mock_property_repository: AsyncMock,
-        mock_document_service: AsyncMock,
+        mock_property_repository: MagicMock,
+        mock_representation_repository: MagicMock,
+        mock_census_geocoder_client: AsyncMock,
+    ):
+        saved = Property(id="new-id")
+        mock_property_repository.insert.return_value = saved
+        mock_census_geocoder_client.get_county_fips.return_value = None
+        saved_rep = Representation(id="rep-id", property_id="new-id", brokerage_id="brok-1", role="buyers_agent")
+        mock_representation_repository.insert.return_value = saved_rep
+
+        await subject.create_property(
+            CreatePropertyRequest(role="buyers_agent"),
+            brokerage_id="brok-1",
+        )
+
+        mock_property_repository.insert.assert_called_once()
+        inserted_rep = mock_representation_repository.insert.call_args[0][0]
+        assert inserted_rep.role == "buyers_agent"
+        assert inserted_rep.brokerage_id == "brok-1"
+        assert inserted_rep.property_id == "new-id"
+
+    @pytest.mark.asyncio
+    async def test_create_property_enriches_with_county(
+        self,
+        subject: PropertyService,
+        mock_property_repository: MagicMock,
+        mock_representation_repository: MagicMock,
         mock_census_geocoder_client: AsyncMock,
         mock_tiger_web_client: AsyncMock,
         mock_county_boundary_repository: MagicMock,
     ):
-        polygon = {
-            "type": "Polygon",
-            "coordinates": [[[-86.035, 37.997], [-85.404, 37.997], [-85.404, 38.375], [-86.035, 37.997]]],
-        }
-        property_data = PropertyInfo(rentcast_id="rentcast-123", latitude=38.2, longitude=-85.7)
-        saved = property_data.model_copy(update={"id": "new-id", "county_fips": "21111"})
-        mock_property_repository.insert_property.return_value = saved
+        polygon = {"type": "Polygon", "coordinates": [[[0, 0]]]}
+        saved = Property(id="new-id", county_fips="21111")
+        mock_property_repository.insert.return_value = saved
         mock_census_geocoder_client.get_county_fips.return_value = "21111"
         mock_county_boundary_repository.get_by_fips.return_value = None
         mock_tiger_web_client.get_county_polygon.return_value = polygon
-        stored_boundary = CountyBoundary(fips="21111", geometry=polygon)
-        mock_county_boundary_repository.upsert.return_value = stored_boundary
+        mock_county_boundary_repository.upsert.return_value = CountyBoundary(fips="21111", geometry=polygon)
+        mock_representation_repository.insert.return_value = Representation(
+            id="rep-id", property_id="new-id", brokerage_id="brok-1", role="listing_agent"
+        )
 
-        actual = await subject.create_property(property_data, brokerage_id="brokerage-123")
+        result = await subject.create_property(
+            CreatePropertyRequest(role="listing_agent", latitude=38.2, longitude=-85.7),
+            brokerage_id="brok-1",
+        )
 
         mock_census_geocoder_client.get_county_fips.assert_awaited_once_with(38.2, -85.7)
-        mock_county_boundary_repository.get_by_fips.assert_called_once_with("21111")
-        mock_tiger_web_client.get_county_polygon.assert_awaited_once_with("21111")
-        mock_county_boundary_repository.upsert.assert_called_once()
-        inserted = mock_property_repository.insert_property.call_args[0][0]
-        assert inserted.county_fips == "21111"
-        assert isinstance(actual, PropertyResponse)
-        assert actual.county_polygon == polygon
+        assert result.county_polygon == polygon
 
     @pytest.mark.asyncio
-    async def test_create_property_reuses_existing_county_boundary(
+    async def test_create_property_enriches_with_parcel(
         self,
         subject: PropertyService,
-        mock_property_repository: AsyncMock,
-        mock_document_service: AsyncMock,
-        mock_census_geocoder_client: AsyncMock,
-        mock_tiger_web_client: AsyncMock,
-        mock_county_boundary_repository: MagicMock,
-    ):
-        polygon = {
-            "type": "Polygon",
-            "coordinates": [[[-86.035, 37.997], [-85.404, 38.375], [-86.035, 37.997]]],
-        }
-        existing_boundary = CountyBoundary(fips="21111", geometry=polygon)
-        property_data = PropertyInfo(rentcast_id="rentcast-123", latitude=38.2, longitude=-85.7)
-        saved = property_data.model_copy(update={"id": "new-id", "county_fips": "21111"})
-        mock_property_repository.insert_property.return_value = saved
-        mock_census_geocoder_client.get_county_fips.return_value = "21111"
-        mock_county_boundary_repository.get_by_fips.return_value = existing_boundary
-
-        actual = await subject.create_property(property_data, brokerage_id="brokerage-123")
-
-        mock_tiger_web_client.get_county_polygon.assert_not_awaited()
-        mock_county_boundary_repository.upsert.assert_not_called()
-        assert isinstance(actual, PropertyResponse)
-        assert actual.county_polygon == polygon
-
-    @pytest.mark.asyncio
-    async def test_create_property_proceeds_when_census_geocoder_fails(
-        self,
-        subject: PropertyService,
-        mock_property_repository: AsyncMock,
-        mock_document_service: AsyncMock,
-        mock_census_geocoder_client: AsyncMock,
-        mock_tiger_web_client: AsyncMock,
-        mock_county_boundary_repository: MagicMock,
-    ):
-        property_data = PropertyInfo(rentcast_id="rentcast-123", latitude=38.2, longitude=-85.7)
-        saved = property_data.model_copy(update={"id": "new-id"})
-        mock_property_repository.insert_property.return_value = saved
-        mock_census_geocoder_client.get_county_fips.side_effect = Exception("network error")
-
-        actual = await subject.create_property(property_data, brokerage_id="brokerage-123")
-
-        mock_tiger_web_client.get_county_polygon.assert_not_awaited()
-        mock_county_boundary_repository.upsert.assert_not_called()
-        inserted = mock_property_repository.insert_property.call_args[0][0]
-        assert inserted.county_fips is None
-        assert isinstance(actual, PropertyResponse)
-        assert actual.county_polygon is None
-
-    @pytest.mark.asyncio
-    async def test_create_property_proceeds_when_tiger_web_fails(
-        self,
-        subject: PropertyService,
-        mock_property_repository: AsyncMock,
-        mock_document_service: AsyncMock,
-        mock_census_geocoder_client: AsyncMock,
-        mock_tiger_web_client: AsyncMock,
-        mock_county_boundary_repository: MagicMock,
-    ):
-        property_data = PropertyInfo(rentcast_id="rentcast-123", latitude=38.2, longitude=-85.7)
-        saved = property_data.model_copy(update={"id": "new-id", "county_fips": "21111"})
-        mock_property_repository.insert_property.return_value = saved
-        mock_census_geocoder_client.get_county_fips.return_value = "21111"
-        mock_county_boundary_repository.get_by_fips.return_value = None
-        mock_tiger_web_client.get_county_polygon.side_effect = Exception("network error")
-
-        actual = await subject.create_property(property_data, brokerage_id="brokerage-123")
-
-        inserted = mock_property_repository.insert_property.call_args[0][0]
-        assert inserted.county_fips == "21111"
-        assert isinstance(actual, PropertyResponse)
-        assert actual.county_polygon is None
-
-    @pytest.mark.asyncio
-    async def test_create_property_without_documents(
-        self,
-        subject: PropertyService,
-        mock_property_repository: AsyncMock,
-        mock_document_service: AsyncMock,
-        mock_census_geocoder_client: AsyncMock,
-        mock_county_boundary_repository: MagicMock,
-    ):
-        property_data = PropertyInfo(rentcast_id="rentcast-123", latitude=37.4, longitude=-122.1, documents=None)
-        saved = property_data.model_copy(update={"id": "new-id"})
-        mock_property_repository.insert_property.return_value = saved
-        mock_census_geocoder_client.get_county_fips.return_value = None
-
-        actual = await subject.create_property(property_data, brokerage_id="brokerage-123")
-
-        mock_document_service.exists.assert_not_called()
-        mock_property_repository.insert_property.assert_called_once()
-        assert isinstance(actual, PropertyResponse)
-
-    @pytest.mark.asyncio
-    async def test_create_property_when_document_does_not_exist(
-        self,
-        subject: PropertyService,
-        mock_document_service: AsyncMock,
-    ):
-        mock_document_service.exists.return_value = False
-        property_data = PropertyInfo(
-            rentcast_id="rentcast-123",
-            latitude=37.4,
-            longitude=-122.1,
-            documents=[DocumentInfo(id="doc-uuid-missing", filename="missing.pdf")],
-        )
-        with pytest.raises(DocumentNotFoundError):
-            await subject.create_property(property_data, brokerage_id="brokerage-123")
-
-    @pytest.mark.asyncio
-    async def test_append_document(
-        self,
-        subject: PropertyService,
-        mock_property_repository: AsyncMock,
-        mock_document_service: AsyncMock,
-        mock_county_boundary_repository: MagicMock,
-    ):
-        doc = DocumentInfo(id="doc-1", filename="new.pdf")
-        prop = PropertyInfo(rentcast_id="r", latitude=0, longitude=0, documents=[doc])
-        mock_document_service.exists.return_value = True
-        mock_property_repository.append_document.return_value = prop
-        mock_county_boundary_repository.get_by_fips.return_value = None
-
-        result = await subject.append_document("prop-id", doc, brokerage_id="brokerage-123")
-
-        mock_document_service.exists.assert_called_once_with("doc-1")
-        mock_property_repository.append_document.assert_called_once_with("prop-id", doc, "brokerage-123")
-        assert isinstance(result, PropertyResponse)
-        assert result.documents == [doc]
-
-    @pytest.mark.asyncio
-    async def test_append_document_when_document_does_not_exist(
-        self,
-        subject: PropertyService,
-        mock_document_service: AsyncMock,
-    ):
-        mock_document_service.exists.return_value = False
-        doc = DocumentInfo(id="missing", filename="missing.pdf")
-        with pytest.raises(DocumentNotFoundError):
-            await subject.append_document("prop-id", doc, brokerage_id="brokerage-123")
-
-    @pytest.mark.asyncio
-    async def test_remove_document(
-        self,
-        subject: PropertyService,
-        mock_property_repository: AsyncMock,
-        mock_document_service: AsyncMock,
-        mock_county_boundary_repository: MagicMock,
-    ):
-        prop = PropertyInfo(rentcast_id="r", latitude=0, longitude=0, documents=[])
-        mock_property_repository.remove_document.return_value = prop
-        mock_county_boundary_repository.get_by_fips.return_value = None
-
-        result = await subject.remove_document("prop-id", "doc-1", "brokerage-123")
-
-        mock_property_repository.remove_document.assert_awaited_once_with("prop-id", "doc-1", "brokerage-123")
-        mock_document_service.delete.assert_awaited_once_with("doc-1")
-        assert isinstance(result, PropertyResponse)
-        assert result.documents == []
-
-    @pytest.mark.asyncio
-    async def test_remove_document_raises_when_doc_not_in_property(
-        self,
-        subject: PropertyService,
-        mock_property_repository: AsyncMock,
-        mock_document_service: AsyncMock,
-    ):
-        mock_property_repository.remove_document.side_effect = DocumentNotFoundError()
-
-        with pytest.raises(DocumentNotFoundError):
-            await subject.remove_document("prop-id", "missing-doc", brokerage_id="brokerage-123")
-
-        mock_document_service.delete.assert_not_awaited()
-
-    @pytest.mark.asyncio
-    async def test_list_properties(
-        self,
-        subject: PropertyService,
-        property_info_factory: PropertyInfoFactory,
-        mock_property_repository: AsyncMock,
-        mock_county_boundary_repository: MagicMock,
-    ):
-        props = [
-            property_info_factory.build(county_fips=None, parcel_nguid=None),
-            property_info_factory.build(county_fips=None, parcel_nguid=None),
-        ]
-        mock_property_repository.list_properties.return_value = props
-
-        actual = await subject.list_properties("brokerage-123")
-
-        mock_property_repository.list_properties.assert_called_once()
-        assert len(actual) == 2
-        assert all(isinstance(r, PropertyResponse) for r in actual)
-
-    @pytest.mark.asyncio
-    async def test_search_property_not_found(self, subject: PropertyService, mock_client: AsyncMock):
-        mock_client.property_records.return_value = []
-
-        with pytest.raises(PropertyNotFoundError):
-            await subject.search_property("123 Main St, Anytown, USA")
-
-    @pytest.mark.asyncio
-    async def test_list_county_fips(
-        self,
-        subject: PropertyService,
-        mock_property_repository: AsyncMock,
-    ):
-        mock_property_repository.list_county_fips.return_value = ["21111", "18019"]
-
-        actual = await subject.list_county_fips()
-
-        mock_property_repository.list_county_fips.assert_awaited_once()
-        assert actual == ["21111", "18019"]
-
-    @pytest.mark.asyncio
-    async def test_create_property_enriches_with_parcel_polygon(
-        self,
-        subject: PropertyService,
-        mock_property_repository: AsyncMock,
+        mock_property_repository: MagicMock,
+        mock_representation_repository: MagicMock,
         mock_census_geocoder_client: AsyncMock,
         mock_arcgis_parcels_client: AsyncMock,
-        mock_parcel_boundary_repository: MagicMock,
+        mock_parcel_repository: MagicMock,
     ):
-        polygon = {
-            "type": "Polygon",
-            "coordinates": [[[-86.159, 39.769], [-86.158, 39.769], [-86.158, 39.768], [-86.159, 39.769]]],
-        }
-        property_data = PropertyInfo(rentcast_id="rentcast-in", latitude=39.7684, longitude=-86.1581, state="IN")
-        saved = property_data.model_copy(
-            update={"id": "new-id", "parcel_nguid": "urn:emergency:uid:gis:PCL:test-nguid:test.in.gov"}
-        )
-        mock_property_repository.insert_property.return_value = saved
+        polygon = {"type": "Polygon", "coordinates": [[[0, 0]]]}
+        saved = Property(id="new-id", state="IN", latitude=39.77, longitude=-86.16)
+        mock_property_repository.insert.return_value = saved
         mock_census_geocoder_client.get_county_fips.return_value = None
         mock_arcgis_parcels_client.get_parcel.return_value = {
-            "nguid": "urn:emergency:uid:gis:PCL:test-nguid:test.in.gov",
+            "nguid": "test-nguid",
             "state_parcel_id": "102403200259000013",
             "geometry": polygon,
         }
-        mock_parcel_boundary_repository.get_by_nguid.return_value = None
-        stored_parcel = ParcelBoundary(nguid="urn:emergency:uid:gis:PCL:test-nguid:test.in.gov", geometry=polygon)
-        mock_parcel_boundary_repository.upsert.return_value = stored_parcel
-
-        actual = await subject.create_property(property_data, brokerage_id="brokerage-123")
-
-        mock_arcgis_parcels_client.get_parcel.assert_awaited_once_with(39.7684, -86.1581)
-        mock_parcel_boundary_repository.get_by_nguid.assert_called_once_with(
-            "urn:emergency:uid:gis:PCL:test-nguid:test.in.gov"
-        )
-        mock_parcel_boundary_repository.upsert.assert_called_once()
-        inserted = mock_property_repository.insert_property.call_args[0][0]
-        assert inserted.parcel_nguid == "urn:emergency:uid:gis:PCL:test-nguid:test.in.gov"
-        assert isinstance(actual, PropertyResponse)
-        assert actual.parcel_polygon == polygon
-
-    @pytest.mark.asyncio
-    async def test_create_property_sets_state_parcel_id_from_parcel_result(
-        self,
-        subject: PropertyService,
-        mock_property_repository: AsyncMock,
-        mock_census_geocoder_client: AsyncMock,
-        mock_arcgis_parcels_client: AsyncMock,
-        mock_parcel_boundary_repository: MagicMock,
-    ):
-        polygon = {
-            "type": "Polygon",
-            "coordinates": [[[-86.159, 39.769], [-86.158, 39.769], [-86.158, 39.768], [-86.159, 39.769]]],
-        }
-        property_data = PropertyInfo(rentcast_id="rentcast-in", latitude=39.7684, longitude=-86.1581, state="IN")
-        saved = property_data.model_copy(update={"id": "new-id"})
-        mock_property_repository.insert_property.return_value = saved
-        mock_census_geocoder_client.get_county_fips.return_value = None
-        mock_arcgis_parcels_client.get_parcel.return_value = {
-            "nguid": "urn:emergency:uid:gis:PCL:test-nguid:test.in.gov",
-            "state_parcel_id": "102403200259000013",
-            "geometry": polygon,
-        }
-        mock_parcel_boundary_repository.get_by_nguid.return_value = None
-        mock_parcel_boundary_repository.upsert.return_value = ParcelBoundary(
-            nguid="urn:emergency:uid:gis:PCL:test-nguid:test.in.gov", geometry=polygon
+        stored_parcel = Parcel(nguid="test-nguid", property_id="new-id", geometry=polygon)
+        mock_parcel_repository.upsert.return_value = stored_parcel
+        mock_parcel_repository.get_by_property_id.return_value = stored_parcel
+        mock_representation_repository.insert.return_value = Representation(
+            id="rep-id", property_id="new-id", brokerage_id="brok-1", role="listing_agent"
         )
 
-        await subject.create_property(property_data, brokerage_id="brokerage-123")
+        result = await subject.create_property(
+            CreatePropertyRequest(role="listing_agent", state="IN", latitude=39.77, longitude=-86.16),
+            brokerage_id="brok-1",
+        )
 
-        inserted = mock_property_repository.insert_property.call_args[0][0]
-        assert inserted.state_parcel_id == "102403200259000013"
+        mock_arcgis_parcels_client.get_parcel.assert_awaited_once_with(39.77, -86.16)
+        mock_parcel_repository.upsert.assert_called_once()
+        upserted = mock_parcel_repository.upsert.call_args[0][0]
+        assert upserted.state_parcel_id == "102403200259000013"
+        assert result.parcel_polygon == polygon
 
     @pytest.mark.asyncio
     async def test_create_property_skips_parcel_for_unsupported_state(
         self,
         subject: PropertyService,
-        mock_property_repository: AsyncMock,
+        mock_property_repository: MagicMock,
+        mock_representation_repository: MagicMock,
         mock_census_geocoder_client: AsyncMock,
         mock_arcgis_parcels_client: AsyncMock,
     ):
-        property_data = PropertyInfo(rentcast_id="rentcast-ky", latitude=38.2, longitude=-85.7, state="KY")
-        saved = property_data.model_copy(update={"id": "new-id"})
-        mock_property_repository.insert_property.return_value = saved
+        saved = Property(id="new-id", state="KY")
+        mock_property_repository.insert.return_value = saved
         mock_census_geocoder_client.get_county_fips.return_value = None
+        mock_representation_repository.insert.return_value = Representation(
+            id="rep-id", property_id="new-id", brokerage_id="brok-1", role="listing_agent"
+        )
 
-        actual = await subject.create_property(property_data, brokerage_id="brokerage-123")
+        result = await subject.create_property(
+            CreatePropertyRequest(role="listing_agent", state="KY", latitude=38.2, longitude=-85.7),
+            brokerage_id="brok-1",
+        )
 
         mock_arcgis_parcels_client.get_parcel.assert_not_awaited()
-        assert isinstance(actual, PropertyResponse)
-        assert actual.parcel_polygon is None
+        assert result.parcel_polygon is None
 
     @pytest.mark.asyncio
-    async def test_create_property_parcel_cache_hit_skips_upsert(
+    async def test_create_property_proceeds_when_census_geocoder_fails(
         self,
         subject: PropertyService,
-        mock_property_repository: AsyncMock,
+        mock_property_repository: MagicMock,
+        mock_representation_repository: MagicMock,
         mock_census_geocoder_client: AsyncMock,
-        mock_arcgis_parcels_client: AsyncMock,
-        mock_parcel_boundary_repository: MagicMock,
     ):
-        polygon = {
-            "type": "Polygon",
-            "coordinates": [[[-86.159, 39.769], [-86.158, 39.769], [-86.158, 39.768], [-86.159, 39.769]]],
-        }
-        existing_parcel = ParcelBoundary(nguid="urn:emergency:uid:gis:PCL:cached:test.in.gov", geometry=polygon)
-        property_data = PropertyInfo(rentcast_id="rentcast-in", latitude=39.7684, longitude=-86.1581, state="IN")
-        saved = property_data.model_copy(update={"id": "new-id"})
-        mock_property_repository.insert_property.return_value = saved
-        mock_census_geocoder_client.get_county_fips.return_value = None
-        mock_arcgis_parcels_client.get_parcel.return_value = {
-            "nguid": "urn:emergency:uid:gis:PCL:cached:test.in.gov",
-            "geometry": polygon,
-        }
-        mock_parcel_boundary_repository.get_by_nguid.return_value = existing_parcel
+        saved = Property(id="new-id")
+        mock_property_repository.insert.return_value = saved
+        mock_census_geocoder_client.get_county_fips.side_effect = Exception("network error")
+        mock_representation_repository.insert.return_value = Representation(
+            id="rep-id", property_id="new-id", brokerage_id="brok-1", role="listing_agent"
+        )
 
-        actual = await subject.create_property(property_data, brokerage_id="brokerage-123")
+        result = await subject.create_property(
+            CreatePropertyRequest(role="listing_agent", latitude=38.2, longitude=-85.7),
+            brokerage_id="brok-1",
+        )
 
-        mock_parcel_boundary_repository.upsert.assert_not_called()
-        assert isinstance(actual, PropertyResponse)
-        assert actual.parcel_polygon == polygon
+        assert isinstance(result, PropertyResponse)
+        assert result.county_polygon is None
 
     @pytest.mark.asyncio
-    async def test_create_property_continues_when_parcel_client_raises(
+    async def test_create_property_proceeds_when_parcel_client_raises(
         self,
         subject: PropertyService,
-        mock_property_repository: AsyncMock,
+        mock_property_repository: MagicMock,
+        mock_representation_repository: MagicMock,
         mock_census_geocoder_client: AsyncMock,
         mock_arcgis_parcels_client: AsyncMock,
     ):
-        property_data = PropertyInfo(rentcast_id="rentcast-in", latitude=39.7684, longitude=-86.1581, state="IN")
-        saved = property_data.model_copy(update={"id": "new-id"})
-        mock_property_repository.insert_property.return_value = saved
+        saved = Property(id="new-id", state="IN")
+        mock_property_repository.insert.return_value = saved
         mock_census_geocoder_client.get_county_fips.return_value = None
         mock_arcgis_parcels_client.get_parcel.side_effect = Exception("network error")
+        mock_representation_repository.insert.return_value = Representation(
+            id="rep-id", property_id="new-id", brokerage_id="brok-1", role="listing_agent"
+        )
 
-        actual = await subject.create_property(property_data, brokerage_id="brokerage-123")
+        result = await subject.create_property(
+            CreatePropertyRequest(role="listing_agent", state="IN", latitude=39.77, longitude=-86.16),
+            brokerage_id="brok-1",
+        )
 
-        assert isinstance(actual, PropertyResponse)
-        assert actual.parcel_polygon is None
+        assert result.parcel_polygon is None
 
     @pytest.mark.asyncio
-    async def test_create_property_raises_when_dual_agency_disallowed(
+    async def test_add_representation_raises_when_dual_agency_disallowed(
         self,
         subject: PropertyService,
+        mock_property_repository: MagicMock,
+        mock_representation_repository: MagicMock,
         mock_brokerage_repository: MagicMock,
     ):
+        mock_property_repository.get.return_value = Property(id="prop-1")
+        mock_representation_repository.count_opposite_role.return_value = 1
         mock_brokerage_repository.get_by_id.return_value = Brokerage(
-            id="brokerage-123", name="No Dual Agency Firm", allow_dual_agency=False
+            id="brok-1", name="No Dual Agency", allow_dual_agency=False
         )
-        property_data = PropertyInfo(is_listing_side=True, is_buyer_side=True)
 
         with pytest.raises(DualAgencyNotAllowedError):
-            await subject.create_property(property_data, brokerage_id="brokerage-123")
+            await subject.add_representation("prop-1", "buyers_agent", "brok-1")
 
     @pytest.mark.asyncio
-    async def test_create_property_allows_dual_agency_when_brokerage_permits(
+    async def test_add_representation_succeeds_when_brokerage_allows_dual_agency(
         self,
         subject: PropertyService,
+        mock_property_repository: MagicMock,
+        mock_representation_repository: MagicMock,
         mock_brokerage_repository: MagicMock,
-        mock_property_repository: AsyncMock,
-        mock_census_geocoder_client: AsyncMock,
     ):
+        mock_property_repository.get.return_value = Property(id="prop-1")
+        mock_representation_repository.count_opposite_role.return_value = 1
         mock_brokerage_repository.get_by_id.return_value = Brokerage(
-            id="brokerage-123", name="Dual Agency Firm", allow_dual_agency=True
+            id="brok-1", name="Dual Agency OK", allow_dual_agency=True
         )
-        property_data = PropertyInfo(is_listing_side=True, is_buyer_side=True, latitude=0.0, longitude=0.0)
-        saved = property_data.model_copy(update={"id": "new-id"})
-        mock_property_repository.insert_property.return_value = saved
-        mock_census_geocoder_client.get_county_fips.return_value = None
+        saved_rep = Representation(id="rep-2", property_id="prop-1", brokerage_id="brok-1", role="buyers_agent")
+        mock_representation_repository.insert.return_value = saved_rep
 
-        result = await subject.create_property(property_data, brokerage_id="brokerage-123")
+        result = await subject.add_representation("prop-1", "buyers_agent", "brok-1")
 
+        assert isinstance(result, PropertyResponse)
+        assert result.role == "buyers_agent"
+
+    @pytest.mark.asyncio
+    async def test_add_representation_raises_when_property_not_found(
+        self,
+        subject: PropertyService,
+        mock_property_repository: MagicMock,
+    ):
+        mock_property_repository.get.return_value = None
+
+        with pytest.raises(PropertyNotFoundError):
+            await subject.add_representation("nonexistent", "listing_agent", "brok-1")
+
+    @pytest.mark.asyncio
+    async def test_list_properties_returns_responses(
+        self,
+        subject: PropertyService,
+        mock_representation_repository: MagicMock,
+    ):
+        rep = Representation(id="rep-1", property_id="prop-1", brokerage_id="brok-1", role="listing_agent")
+        prop = Property(id="prop-1", city="Louisville")
+        mock_representation_repository.list_with_property.return_value = [(rep, prop)]
+
+        result = await subject.list_properties("brok-1")
+
+        assert len(result) == 1
+        assert isinstance(result[0], PropertyResponse)
+        assert result[0].representation_id == "rep-1"
+        assert result[0].role == "listing_agent"
+
+    @pytest.mark.asyncio
+    async def test_list_county_fips_delegates_to_repository(
+        self,
+        subject: PropertyService,
+        mock_property_repository: MagicMock,
+    ):
+        mock_property_repository.list_county_fips.return_value = ["21111", "18019"]
+
+        result = await subject.list_county_fips()
+
+        mock_property_repository.list_county_fips.assert_called_once()
+        assert result == ["21111", "18019"]
+
+    @pytest.mark.asyncio
+    async def test_append_document_returns_response_with_document(
+        self,
+        subject: PropertyService,
+        mock_property_repository: MagicMock,
+        mock_representation_repository: MagicMock,
+        mock_document_repository: MagicMock,
+        mock_document_service: AsyncMock,
+    ):
+        prop = Property(id="prop-1")
+        rep = Representation(id="rep-1", property_id="prop-1", brokerage_id="brok-1", role="listing_agent")
+        doc = Document(id="doc-1", property_id="prop-1", filename="contract.pdf")
+        mock_document_service.exists.return_value = True
+        mock_property_repository.get.return_value = prop
+        mock_representation_repository.list_with_property.return_value = [(rep, prop)]
+        mock_document_repository.get_by_property_id.return_value = [doc]
+
+        result = await subject.append_document("prop-1", DocumentInfo(id="doc-1", filename="contract.pdf"), "brok-1")
+
+        mock_document_repository.insert_many.assert_called_once()
+        inserted = mock_document_repository.insert_many.call_args[0][0]
+        assert inserted[0].id == "doc-1"
+        assert inserted[0].property_id == "prop-1"
+        assert isinstance(result, PropertyResponse)
+        assert any(d.id == "doc-1" for d in result.documents)
+
+    @pytest.mark.asyncio
+    async def test_append_document_raises_when_document_not_in_storage(
+        self,
+        subject: PropertyService,
+        mock_document_service: AsyncMock,
+    ):
+        mock_document_service.exists.return_value = False
+
+        with pytest.raises(DocumentNotFoundError):
+            await subject.append_document("prop-1", DocumentInfo(id="doc-1", filename="contract.pdf"), "brok-1")
+
+    @pytest.mark.asyncio
+    async def test_append_document_raises_when_property_not_found(
+        self,
+        subject: PropertyService,
+        mock_property_repository: MagicMock,
+        mock_document_service: AsyncMock,
+    ):
+        mock_document_service.exists.return_value = True
+        mock_property_repository.get.return_value = None
+
+        with pytest.raises(PropertyNotFoundError):
+            await subject.append_document("prop-1", DocumentInfo(id="doc-1", filename="contract.pdf"), "brok-1")
+
+    @pytest.mark.asyncio
+    async def test_append_document_raises_when_property_not_in_brokerage(
+        self,
+        subject: PropertyService,
+        mock_property_repository: MagicMock,
+        mock_representation_repository: MagicMock,
+        mock_document_service: AsyncMock,
+    ):
+        mock_document_service.exists.return_value = True
+        mock_property_repository.get.return_value = Property(id="prop-1")
+        mock_representation_repository.list_with_property.return_value = []
+
+        with pytest.raises(PropertyNotFoundError):
+            await subject.append_document("prop-1", DocumentInfo(id="doc-1", filename="contract.pdf"), "brok-1")
+
+    @pytest.mark.asyncio
+    async def test_remove_document_deletes_from_repo_and_storage(
+        self,
+        subject: PropertyService,
+        mock_property_repository: MagicMock,
+        mock_representation_repository: MagicMock,
+        mock_document_repository: MagicMock,
+        mock_document_service: AsyncMock,
+    ):
+        prop = Property(id="prop-1")
+        rep = Representation(id="rep-1", property_id="prop-1", brokerage_id="brok-1", role="listing_agent")
+        mock_property_repository.get.return_value = prop
+        mock_representation_repository.list_with_property.return_value = [(rep, prop)]
+        mock_document_repository.get_by_property_id.return_value = []
+
+        result = await subject.remove_document("prop-1", "doc-1", "brok-1")
+
+        mock_document_repository.delete.assert_called_once_with("doc-1")
+        mock_document_service.delete.assert_awaited_once_with("doc-1")
         assert isinstance(result, PropertyResponse)
 
     @pytest.mark.asyncio
-    async def test_create_property_allows_single_sided(
+    async def test_remove_document_raises_when_property_not_found(
         self,
         subject: PropertyService,
-        mock_brokerage_repository: MagicMock,
-        mock_property_repository: AsyncMock,
-        mock_census_geocoder_client: AsyncMock,
+        mock_property_repository: MagicMock,
     ):
-        mock_brokerage_repository.get_by_id.return_value = Brokerage(
-            id="brokerage-123", name="Firm", allow_dual_agency=False
-        )
-        property_data = PropertyInfo(is_listing_side=True, is_buyer_side=False, latitude=0.0, longitude=0.0)
-        saved = property_data.model_copy(update={"id": "new-id"})
-        mock_property_repository.insert_property.return_value = saved
-        mock_census_geocoder_client.get_county_fips.return_value = None
+        mock_property_repository.get.return_value = None
 
-        result = await subject.create_property(property_data, brokerage_id="brokerage-123")
+        with pytest.raises(PropertyNotFoundError):
+            await subject.remove_document("prop-1", "doc-1", "brok-1")
 
-        assert isinstance(result, PropertyResponse)
+    @pytest.mark.asyncio
+    async def test_remove_document_raises_when_property_not_in_brokerage(
+        self,
+        subject: PropertyService,
+        mock_property_repository: MagicMock,
+        mock_representation_repository: MagicMock,
+    ):
+        mock_property_repository.get.return_value = Property(id="prop-1")
+        mock_representation_repository.list_with_property.return_value = []
+
+        with pytest.raises(PropertyNotFoundError):
+            await subject.remove_document("prop-1", "doc-1", "brok-1")
 
     @pytest.fixture
     def mock_client(self):
-        mock = AsyncMock(spec=DefaultRentcast)
-        mock.property_records = AsyncMockWithValidateCall()
-        yield mock
+        return AsyncMock(spec=DefaultRentcast)
 
     @pytest.fixture
     def mock_property_repository(self):
-        mock = AsyncMock(spec=PropertyRepository)
-        yield mock
+        mock = MagicMock(spec=PropertyRepository)
+        mock.insert.return_value = Property(id="prop-id")
+        return mock
+
+    @pytest.fixture
+    def mock_representation_repository(self):
+        mock = MagicMock(spec=RepresentationRepository)
+        mock.count_opposite_role.return_value = 0
+        mock.insert.return_value = Representation(
+            id="rep-id", property_id="prop-id", brokerage_id="brok-1", role="listing_agent"
+        )
+        mock.list_with_property.return_value = []
+        return mock
+
+    @pytest.fixture
+    def mock_document_repository(self):
+        mock = MagicMock(spec=DocumentRepository)
+        mock.get_by_property_id.return_value = []
+        return mock
 
     @pytest.fixture
     def mock_document_service(self):
         mock = AsyncMock(spec=DocumentService)
-        yield mock
+        mock.exists.return_value = True
+        return mock
 
     @pytest.fixture
     def mock_census_geocoder_client(self):
-        yield AsyncMock(spec=CensusGeocoderClient)
+        mock = AsyncMock(spec=CensusGeocoderClient)
+        mock.get_county_fips.return_value = None
+        return mock
 
     @pytest.fixture
     def mock_tiger_web_client(self):
-        yield AsyncMock(spec=TigerWebClient)
+        return AsyncMock(spec=TigerWebClient)
 
     @pytest.fixture
     def mock_county_boundary_repository(self):
-        yield MagicMock(spec=CountyBoundaryRepository)
+        mock = MagicMock(spec=CountyBoundaryRepository)
+        mock.get_by_fips.return_value = None
+        return mock
 
     @pytest.fixture
     def mock_arcgis_parcels_client(self):
-        yield AsyncMock(spec=ArcGISParcelsClient)
+        mock = AsyncMock(spec=ArcGISParcelsClient)
+        mock.get_parcel.return_value = None
+        return mock
 
     @pytest.fixture
-    def mock_parcel_boundary_repository(self):
-        yield MagicMock(spec=ParcelBoundaryRepository)
+    def mock_parcel_repository(self):
+        mock = MagicMock(spec=ParcelRepository)
+        mock.get_by_property_id.return_value = None
+        mock.upsert.return_value = None
+        return mock
 
     @pytest.fixture
     def mock_brokerage_repository(self):
         mock = MagicMock(spec=BrokerageRepository)
-        mock.get_by_id.return_value = Brokerage(id="brokerage-123", name="Default Firm", allow_dual_agency=False)
-        yield mock
+        mock.get_by_id.return_value = Brokerage(id="brok-1", name="Test", allow_dual_agency=False)
+        return mock
 
     @pytest.fixture
     def subject(
         self,
-        test_container: Container,
+        test_container,
         mock_client: AsyncMock,
-        mock_property_repository: AsyncMock,
+        mock_property_repository: MagicMock,
+        mock_representation_repository: MagicMock,
+        mock_document_repository: MagicMock,
         mock_document_service: AsyncMock,
         mock_census_geocoder_client: AsyncMock,
         mock_tiger_web_client: AsyncMock,
         mock_county_boundary_repository: MagicMock,
         mock_arcgis_parcels_client: AsyncMock,
-        mock_parcel_boundary_repository: MagicMock,
+        mock_parcel_repository: MagicMock,
         mock_brokerage_repository: MagicMock,
     ):
         with test_container.override_providers(
             rentcast_client=mock_client,
             property_repository=mock_property_repository,
+            representation_repository=mock_representation_repository,
+            document_repository=mock_document_repository,
             document_service=mock_document_service,
             census_geocoder_client=mock_census_geocoder_client,
             tiger_web_client=mock_tiger_web_client,
             county_boundary_repository=mock_county_boundary_repository,
             arcgis_parcels_client=mock_arcgis_parcels_client,
-            parcel_boundary_repository=mock_parcel_boundary_repository,
+            parcel_repository=mock_parcel_repository,
             arcgis_parcels_supported_states={"IN"},
             brokerage_repository=mock_brokerage_repository,
         ):

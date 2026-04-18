@@ -4,8 +4,9 @@ import pytest
 from pymilvus.exceptions import MilvusException
 
 from backend.clients.openai import OpenAIClient
-from backend.models import ChatMessage, PropertyInfo
+from backend.models import ChatMessage, Document, Property
 from backend.repositories.chat_messages import ChatMessageRepository
+from backend.repositories.document import DocumentRepository
 from backend.repositories.document_embeddings import DocumentEmbeddingRepository
 from backend.repositories.properties import PropertyRepository
 from backend.services.chat import ChatService
@@ -14,9 +15,8 @@ from backend.services.chat import ChatService
 class TestChatService:
     @pytest.mark.asyncio
     async def test_prepare_chat_messages_saves_user_message(
-        self, subject, mock_chat_message_repository, mock_property_repository, mock_openai_client
+        self, subject, mock_chat_message_repository, mock_openai_client
     ):
-        mock_property_repository.get_property.return_value = PropertyInfo(id="prop-1", latitude=37.4, longitude=-122.0)
         mock_openai_client.create_embeddings.return_value = [0.1] * 1536
         mock_chat_message_repository.get_history.return_value = []
 
@@ -31,16 +31,14 @@ class TestChatService:
         self,
         subject,
         mock_chat_message_repository,
-        mock_property_repository,
+        mock_document_repository,
         mock_openai_client,
         mock_document_embedding_repository,
     ):
-        mock_property_repository.get_property.return_value = PropertyInfo(
-            id="prop-1",
-            latitude=37.4,
-            longitude=-122.0,
-            documents=[MagicMock(id="doc-1"), MagicMock(id="doc-2")],
-        )
+        mock_document_repository.get_by_property_id.return_value = [
+            Document(id="doc-1", property_id="prop-1", filename="a.pdf"),
+            Document(id="doc-2", property_id="prop-1", filename="b.pdf"),
+        ]
         mock_openai_client.create_embeddings.return_value = [0.1] * 1536
         mock_document_embedding_repository.query_embeddings.return_value = []
         mock_chat_message_repository.get_history.return_value = []
@@ -55,13 +53,11 @@ class TestChatService:
         self,
         subject,
         mock_chat_message_repository,
-        mock_property_repository,
+        mock_document_repository,
         mock_openai_client,
         mock_document_embedding_repository,
     ):
-        mock_property_repository.get_property.return_value = PropertyInfo(
-            id="prop-1", latitude=37.4, longitude=-122.0, documents=None
-        )
+        mock_document_repository.get_by_property_id.return_value = []
         mock_openai_client.create_embeddings.return_value = [0.1] * 1536
         mock_document_embedding_repository.query_embeddings.return_value = []
         mock_chat_message_repository.get_history.return_value = []
@@ -76,11 +72,9 @@ class TestChatService:
         self,
         subject,
         mock_chat_message_repository,
-        mock_property_repository,
         mock_openai_client,
         mock_document_embedding_repository,
     ):
-        mock_property_repository.get_property.return_value = PropertyInfo(id="prop-1", latitude=37.4, longitude=-122.0)
         mock_openai_client.create_embeddings.return_value = [0.1] * 1536
         mock_document_embedding_repository.query_embeddings.side_effect = MilvusException("connection refused")
 
@@ -137,13 +131,13 @@ class TestChatService:
         mock_chat_message_repository.get_history.assert_awaited_once_with("prop-1")
 
     def test_build_system_prompt_includes_rag_results(self, subject):
-        property_info = PropertyInfo(id="prop-1", formatted_address="123 Main St", city="Sellersburg", state="IN")
+        prop = Property(id="prop-1", address_line1="123 Main St", city="Sellersburg", state="IN")
         rag_results = [
             {"text": "The purchase agreement states a price of $300k."},
             {"text": "Closing date is May 1st."},
         ]
 
-        prompt = subject._build_system_prompt(property_info, rag_results)
+        prompt = subject._build_system_prompt(prop, rag_results)
 
         assert "Relevant Documents:" in prompt
         assert "The purchase agreement states a price of $300k." in prompt
@@ -151,16 +145,16 @@ class TestChatService:
         assert "123 Main St" in prompt
 
     def test_build_system_prompt_omits_relevant_documents_section_when_no_rag_results(self, subject):
-        property_info = PropertyInfo(id="prop-1", latitude=37.4, longitude=-122.0)
+        prop = Property(id="prop-1")
 
-        prompt = subject._build_system_prompt(property_info, [])
+        prompt = subject._build_system_prompt(prop, [])
 
         assert "Relevant Documents:" not in prompt
 
     @pytest.mark.parametrize(
         "property_kwargs,expected",
         [
-            ({"formatted_address": "123 Main St"}, "Address: 123 Main St"),
+            ({"address_line1": "123 Main St"}, "Address: 123 Main St"),
             ({"city": "Sellersburg", "state": "IN"}, "Location: Sellersburg, IN"),
             ({"property_type": "Single Family"}, "Type: Single Family"),
             ({"bedrooms": 3}, "Bedrooms: 3"),
@@ -171,39 +165,49 @@ class TestChatService:
         ],
     )
     def test_build_system_prompt_includes_property_fields(self, subject, property_kwargs, expected):
-        property_info = PropertyInfo(id="prop-1", **property_kwargs)
+        prop = Property(id="prop-1", **property_kwargs)
 
-        prompt = subject._build_system_prompt(property_info, [])
+        prompt = subject._build_system_prompt(prop, [])
 
         assert expected in prompt
 
     @pytest.fixture
     def mock_chat_message_repository(self):
-        yield AsyncMock(spec=ChatMessageRepository)
+        return AsyncMock(spec=ChatMessageRepository)
 
     @pytest.fixture
     def mock_property_repository(self):
-        yield AsyncMock(spec=PropertyRepository)
+        mock = MagicMock(spec=PropertyRepository)
+        mock.get.return_value = Property(id="prop-1")
+        return mock
+
+    @pytest.fixture
+    def mock_document_repository(self):
+        mock = MagicMock(spec=DocumentRepository)
+        mock.get_by_property_id.return_value = []
+        return mock
 
     @pytest.fixture
     def mock_document_embedding_repository(self):
-        yield AsyncMock(spec=DocumentEmbeddingRepository)
+        return AsyncMock(spec=DocumentEmbeddingRepository)
 
     @pytest.fixture
     def mock_openai_client(self):
-        yield AsyncMock(spec=OpenAIClient)
+        return AsyncMock(spec=OpenAIClient)
 
     @pytest.fixture
     def subject(
         self,
         mock_chat_message_repository,
         mock_property_repository,
+        mock_document_repository,
         mock_document_embedding_repository,
         mock_openai_client,
     ):
-        yield ChatService(
+        return ChatService(
             chat_message_repository=mock_chat_message_repository,
             property_repository=mock_property_repository,
+            document_repository=mock_document_repository,
             document_embedding_repository=mock_document_embedding_repository,
             openai_client=mock_openai_client,
             rag_top_k=3,

@@ -9,7 +9,7 @@ from sqlmodel import select
 
 from backend.container import Container
 from backend.main import create_app
-from backend.models import PropertyInfo, PropertyTaxCache
+from backend.models import CreatePropertyRequest, PropertyTaxCache
 from backend.schema import drop_document_embeddings_schema
 from tests.integration.conftest import make_jwt, seed_brokerage_and_user
 
@@ -49,7 +49,7 @@ class TestInternal:
         for _ in range(2):
             subject.post(
                 "/api/properties",
-                json=PropertyInfo(latitude=38.254, longitude=-85.759).model_dump(),
+                json=CreatePropertyRequest(role="listing_agent", latitude=38.254, longitude=-85.759).model_dump(),
             )
 
         response = subject.get("/api/internal/counties")

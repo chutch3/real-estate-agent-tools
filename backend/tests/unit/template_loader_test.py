@@ -2,7 +2,7 @@ import jinja2
 import pytest
 
 from backend.container import Container
-from backend.models import AgentInfo, PropertyInfo
+from backend.models import AgentInfo, Property
 from backend.template_loader import TEMPLATE_DIR, TemplateLoader
 
 
@@ -12,53 +12,43 @@ class TestTemplateLoader:
         assert actual == jinja_env.get_template("system_prompt.txt").render()
 
     def test_render_user_prompt(self, subject: TemplateLoader, jinja_env: jinja2.Environment):
-        actual_property_info = PropertyInfo(
-            formatted_address="123 Main St",
-        )
-        actual_agent_info = AgentInfo(
+        property_info = Property(address_line1="123 Main St")
+        agent_info = AgentInfo(
             agent_name="John Doe",
             agent_company="John Doe Real Estate",
             agent_contact="john.doe@example.com",
         )
 
         actual = subject.render_user_prompt(
-            property_info=actual_property_info,
-            agent_info=actual_agent_info,
+            property_info=property_info,
+            agent_info=agent_info,
             custom_template=None,
         )
         assert actual == jinja_env.get_template("post_prompt.txt").render(
-            **actual_property_info.model_dump(),
-            **actual_agent_info.model_dump(),
+            **property_info.model_dump(),
+            **agent_info.model_dump(),
         )
 
-    def test_render_user_prompt_with_custom_template(
-        self,
-        subject: TemplateLoader,
-    ):
-        actual_property_info = PropertyInfo(
-            formatted_address="123 Main St",
-        )
-        actual_agent_info = AgentInfo(
+    def test_render_user_prompt_with_custom_template(self, subject: TemplateLoader):
+        property_info = Property(address_line1="123 Main St")
+        agent_info = AgentInfo(
             agent_name="John Doe",
             agent_company="John Doe Real Estate",
             agent_contact="john.doe@example.com",
         )
-        custom_template = "Custom template: {{ formatted_address }}"
+        custom_template = "Custom template: {{ address_line1 }}"
 
         actual = subject.render_user_prompt(
-            property_info=actual_property_info,
-            agent_info=actual_agent_info,
+            property_info=property_info,
+            agent_info=agent_info,
             custom_template=custom_template,
         )
         assert actual == jinja2.Environment().from_string(custom_template).render(
-            **actual_property_info.model_dump(),
-            **actual_agent_info.model_dump(),
+            **property_info.model_dump(),
+            **agent_info.model_dump(),
         )
 
-    def test_read_user_prompt(
-        self,
-        subject: TemplateLoader,
-    ):
+    def test_read_user_prompt(self, subject: TemplateLoader):
         actual = subject.read_user_prompt()
         with open(f"{TEMPLATE_DIR}/post_prompt.txt") as file:
             assert actual == file.read()

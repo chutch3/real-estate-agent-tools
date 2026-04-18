@@ -2,76 +2,25 @@ from collections.abc import Callable
 
 from sqlmodel import distinct, select
 
-from backend.exceptions import DocumentNotFoundError, PropertyNotFoundError
-from backend.models import DocumentInfo, PropertyInfo
+from backend.models import Property
 
 
 class PropertyRepository:
     def __init__(self, session_factory: Callable) -> None:
         self._session_factory = session_factory
 
-    async def insert_property(self, property_data: PropertyInfo) -> PropertyInfo:
+    def insert(self, property_data: Property) -> Property:
         with self._session_factory() as session:
             session.add(property_data)
             session.commit()
             session.refresh(property_data)
             return property_data
 
-    async def list_all_properties(self) -> list[PropertyInfo]:
+    def get(self, property_id: str) -> Property | None:
         with self._session_factory() as session:
-            return list(session.exec(select(PropertyInfo)).all())
+            return session.get(Property, property_id)
 
-    async def list_properties(self, brokerage_id: str) -> list[PropertyInfo]:
+    def list_county_fips(self) -> list[str]:
         with self._session_factory() as session:
-            return list(session.exec(select(PropertyInfo).where(PropertyInfo.brokerage_id == brokerage_id)).all())
-
-    async def list_county_fips(self) -> list[str]:
-        with self._session_factory() as session:
-            rows = session.exec(
-                select(distinct(PropertyInfo.county_fips)).where(PropertyInfo.county_fips.is_not(None))
-            ).all()
+            rows = session.exec(select(distinct(Property.county_fips)).where(Property.county_fips.is_not(None))).all()
             return list(rows)
-
-    async def get_property(self, property_id: str) -> PropertyInfo | None:
-        with self._session_factory() as session:
-            return session.get(PropertyInfo, property_id)
-
-    async def append_document(self, property_id: str, document: DocumentInfo, brokerage_id: str) -> PropertyInfo:
-        with self._session_factory() as session:
-            prop = session.get(PropertyInfo, property_id)
-            if prop is None or prop.brokerage_id != brokerage_id:
-                raise PropertyNotFoundError(f"Property {property_id} not found")
-            prop.documents = (prop.documents or []) + [document]
-            session.add(prop)
-            session.commit()
-            session.refresh(prop)
-            return prop
-
-    async def update_parcel_nguid(self, property_id: str, parcel_nguid: str) -> None:
-        with self._session_factory() as session:
-            prop = session.get(PropertyInfo, property_id)
-            prop.parcel_nguid = parcel_nguid
-            session.add(prop)
-            session.commit()
-
-    async def update_state_parcel_id(self, property_id: str, state_parcel_id: str) -> None:
-        with self._session_factory() as session:
-            prop = session.get(PropertyInfo, property_id)
-            prop.state_parcel_id = state_parcel_id
-            session.add(prop)
-            session.commit()
-
-    async def remove_document(self, property_id: str, doc_id: str, brokerage_id: str) -> PropertyInfo:
-        with self._session_factory() as session:
-            prop = session.get(PropertyInfo, property_id)
-            if prop is None or prop.brokerage_id != brokerage_id:
-                raise PropertyNotFoundError(f"Property {property_id} not found")
-            documents = prop.documents or []
-            updated = [d for d in documents if d.id != doc_id]
-            if len(updated) == len(documents):
-                raise DocumentNotFoundError(f"Document {doc_id} not found on property {property_id}")
-            prop.documents = updated
-            session.add(prop)
-            session.commit()
-            session.refresh(prop)
-            return prop

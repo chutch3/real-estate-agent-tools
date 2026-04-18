@@ -16,13 +16,15 @@ from backend.post_coordinator import PostCoordinator
 from backend.repositories.brokerage import BrokerageRepository
 from backend.repositories.chat_messages import ChatMessageRepository
 from backend.repositories.county_boundary import CountyBoundaryRepository
+from backend.repositories.document import DocumentRepository
 from backend.repositories.document_embeddings import DocumentEmbeddingRepository
 from backend.repositories.document_storage import DocumentStorageRepository
 from backend.repositories.layer import LayerRepository
 from backend.repositories.net_sheet import NetSheetRepository
-from backend.repositories.parcel_boundary import ParcelBoundaryRepository
+from backend.repositories.parcel import ParcelRepository
 from backend.repositories.properties import PropertyRepository
 from backend.repositories.property_tax_cache import PropertyTaxCacheRepository
+from backend.repositories.representation import RepresentationRepository
 from backend.repositories.user import UserRepository
 from backend.services.chat import ChatService
 from backend.services.document import DocumentService
@@ -149,13 +151,23 @@ class Container(containers.DeclarativeContainer):
         session_factory=db.provided.session,
     )
 
-    county_boundary_repository = providers.Singleton(
-        CountyBoundaryRepository,
+    parcel_repository = providers.Singleton(
+        ParcelRepository,
         session_factory=db.provided.session,
     )
 
-    parcel_boundary_repository = providers.Singleton(
-        ParcelBoundaryRepository,
+    representation_repository = providers.Singleton(
+        RepresentationRepository,
+        session_factory=db.provided.session,
+    )
+
+    document_repository = providers.Singleton(
+        DocumentRepository,
+        session_factory=db.provided.session,
+    )
+
+    county_boundary_repository = providers.Singleton(
+        CountyBoundaryRepository,
         session_factory=db.provided.session,
     )
 
@@ -178,12 +190,14 @@ class Container(containers.DeclarativeContainer):
         PropertyService,
         client=rentcast_client,
         property_repository=property_repository,
+        representation_repository=representation_repository,
+        document_repository=document_repository,
         document_service=document_service,
         census_geocoder_client=census_geocoder_client,
         tiger_web_client=tiger_web_client,
         county_boundary_repository=county_boundary_repository,
         arcgis_parcels_client=arcgis_parcels_client,
-        parcel_boundary_repository=parcel_boundary_repository,
+        parcel_repository=parcel_repository,
         arcgis_parcels_supported_states=arcgis_parcels_supported_states,
         brokerage_repository=brokerage_repository,
     )
@@ -209,6 +223,7 @@ class Container(containers.DeclarativeContainer):
         ChatService,
         chat_message_repository=chat_message_repository,
         property_repository=property_repository,
+        document_repository=document_repository,
         document_embedding_repository=document_embedding_repository,
         openai_client=openai_client,
         rag_top_k=config.rag.top_k,
@@ -239,6 +254,7 @@ class Container(containers.DeclarativeContainer):
     net_sheet_service = providers.Singleton(
         NetSheetService,
         net_sheet_repository=net_sheet_repository,
-        property_repository=property_repository,
+        representation_repository=representation_repository,
+        parcel_repository=parcel_repository,
         property_tax_cache_repository=property_tax_cache_repository,
     )
