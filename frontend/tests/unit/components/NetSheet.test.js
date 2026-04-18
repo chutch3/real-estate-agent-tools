@@ -13,12 +13,13 @@ jest.mock('../../../src/apiClient', () => ({
 
 const mockProperty = {
   id: 'prop-1',
+  representation_id: 'rep-1',
   formatted_address: '123 Main St, Jeffersonville IN 47130',
 };
 
 const mockEmptySheet = {
   id: 'sheet-1',
-  property_id: 'prop-1',
+  representation_id: 'rep-1',
   scenarios: [],
 };
 
@@ -67,10 +68,10 @@ describe('NetSheet', () => {
     });
   });
 
-  it('calls getNetSheet on mount with the property id', async () => {
+  it('calls getNetSheet on mount with the representation id', async () => {
     renderWithProperty(mockProperty);
     await waitFor(() => {
-      expect(apiClient.getNetSheet).toHaveBeenCalledWith('prop-1');
+      expect(apiClient.getNetSheet).toHaveBeenCalledWith('rep-1');
     });
   });
 

@@ -128,13 +128,13 @@ function HomeScreen() {
                       {property.formatted_address}
                     </p>
                     <div className="flex items-center gap-3 mt-1">
-                      {property.is_listing_side && (
+                      {property.role === "listing_agent" && (
                         <span className="flex items-center gap-1 font-sans text-xs text-bronze-500">
                           <Home size={10} strokeWidth={1.5} />
                           Listing
                         </span>
                       )}
-                      {property.is_buyer_side && (
+                      {property.role === "buyers_agent" && (
                         <span className="flex items-center gap-1 font-sans text-xs text-ink-400">
                           <Search size={10} strokeWidth={1.5} />
                           Buyer

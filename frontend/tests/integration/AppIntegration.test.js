@@ -55,21 +55,21 @@ describe('App Integration', () => {
   const mockProperties = [
     {
       id: 'prop-1',
+      representation_id: 'rep-1',
       rentcast_id: 'rc-1',
       latitude: 37.4225,
       longitude: -122.0847,
       formatted_address: '1600 Amphitheatre Pkwy, Mountain View, CA 94043',
-      is_listing_side: true,
-      is_buyer_side: false,
+      role: 'listing_agent',
     },
     {
       id: 'prop-2',
+      representation_id: 'rep-2',
       rentcast_id: 'rc-2',
       latitude: 37.3382,
       longitude: -121.8863,
       formatted_address: '1 Infinite Loop, Cupertino, CA 95014',
-      is_listing_side: false,
-      is_buyer_side: true,
+      role: 'buyers_agent',
     },
   ];
 
@@ -77,7 +77,7 @@ describe('App Integration', () => {
     window.history.pushState({}, '', '/');
     apiClient.getMe.mockResolvedValue(_AUTHENTICATED_USER);
     apiClient.listProperties.mockResolvedValue(mockProperties);
-    apiClient.getNetSheet.mockResolvedValue({ id: 'sheet-1', property_id: 'prop-1', scenarios: [] });
+    apiClient.getNetSheet.mockResolvedValue({ id: 'sheet-1', representation_id: 'rep-1', scenarios: [] });
     useLayers.mockReturnValue({
       groups: [],
       isActive: jest.fn().mockReturnValue(false),

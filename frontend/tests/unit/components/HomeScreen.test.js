@@ -10,11 +10,11 @@ jest.mock('../../../src/components/PropertyMap', () => jest.fn(() => <div data-t
 
 const mockProperty = {
   id: 'prop-1',
+  representation_id: 'rep-1',
   formatted_address: '1600 Amphitheatre Pkwy, Mountain View, CA 94043',
   latitude: 37.4225,
   longitude: -122.0847,
-  is_listing_side: true,
-  is_buyer_side: false,
+  role: 'listing_agent',
   documents: [
     { id: 'doc-1', filename: 'listing.pdf' },
   ],
@@ -22,11 +22,11 @@ const mockProperty = {
 
 const mockBuyerProperty = {
   id: 'prop-2',
+  representation_id: 'rep-2',
   formatted_address: '1 Infinite Loop, Cupertino, CA 95014',
   latitude: 37.3382,
   longitude: -121.8863,
-  is_listing_side: false,
-  is_buyer_side: true,
+  role: 'buyers_agent',
   documents: [],
 };
 

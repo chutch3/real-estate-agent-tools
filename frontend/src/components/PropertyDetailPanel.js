@@ -8,6 +8,7 @@ import {
   Star,
   Loader2,
   Trash2,
+  Calculator,
 } from "lucide-react";
 
 function PropertyDetailPanel({
@@ -118,11 +119,12 @@ function PropertyDetailPanel({
                   <Sparkles size={13} strokeWidth={2} />
                   Generate
                 </button>
-                {property.is_listing_side && (
+                {property.role === "listing_agent" && (
                   <button
                     onClick={() => onNetSheet(property)}
                     className="w-full py-2.5 px-4 border border-linen-300 hover:border-bronze-400 text-ink-700 hover:text-bronze-600 font-sans text-sm rounded-md transition-colors flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-bronze-300"
                   >
+                    <Calculator size={13} strokeWidth={2} />
                     Net Sheet
                   </button>
                 )}

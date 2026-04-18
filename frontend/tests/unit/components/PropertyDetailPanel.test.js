@@ -179,7 +179,7 @@ describe('PropertyDetailPanel', () => {
   it('renders a Net Sheet button when property is on the listing side', () => {
     render(
       <PropertyDetailPanel
-        property={{ ...mockProperty, is_listing_side: true }}
+        property={{ ...mockProperty, role: 'listing_agent' }}
         onClose={jest.fn()}
         onChat={jest.fn()}
         onGeneratePost={jest.fn()}
@@ -193,7 +193,7 @@ describe('PropertyDetailPanel', () => {
   it('does not render a Net Sheet button when property is not on the listing side', () => {
     render(
       <PropertyDetailPanel
-        property={{ ...mockProperty, is_listing_side: false }}
+        property={{ ...mockProperty, role: 'buyers_agent' }}
         onClose={jest.fn()}
         onChat={jest.fn()}
         onGeneratePost={jest.fn()}
@@ -206,9 +206,10 @@ describe('PropertyDetailPanel', () => {
 
   it('calls onNetSheet with the property when Net Sheet is clicked', () => {
     const onNetSheet = jest.fn();
+    const listingProperty = { ...mockProperty, role: 'listing_agent' };
     render(
       <PropertyDetailPanel
-        property={{ ...mockProperty, is_listing_side: true }}
+        property={listingProperty}
         onClose={jest.fn()}
         onChat={jest.fn()}
         onGeneratePost={jest.fn()}
@@ -217,7 +218,7 @@ describe('PropertyDetailPanel', () => {
       />
     );
     fireEvent.click(screen.getByRole('button', { name: /net sheet/i }));
-    expect(onNetSheet).toHaveBeenCalledWith({ ...mockProperty, is_listing_side: true });
+    expect(onNetSheet).toHaveBeenCalledWith(listingProperty);
   });
 
   it('calls onClose when the panel is dismissed', () => {

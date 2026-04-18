@@ -16,17 +16,17 @@ function NetSheet() {
   useEffect(() => {
     if (!property) return;
     apiClient
-      .getNetSheet(property.id)
+      .getNetSheet(property.representation_id)
       .then(setSheet)
       .catch(() => setError("Failed to load net sheet."))
       .finally(() => setIsLoading(false));
-  }, [property?.id]);
+  }, [property?.representation_id]);
 
   const handleAddScenario = async () => {
     setError(null);
     const count = sheet?.scenarios?.length ?? 0;
     try {
-      const updated = await apiClient.addScenario(property.id, {
+      const updated = await apiClient.addScenario(property.representation_id, {
         name: `Scenario ${count + 1}`,
       });
       setSheet(updated);
@@ -39,7 +39,7 @@ function NetSheet() {
     setError(null);
     try {
       const updated = await apiClient.updateScenario(
-        property.id,
+        property.representation_id,
         scenarioId,
         updates,
       );
@@ -52,7 +52,10 @@ function NetSheet() {
   const handleDeleteScenario = async (scenarioId) => {
     setError(null);
     try {
-      const updated = await apiClient.deleteScenario(property.id, scenarioId);
+      const updated = await apiClient.deleteScenario(
+        property.representation_id,
+        scenarioId,
+      );
       setSheet(updated);
     } catch {
       setError("Failed to delete scenario.");

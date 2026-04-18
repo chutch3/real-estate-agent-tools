@@ -186,32 +186,32 @@ class ApiClient {
     }
   }
 
-  async getNetSheet(propertyId) {
+  async getNetSheet(representationId) {
     const response = await this.client.get(
-      `/properties/${propertyId}/net-sheet`,
+      `/representations/${representationId}/net-sheet`,
     );
     return response.data;
   }
 
-  async addScenario(propertyId, scenario) {
+  async addScenario(representationId, scenario) {
     const response = await this.client.post(
-      `/properties/${propertyId}/net-sheet/scenarios`,
+      `/representations/${representationId}/net-sheet/scenarios`,
       scenario,
     );
     return response.data;
   }
 
-  async updateScenario(propertyId, scenarioId, updates) {
+  async updateScenario(representationId, scenarioId, updates) {
     const response = await this.client.patch(
-      `/properties/${propertyId}/net-sheet/scenarios/${scenarioId}`,
+      `/representations/${representationId}/net-sheet/scenarios/${scenarioId}`,
       updates,
     );
     return response.data;
   }
 
-  async deleteScenario(propertyId, scenarioId) {
+  async deleteScenario(representationId, scenarioId) {
     const response = await this.client.delete(
-      `/properties/${propertyId}/net-sheet/scenarios/${scenarioId}`,
+      `/representations/${representationId}/net-sheet/scenarios/${scenarioId}`,
     );
     return response.data;
   }

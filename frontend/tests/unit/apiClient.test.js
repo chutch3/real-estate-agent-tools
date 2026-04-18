@@ -184,27 +184,27 @@ describe('ApiClient', () => {
   });
 
   describe('getNetSheet', () => {
-    it('calls GET /properties/:id/net-sheet and returns the data', async () => {
-      const sheet = { id: 'sheet-1', property_id: 'prop-1', scenarios: [] };
+    it('calls GET /representations/:id/net-sheet and returns the data', async () => {
+      const sheet = { id: 'sheet-1', representation_id: 'rep-1', scenarios: [] };
       mockAxiosInstance.get.mockResolvedValue({ data: sheet });
 
-      const result = await subject.getNetSheet('prop-1');
+      const result = await subject.getNetSheet('rep-1');
 
-      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/properties/prop-1/net-sheet');
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/representations/rep-1/net-sheet');
       expect(result).toEqual(sheet);
     });
   });
 
   describe('addScenario', () => {
-    it('calls POST /properties/:id/net-sheet/scenarios and returns the updated sheet', async () => {
+    it('calls POST /representations/:id/net-sheet/scenarios and returns the updated sheet', async () => {
       const scenario = { name: 'Scenario 1', sale_price: 350000 };
-      const updatedSheet = { id: 'sheet-1', property_id: 'prop-1', scenarios: [{ id: 's-1', ...scenario }] };
+      const updatedSheet = { id: 'sheet-1', representation_id: 'rep-1', scenarios: [{ id: 's-1', ...scenario }] };
       mockAxiosInstance.post.mockResolvedValue({ data: updatedSheet });
 
-      const result = await subject.addScenario('prop-1', scenario);
+      const result = await subject.addScenario('rep-1', scenario);
 
       expect(mockAxiosInstance.post).toHaveBeenCalledWith(
-        '/properties/prop-1/net-sheet/scenarios',
+        '/representations/rep-1/net-sheet/scenarios',
         scenario,
       );
       expect(result).toEqual(updatedSheet);
@@ -212,15 +212,15 @@ describe('ApiClient', () => {
   });
 
   describe('updateScenario', () => {
-    it('calls PATCH /properties/:id/net-sheet/scenarios/:sid and returns the updated sheet', async () => {
+    it('calls PATCH /representations/:id/net-sheet/scenarios/:sid and returns the updated sheet', async () => {
       const updates = { sale_price: 345000 };
-      const updatedSheet = { id: 'sheet-1', property_id: 'prop-1', scenarios: [{ id: 's-1', sale_price: 345000 }] };
+      const updatedSheet = { id: 'sheet-1', representation_id: 'rep-1', scenarios: [{ id: 's-1', sale_price: 345000 }] };
       mockAxiosInstance.patch = jest.fn().mockResolvedValue({ data: updatedSheet });
 
-      const result = await subject.updateScenario('prop-1', 's-1', updates);
+      const result = await subject.updateScenario('rep-1', 's-1', updates);
 
       expect(mockAxiosInstance.patch).toHaveBeenCalledWith(
-        '/properties/prop-1/net-sheet/scenarios/s-1',
+        '/representations/rep-1/net-sheet/scenarios/s-1',
         updates,
       );
       expect(result).toEqual(updatedSheet);
@@ -228,14 +228,14 @@ describe('ApiClient', () => {
   });
 
   describe('deleteScenario', () => {
-    it('calls DELETE /properties/:id/net-sheet/scenarios/:sid and returns the updated sheet', async () => {
-      const updatedSheet = { id: 'sheet-1', property_id: 'prop-1', scenarios: [] };
+    it('calls DELETE /representations/:id/net-sheet/scenarios/:sid and returns the updated sheet', async () => {
+      const updatedSheet = { id: 'sheet-1', representation_id: 'rep-1', scenarios: [] };
       mockAxiosInstance.delete = jest.fn().mockResolvedValue({ data: updatedSheet });
 
-      const result = await subject.deleteScenario('prop-1', 's-1');
+      const result = await subject.deleteScenario('rep-1', 's-1');
 
       expect(mockAxiosInstance.delete).toHaveBeenCalledWith(
-        '/properties/prop-1/net-sheet/scenarios/s-1',
+        '/representations/rep-1/net-sheet/scenarios/s-1',
       );
       expect(result).toEqual(updatedSheet);
     });
