@@ -1,6 +1,5 @@
 import logging
 from http import HTTPStatus
-from urllib.parse import unquote_plus
 
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, HTTPException
@@ -12,7 +11,7 @@ from backend.exceptions import (
     DualAgencyNotAllowedError,
     PropertyNotFoundError,
 )
-from backend.models import DocumentInfo, PropertyInfo, User
+from backend.models import CreatePropertyRequest, CreateRepresentationRequest, DocumentInfo, User
 from backend.services.property import PropertyService
 
 router = APIRouter()
@@ -28,34 +27,16 @@ async def list_properties(
     return await property_service.list_properties(brokerage_id=current_user.brokerage_id)
 
 
-@router.get("/properties", status_code=HTTPStatus.OK)
-@inject
-async def search_properties(
-    address: str,
-    property_service: PropertyService = Depends(Provide[Container.property_service]),
-):
-    try:
-        return await property_service.search_property(address=unquote_plus(address))
-    except PropertyNotFoundError:
-        raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail="Property not found")
-    except Exception:
-        logger.exception("Error searching property")
-        raise HTTPException(
-            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
-            detail="Unable to get property details",
-        )
-
-
 @router.post("/properties", status_code=HTTPStatus.CREATED)
 @inject
 async def create_property(
-    property_data: PropertyInfo,
+    request: CreatePropertyRequest,
     current_user: User = Depends(get_current_user),
     property_service: PropertyService = Depends(Provide[Container.property_service]),
 ):
     try:
         return await property_service.create_property(
-            property_data=property_data,
+            request=request,
             brokerage_id=current_user.brokerage_id,
         )
     except DualAgencyNotAllowedError:
@@ -70,6 +51,29 @@ async def create_property(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error creating property: {str(e)}")
+
+
+@router.post("/properties/{property_id}/representations", status_code=HTTPStatus.CREATED)
+@inject
+async def add_representation(
+    property_id: str,
+    request: CreateRepresentationRequest,
+    current_user: User = Depends(get_current_user),
+    property_service: PropertyService = Depends(Provide[Container.property_service]),
+):
+    try:
+        return await property_service.add_representation(
+            property_id=property_id,
+            role=request.role,
+            brokerage_id=current_user.brokerage_id,
+        )
+    except PropertyNotFoundError:
+        raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail="Property not found")
+    except DualAgencyNotAllowedError:
+        raise HTTPException(
+            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+            detail="Dual agency is not permitted for this brokerage",
+        )
 
 
 @router.delete("/properties/{property_id}/documents/{doc_id}", status_code=HTTPStatus.OK)

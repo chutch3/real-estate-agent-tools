@@ -1,6 +1,6 @@
 import jinja2
 
-from backend.models import AgentInfo, PropertyInfo
+from backend.models import AgentInfo, Property
 
 TEMPLATE_DIR = "backend/templates"
 
@@ -11,7 +11,7 @@ class TemplateLoader:
 
     def render_user_prompt(
         self,
-        property_info: PropertyInfo,
+        property_info: Property,
         agent_info: AgentInfo,
         custom_template: str | None = None,
     ) -> str | None:

@@ -1,8 +1,8 @@
 from polyfactory.factories.pydantic_factory import ModelFactory
 from polyfactory.pytest_plugin import register_fixture
 
-from backend.models import PropertyInfo
+from backend.models import Property
 
 
 @register_fixture
-class PropertyInfoFactory(ModelFactory[PropertyInfo]): ...
+class PropertyFactory(ModelFactory[Property]): ...

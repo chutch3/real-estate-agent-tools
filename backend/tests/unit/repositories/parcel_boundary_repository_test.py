@@ -2,8 +2,8 @@ import pytest
 
 from backend.container import Container
 from backend.database import Database
-from backend.models import ParcelBoundary
-from backend.repositories.parcel_boundary import ParcelBoundaryRepository
+from backend.models import Parcel
+from backend.repositories.parcel import ParcelRepository
 
 _POLYGON = {
     "type": "Polygon",
@@ -19,22 +19,22 @@ _POLYGON = {
 }
 
 
-class TestParcelBoundaryRepository:
-    def test_get_by_nguid_returns_none_when_not_found(self, subject: ParcelBoundaryRepository):
+class TestParcelRepository:
+    def test_get_by_nguid_returns_none_when_not_found(self, subject: ParcelRepository):
         result = subject.get_by_nguid("urn:emergency:uid:gis:PCL:nonexistent")
 
         assert result is None
 
-    def test_upsert_stores_boundary(self, subject: ParcelBoundaryRepository):
-        boundary = ParcelBoundary(nguid="urn:emergency:uid:gis:PCL:test-nguid", geometry=_POLYGON)
+    def test_upsert_stores_parcel(self, subject: ParcelRepository):
+        parcel = Parcel(nguid="urn:emergency:uid:gis:PCL:test-nguid", geometry=_POLYGON)
 
-        result = subject.upsert(boundary)
+        result = subject.upsert(parcel)
 
         assert result.nguid == "urn:emergency:uid:gis:PCL:test-nguid"
         assert result.geometry == _POLYGON
 
-    def test_get_by_nguid_returns_stored_boundary(self, subject: ParcelBoundaryRepository):
-        subject.upsert(ParcelBoundary(nguid="urn:emergency:uid:gis:PCL:test-nguid", geometry=_POLYGON))
+    def test_get_by_nguid_returns_stored_parcel(self, subject: ParcelRepository):
+        subject.upsert(Parcel(nguid="urn:emergency:uid:gis:PCL:test-nguid", geometry=_POLYGON))
 
         result = subject.get_by_nguid("urn:emergency:uid:gis:PCL:test-nguid")
 
@@ -42,17 +42,30 @@ class TestParcelBoundaryRepository:
         assert result.nguid == "urn:emergency:uid:gis:PCL:test-nguid"
         assert result.geometry == _POLYGON
 
-    def test_upsert_updates_existing_boundary(self, subject: ParcelBoundaryRepository):
-        subject.upsert(ParcelBoundary(nguid="urn:emergency:uid:gis:PCL:test-nguid", geometry=_POLYGON))
+    def test_upsert_updates_existing_parcel(self, subject: ParcelRepository):
+        subject.upsert(Parcel(nguid="urn:emergency:uid:gis:PCL:test-nguid", geometry=_POLYGON))
         updated_polygon = {
             "type": "Polygon",
             "coordinates": [[[-86.2, 39.8], [-86.1, 39.8], [-86.1, 39.7], [-86.2, 39.7], [-86.2, 39.8]]],
         }
 
-        result = subject.upsert(ParcelBoundary(nguid="urn:emergency:uid:gis:PCL:test-nguid", geometry=updated_polygon))
+        result = subject.upsert(Parcel(nguid="urn:emergency:uid:gis:PCL:test-nguid", geometry=updated_polygon))
 
         assert result.geometry == updated_polygon
         assert subject.get_by_nguid("urn:emergency:uid:gis:PCL:test-nguid").geometry == updated_polygon
+
+    def test_get_by_property_id_returns_parcel(self, subject: ParcelRepository):
+        subject.upsert(Parcel(nguid="test-nguid", property_id="prop-1", state_parcel_id="123", geometry=_POLYGON))
+
+        result = subject.get_by_property_id("prop-1")
+
+        assert result is not None
+        assert result.state_parcel_id == "123"
+
+    def test_get_by_property_id_returns_none_when_not_found(self, subject: ParcelRepository):
+        result = subject.get_by_property_id("nonexistent")
+
+        assert result is None
 
     @pytest.fixture
     def db_url(self, tmp_path) -> str:
@@ -64,5 +77,5 @@ class TestParcelBoundaryRepository:
         return test_container.db()
 
     @pytest.fixture
-    def subject(self, test_container: Container, db: Database) -> ParcelBoundaryRepository:
-        return test_container.parcel_boundary_repository()
+    def subject(self, test_container: Container, db: Database) -> ParcelRepository:
+        return test_container.parcel_repository()

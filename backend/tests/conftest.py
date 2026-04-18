@@ -9,7 +9,7 @@ import pytest
 
 from backend.container import Container
 from tests.factories import (
-    PropertyInfoFactory,  # noqa: F401 — registers property_info_factory fixture
+    PropertyFactory,  # noqa: F401 — registers property_factory fixture
 )
 
 COMPOSE_FILE = Path(__file__).parent / "docker-compose.yml"

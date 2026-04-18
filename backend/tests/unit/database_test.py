@@ -3,7 +3,7 @@ from sqlalchemy import create_engine, inspect
 from sqlmodel import Session, select
 
 from backend.database import Database
-from backend.models import PropertyInfo
+from backend.models import Property
 
 
 class TestDatabase:
@@ -12,7 +12,7 @@ class TestDatabase:
             assert isinstance(session, Session)
 
     def test_session_rollback_on_exception(self, subject: Database):
-        property_data = PropertyInfo(id="rollback-test")
+        property_data = Property(id="rollback-test")
         try:
             with subject.session() as session:
                 session.add(property_data)
@@ -21,14 +21,14 @@ class TestDatabase:
             pass
 
         with subject.session() as session:
-            result = session.exec(select(PropertyInfo)).first()
+            result = session.exec(select(Property)).first()
             assert result is None
 
     def test_creates_tables_on_init(self, db_url: str):
         Database(url=db_url)
         engine = create_engine(db_url)
         inspector = inspect(engine)
-        assert "property_info" in inspector.get_table_names()
+        assert "property" in inspector.get_table_names()
 
     @pytest.fixture
     def db_url(self, tmp_path) -> str:

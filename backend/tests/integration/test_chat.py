@@ -10,7 +10,7 @@ from werkzeug.wrappers import Response as WerkzeugResponse
 
 from backend.container import Container
 from backend.main import create_app
-from backend.models import DocumentInfo, PropertyInfo
+from backend.models import CreatePropertyRequest, DocumentInfo
 from backend.schema import drop_document_embeddings_schema
 from tests.integration.conftest import make_jwt, seed_brokerage_and_user
 
@@ -33,7 +33,8 @@ class TestChat:
         )
         httpserver.expect_request("/v1/chat/completions").respond_with_data(sse_body, content_type="text/event-stream")
 
-        property_data = PropertyInfo(
+        property_data = CreatePropertyRequest(
+            role="listing_agent",
             latitude=37.4225103,
             longitude=-122.0847089,
         )
@@ -73,7 +74,8 @@ class TestChat:
         )
         doc_id = upload_response.json()["id"]
 
-        property_data = PropertyInfo(
+        property_data = CreatePropertyRequest(
+            role="listing_agent",
             latitude=37.4225103,
             longitude=-122.0847089,
             documents=[DocumentInfo(id=doc_id, filename="mls_sheet.pdf")],
@@ -113,7 +115,7 @@ class TestChat:
             }
         )
 
-        property_data = PropertyInfo(latitude=37.4225103, longitude=-122.0847089)
+        property_data = CreatePropertyRequest(role="listing_agent", latitude=37.4225103, longitude=-122.0847089)
         create_response = subject.post("/api/properties", json=property_data.model_dump())
         property_id = create_response.json()["id"]
 
