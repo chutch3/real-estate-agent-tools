@@ -2,11 +2,35 @@ import asyncio
 import functools
 import io
 import logging
+from typing import TypedDict
 
 from PIL import Image
 
 from backend.exceptions import LayerNotFoundError
 from backend.repositories.layer import LayerRepository
+
+
+class CategoryResponse(TypedDict):
+    id: str
+    label: str
+    available: bool
+    unavailable_reason: str | None
+    date_from: str | None
+    date_to: str | None
+    record_count: int
+    bbox: list[float] | None
+    tile_zoom: int | None
+
+
+class GroupResponse(TypedDict):
+    id: str
+    label: str
+    categories: list[CategoryResponse]
+
+
+class LayersResponse(TypedDict):
+    groups: list[GroupResponse]
+
 
 _LAYER_CONFIG: list[dict] = [
     {
@@ -18,6 +42,20 @@ _LAYER_CONFIG: list[dict] = [
         ],
     }
 ]
+
+
+def _unavailable_category(layer_id: str, label: str) -> CategoryResponse:
+    return CategoryResponse(
+        id=layer_id,
+        label=label,
+        available=False,
+        unavailable_reason="No data available for this area",
+        date_from=None,
+        date_to=None,
+        record_count=0,
+        bbox=None,
+        tile_zoom=None,
+    )
 
 
 @functools.cache
@@ -38,12 +76,13 @@ class LayerService:
             self._region_slugs_cache[layer_id] = self._repository.list_region_slugs(layer_id)
         return self._region_slugs_cache[layer_id]
 
-    async def get_layers(self, county_fips: str | None = None) -> dict:
-        groups = []
+    async def get_layers(self, county_fips: str | None = None) -> LayersResponse:
+        groups: list[GroupResponse] = []
         for group_config in _LAYER_CONFIG:
-            categories = []
+            categories: list[CategoryResponse] = []
             for category_config in group_config["categories"]:
                 layer_id = category_config["id"]
+                label = category_config["label"]
 
                 if county_fips is not None:
                     slugs = [county_fips] if self._repository.has_region(layer_id, county_fips) else []
@@ -51,6 +90,7 @@ class LayerService:
                     slugs = self._get_region_slugs(layer_id)
 
                 if not slugs:
+                    categories.append(_unavailable_category(layer_id, label))
                     continue
 
                 total_count = 0
@@ -81,28 +121,26 @@ class LayerService:
                     if tile_zoom is None:
                         tile_zoom = meta.get("tile_zoom")
 
-                categories.append(
-                    {
-                        "id": layer_id,
-                        "label": category_config["label"],
-                        "date_from": date_from,
-                        "date_to": date_to,
-                        "record_count": total_count,
-                        "bbox": union_bbox,
-                        "tile_zoom": tile_zoom,
-                    }
-                )
+                if total_count == 0:
+                    categories.append(_unavailable_category(layer_id, label))
+                else:
+                    categories.append(
+                        CategoryResponse(
+                            id=layer_id,
+                            label=label,
+                            available=True,
+                            unavailable_reason=None,
+                            date_from=date_from,
+                            date_to=date_to,
+                            record_count=total_count,
+                            bbox=union_bbox,
+                            tile_zoom=tile_zoom,
+                        )
+                    )
 
-            if categories:
-                groups.append(
-                    {
-                        "id": group_config["id"],
-                        "label": group_config["label"],
-                        "categories": categories,
-                    }
-                )
+            groups.append(GroupResponse(id=group_config["id"], label=group_config["label"], categories=categories))
 
-        return {"groups": groups}
+        return LayersResponse(groups=groups)
 
     async def get_tile(self, layer_id: str, z: int, x: int, y: int) -> bytes:
         try:

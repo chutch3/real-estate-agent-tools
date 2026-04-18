@@ -17,12 +17,13 @@ class TestLayerService:
         return LayerService(repository=repository)
 
     @pytest.mark.asyncio
-    async def test_get_layers_returns_empty_when_no_data(self, subject, repository):
+    async def test_get_layers_returns_all_groups_when_no_data(self, subject, repository):
         repository.list_region_slugs.return_value = []
 
         result = await subject.get_layers()
 
-        assert result == {"groups": []}
+        assert len(result["groups"]) == 1
+        assert result["groups"][0]["id"] == "crime"
 
     @pytest.mark.asyncio
     async def test_get_layers_returns_group_with_categories_when_data_exists(self, subject, repository):
@@ -96,7 +97,37 @@ class TestLayerService:
         assert violent["record_count"] == 50
 
     @pytest.mark.asyncio
-    async def test_get_layers_skips_category_if_no_regions_have_data(self, subject, repository):
+    async def test_get_layers_always_includes_all_categories(self, subject, repository):
+        repository.list_region_slugs.return_value = []
+
+        result = await subject.get_layers()
+
+        assert len(result["groups"]) == 1
+        group = result["groups"][0]
+        ids = {c["id"] for c in group["categories"]}
+        assert ids == {"crime-violent", "crime-property"}
+
+    @pytest.mark.asyncio
+    async def test_get_layers_unavailable_category_has_available_false(self, subject, repository):
+        repository.list_region_slugs.return_value = []
+
+        result = await subject.get_layers()
+
+        for category in result["groups"][0]["categories"]:
+            assert category["available"] is False
+
+    @pytest.mark.asyncio
+    async def test_get_layers_unavailable_category_has_unavailable_reason(self, subject, repository):
+        repository.list_region_slugs.return_value = []
+
+        result = await subject.get_layers()
+
+        for category in result["groups"][0]["categories"]:
+            assert isinstance(category["unavailable_reason"], str)
+            assert len(category["unavailable_reason"]) > 0
+
+    @pytest.mark.asyncio
+    async def test_get_layers_available_category_has_available_true(self, subject, repository):
         repository.list_region_slugs.side_effect = lambda layer_id: (
             ["louisville-metro"] if layer_id == "crime-violent" else []
         )
@@ -110,8 +141,11 @@ class TestLayerService:
         result = await subject.get_layers()
 
         group = result["groups"][0]
-        ids = {c["id"] for c in group["categories"]}
-        assert "crime-property" not in ids
+        violent = next(c for c in group["categories"] if c["id"] == "crime-violent")
+        prop = next(c for c in group["categories"] if c["id"] == "crime-property")
+        assert violent["available"] is True
+        assert violent["unavailable_reason"] is None
+        assert prop["available"] is False
 
     @pytest.mark.asyncio
     async def test_get_layers_with_county_fips_returns_matching_layers(self, subject, repository):
@@ -126,18 +160,62 @@ class TestLayerService:
         result = await subject.get_layers(county_fips="21111")
 
         assert len(result["groups"]) == 1
-        ids = {c["id"] for c in result["groups"][0]["categories"]}
-        assert ids == {"crime-violent"}
+        categories = result["groups"][0]["categories"]
+        assert len(categories) == 2
+        violent = next(c for c in categories if c["id"] == "crime-violent")
+        prop = next(c for c in categories if c["id"] == "crime-property")
+        assert violent["available"] is True
+        assert violent["unavailable_reason"] is None
+        assert prop["available"] is False
+        assert isinstance(prop["unavailable_reason"], str)
         repository.has_region.assert_any_call("crime-violent", "21111")
         repository.has_region.assert_any_call("crime-property", "21111")
 
     @pytest.mark.asyncio
-    async def test_get_layers_with_county_fips_returns_empty_when_no_data(self, subject, repository):
+    async def test_get_layers_with_county_fips_unavailable_when_no_data(self, subject, repository):
         repository.has_region.return_value = False
 
         result = await subject.get_layers(county_fips="18019")
 
-        assert result == {"groups": []}
+        assert len(result["groups"]) == 1
+        for category in result["groups"][0]["categories"]:
+            assert category["available"] is False
+            assert isinstance(category["unavailable_reason"], str)
+
+    @pytest.mark.asyncio
+    async def test_get_layers_with_county_fips_unavailable_when_region_exists_but_has_zero_records(
+        self, subject, repository
+    ):
+        repository.has_region.return_value = True
+        repository.get_meta.return_value = {
+            "date_from": "2025-04-01",
+            "date_to": "2026-04-01",
+            "record_count": 0,
+            "bbox": [-86.035, 37.997, -85.404, 38.375],
+        }
+
+        result = await subject.get_layers(county_fips="18019")
+
+        assert len(result["groups"]) == 1
+        for category in result["groups"][0]["categories"]:
+            assert category["available"] is False
+            assert isinstance(category["unavailable_reason"], str)
+
+    @pytest.mark.asyncio
+    async def test_get_layers_unavailable_when_all_regions_have_zero_records(self, subject, repository):
+        repository.list_region_slugs.return_value = ["some-region"]
+        repository.get_meta.return_value = {
+            "date_from": "2025-04-01",
+            "date_to": "2026-04-01",
+            "record_count": 0,
+            "bbox": [-86.035, 37.997, -85.404, 38.375],
+        }
+
+        result = await subject.get_layers()
+
+        assert len(result["groups"]) == 1
+        for category in result["groups"][0]["categories"]:
+            assert category["available"] is False
 
     @pytest.mark.asyncio
     async def test_get_layers_with_county_fips_does_not_call_list_region_slugs(self, subject, repository):

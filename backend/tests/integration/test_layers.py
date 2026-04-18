@@ -69,13 +69,44 @@ class TestLayers:
         assert violent["record_count"] == 42
         assert violent["bbox"] == [-86.035, 37.997, -85.404, 38.375]
         assert violent["tile_zoom"] == 12
+        assert violent["available"] is True
+        assert violent["unavailable_reason"] is None
 
-    def test_get_layers_returns_empty_groups_when_no_data(self, subject, s3_client):
+    def test_get_layers_returns_available_false_when_county_has_zero_records(self, subject, s3_client):
+        for layer_id in ("crime-violent", "crime-property"):
+            s3_client.put_object(
+                Bucket=_S3_BUCKET,
+                Key=f"tiles/meta/{layer_id}/18019/meta.json",
+                Body=json.dumps(
+                    {
+                        "date_from": "2025-04-01",
+                        "date_to": "2026-04-01",
+                        "record_count": 0,
+                        "bbox": [-86.035, 37.997, -85.404, 38.375],
+                        "tile_zoom": 12,
+                    }
+                ).encode(),
+                ContentType="application/json",
+            )
+
+        response = subject.get("/api/layers?county_fips=18019")
+
+        assert response.status_code == HTTPStatus.OK
+        body = response.json()
+        assert len(body["groups"]) == 1
+        for category in body["groups"][0]["categories"]:
+            assert category["available"] is False
+            assert isinstance(category["unavailable_reason"], str)
+
+    def test_get_layers_returns_groups_with_unavailable_categories_when_no_data(self, subject, s3_client):
         response = subject.get("/api/layers")
 
         assert response.status_code == HTTPStatus.OK
         body = response.json()
-        assert body["groups"] == []
+        assert len(body["groups"]) == 1
+        for category in body["groups"][0]["categories"]:
+            assert category["available"] is False
+            assert isinstance(category["unavailable_reason"], str)
 
     def test_get_layer_tile_returns_pre_rendered_png(self, subject, s3_client):
         png_bytes = _make_test_png()
@@ -122,10 +153,16 @@ class TestLayers:
         body = matching_response.json()
         assert len(body["groups"]) == 1
         assert len(body["groups"][0]["categories"]) == 2
+        for category in body["groups"][0]["categories"]:
+            assert category["available"] is True
 
-        empty_response = subject.get("/api/layers?county_fips=18019")
-        assert empty_response.status_code == HTTPStatus.OK
-        assert empty_response.json()["groups"] == []
+        unavailable_response = subject.get("/api/layers?county_fips=18019")
+        assert unavailable_response.status_code == HTTPStatus.OK
+        unavailable_body = unavailable_response.json()
+        assert len(unavailable_body["groups"]) == 1
+        for category in unavailable_body["groups"][0]["categories"]:
+            assert category["available"] is False
+            assert isinstance(category["unavailable_reason"], str)
 
     @pytest.fixture
     def s3_client(self, integration_services):

@@ -43,15 +43,23 @@ describe('useLayers', () => {
     jest.clearAllMocks();
   });
 
-  it('does not fetch when countyFips is null', async () => {
+  it('fetches /layers without county_fips when countyFips is null', async () => {
     renderHook(() => useLayers(null));
-    await new Promise((r) => setTimeout(r, 50));
-    expect(global.fetch).not.toHaveBeenCalled();
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+    });
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.not.stringContaining('county_fips'),
+    );
   });
 
-  it('returns empty groups when countyFips is null', () => {
+  it('returns groups from API when countyFips is null', async () => {
     const { result } = renderHook(() => useLayers(null));
-    expect(result.current.groups).toEqual([]);
+
+    await waitFor(() => {
+      expect(result.current.groups).toHaveLength(1);
+    });
   });
 
   it('fetches /layers with county_fips query param when countyFips is provided', async () => {
@@ -136,7 +144,7 @@ describe('useLayers', () => {
     expect(result.current.isActive('crime-violent')).toBe(false);
   });
 
-  it('clears groups and active layers when countyFips becomes null', async () => {
+  it('re-fetches without county_fips and clears active layers when countyFips becomes null', async () => {
     const { result, rerender } = renderHook(
       ({ countyFips }) => useLayers(countyFips),
       { initialProps: { countyFips: '21111' } },
@@ -148,7 +156,10 @@ describe('useLayers', () => {
 
     rerender({ countyFips: null });
 
-    expect(result.current.groups).toEqual([]);
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
+    expect(global.fetch).toHaveBeenLastCalledWith(
+      expect.not.stringContaining('county_fips'),
+    );
     expect(result.current.isActive('crime-violent')).toBe(false);
   });
 });

@@ -8,16 +8,14 @@ function useLayers(countyFips) {
   const [activeLayerIds, setActiveLayerIds] = useState(new Set());
 
   useEffect(() => {
-    if (!countyFips) {
-      setGroups([]);
-      setActiveLayerIds(new Set());
-      return;
-    }
-    fetch(`${API_BASE_URL}/layers?county_fips=${countyFips}`)
+    setActiveLayerIds(new Set());
+    const url = countyFips
+      ? `${API_BASE_URL}/layers?county_fips=${countyFips}`
+      : `${API_BASE_URL}/layers`;
+    fetch(url)
       .then((r) => r.json())
       .then((data) => {
         setGroups(data.groups || []);
-        setActiveLayerIds(new Set());
       })
       .catch(() => {});
   }, [countyFips]);

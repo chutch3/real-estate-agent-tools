@@ -15,16 +15,21 @@ function MapLayerControls({ groups, isActive, onToggle }) {
         {categories.map((category) => {
           const Icon = LAYER_ICONS[category.id] ?? Layers;
           const active = isActive(category.id);
+          const available = category.available === true;
           return (
             <button
               key={category.id}
               aria-label={category.label}
               aria-pressed={active}
-              onClick={() => onToggle(category.id)}
+              disabled={!available}
+              title={available ? undefined : category.unavailable_reason}
+              onClick={available ? () => onToggle(category.id) : undefined}
               className={`flex flex-col items-center gap-1 px-5 py-2 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-bronze-300 ${
-                active
-                  ? "bg-bronze-500 text-white"
-                  : "text-ink-400 hover:text-ink-700"
+                !available
+                  ? "text-ink-200 cursor-not-allowed"
+                  : active
+                    ? "bg-bronze-500 text-white"
+                    : "text-ink-400 hover:text-ink-700"
               }`}
             >
               <Icon size={18} strokeWidth={1.75} />

@@ -7,8 +7,18 @@ const GROUPS = [
     id: "crime",
     label: "Crime",
     categories: [
-      { id: "crime-violent", label: "Violent Crime" },
-      { id: "crime-property", label: "Property Crime" },
+      {
+        id: "crime-violent",
+        label: "Violent Crime",
+        available: true,
+        unavailable_reason: null,
+      },
+      {
+        id: "crime-property",
+        label: "Property Crime",
+        available: true,
+        unavailable_reason: null,
+      },
     ],
   },
 ];
@@ -77,12 +87,26 @@ describe("MapLayerControls", () => {
       {
         id: "crime",
         label: "Crime",
-        categories: [{ id: "crime-violent", label: "Violent Crime" }],
+        categories: [
+          {
+            id: "crime-violent",
+            label: "Violent Crime",
+            available: true,
+            unavailable_reason: null,
+          },
+        ],
       },
       {
         id: "zoning",
         label: "Zoning",
-        categories: [{ id: "zoning-residential", label: "Residential" }],
+        categories: [
+          {
+            id: "zoning-residential",
+            label: "Residential",
+            available: true,
+            unavailable_reason: null,
+          },
+        ],
       },
     ];
     render(
