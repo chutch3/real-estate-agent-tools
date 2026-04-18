@@ -134,6 +134,40 @@ describe('PropertyMap', () => {
     });
   });
 
+  it('flies to the user current location at zoom 11 on mount when geolocation is available', async () => {
+    const mockGeolocation = {
+      getCurrentPosition: jest.fn((success) =>
+        success({ coords: { latitude: 38.2527, longitude: -85.7585 } })
+      ),
+    };
+    Object.defineProperty(global.navigator, 'geolocation', {
+      value: mockGeolocation,
+      configurable: true,
+    });
+
+    render(<PropertyMap properties={[]} onPropertySelect={jest.fn()} />);
+
+    await waitFor(() => {
+      expect(mockFlyTo).toHaveBeenCalledWith({
+        center: [-85.7585, 38.2527],
+        zoom: 11,
+      });
+    });
+  });
+
+  it('does not fly on mount when geolocation is unavailable', async () => {
+    Object.defineProperty(global.navigator, 'geolocation', {
+      value: undefined,
+      configurable: true,
+    });
+
+    render(<PropertyMap properties={[]} onPropertySelect={jest.fn()} />);
+
+    await waitFor(() => {
+      expect(mockFlyTo).not.toHaveBeenCalled();
+    });
+  });
+
   it('renders a segment for each category when groups are present', () => {
     useLayers.mockReturnValue({
       groups: [{

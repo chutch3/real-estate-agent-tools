@@ -25,6 +25,17 @@ function PropertyMap({ properties, onPropertySelect, selectedProperty }) {
     groups.flatMap((g) => g.categories).find((c) => isActive(c.id)) ?? null;
 
   useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition((position) => {
+      if (!mapRef.current) return;
+      mapRef.current.flyTo({
+        center: [position.coords.longitude, position.coords.latitude],
+        zoom: 11,
+      });
+    });
+  }, []);
+
+  useEffect(() => {
     if (
       !mapRef.current ||
       !selectedProperty?.latitude ||
