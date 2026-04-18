@@ -65,8 +65,8 @@ class TestPropertyTaxCacheRepository:
 
         result = subject.upsert(entry)
 
-        assert result.id is not None
         assert result.state_parcel_id == "102403200259000013"
+        assert result.tax_year == 2023
         assert result.net_tax_amount == pytest.approx(6480.00)
 
     def test_upsert_updates_existing_record(self, subject: PropertyTaxCacheRepository):

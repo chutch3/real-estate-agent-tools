@@ -15,56 +15,56 @@ from backend.services.net_sheet import NetSheetService
 class TestNetSheetRoutes:
     def test_get_net_sheet_returns_200(self, subject, mock_net_sheet_service):
         mock_net_sheet_service.get_net_sheet.return_value = NetSheetResponse(
-            id="sheet-1", property_id="prop-1", scenarios=[]
+            id="sheet-1", representation_id="rep-1", scenarios=[]
         )
 
-        response = subject.get("/properties/prop-1/net-sheet")
+        response = subject.get("/representations/rep-1/net-sheet")
 
         assert response.status_code == HTTPStatus.OK
         body = response.json()
-        assert body["property_id"] == "prop-1"
+        assert body["representation_id"] == "rep-1"
         assert body["scenarios"] == []
-        mock_net_sheet_service.get_net_sheet.assert_awaited_once_with("prop-1", "brokerage-123")
+        mock_net_sheet_service.get_net_sheet.assert_awaited_once_with("rep-1", "brokerage-123")
 
-    def test_get_net_sheet_returns_404_when_property_not_found(self, subject, mock_net_sheet_service):
+    def test_get_net_sheet_returns_404_when_representation_not_found(self, subject, mock_net_sheet_service):
         mock_net_sheet_service.get_net_sheet.side_effect = NetSheetNotFoundError()
 
-        response = subject.get("/properties/missing-prop/net-sheet")
+        response = subject.get("/representations/missing-rep/net-sheet")
 
         assert response.status_code == HTTPStatus.NOT_FOUND
-        assert response.json() == {"detail": "Property not found"}
+        assert response.json() == {"detail": "Representation not found"}
 
     def test_add_scenario_returns_201(self, subject, mock_net_sheet_service):
         mock_net_sheet_service.add_scenario.return_value = NetSheetResponse(
-            id="sheet-1", property_id="prop-1", scenarios=[]
+            id="sheet-1", representation_id="rep-1", scenarios=[]
         )
 
         response = subject.post(
-            "/properties/prop-1/net-sheet/scenarios",
+            "/representations/rep-1/net-sheet/scenarios",
             json={"name": "Test", "sale_price": 300000.0},
         )
 
         assert response.status_code == HTTPStatus.CREATED
         mock_net_sheet_service.add_scenario.assert_awaited_once()
 
-    def test_add_scenario_returns_404_when_property_not_found(self, subject, mock_net_sheet_service):
+    def test_add_scenario_returns_404_when_representation_not_found(self, subject, mock_net_sheet_service):
         mock_net_sheet_service.add_scenario.side_effect = NetSheetNotFoundError()
 
         response = subject.post(
-            "/properties/missing-prop/net-sheet/scenarios",
+            "/representations/missing-rep/net-sheet/scenarios",
             json={"name": "Test", "sale_price": 300000.0},
         )
 
         assert response.status_code == HTTPStatus.NOT_FOUND
-        assert response.json() == {"detail": "Property not found"}
+        assert response.json() == {"detail": "Representation not found"}
 
     def test_update_scenario_returns_200(self, subject, mock_net_sheet_service):
         mock_net_sheet_service.update_scenario.return_value = NetSheetResponse(
-            id="sheet-1", property_id="prop-1", scenarios=[]
+            id="sheet-1", representation_id="rep-1", scenarios=[]
         )
 
         response = subject.patch(
-            "/properties/prop-1/net-sheet/scenarios/scenario-1",
+            "/representations/rep-1/net-sheet/scenarios/scenario-1",
             json={"sale_price": 350000.0},
         )
 
@@ -75,7 +75,7 @@ class TestNetSheetRoutes:
         mock_net_sheet_service.update_scenario.side_effect = NetSheetNotFoundError()
 
         response = subject.patch(
-            "/properties/prop-1/net-sheet/scenarios/missing-scenario",
+            "/representations/rep-1/net-sheet/scenarios/missing-scenario",
             json={"sale_price": 350000.0},
         )
 
@@ -84,10 +84,10 @@ class TestNetSheetRoutes:
 
     def test_delete_scenario_returns_200(self, subject, mock_net_sheet_service):
         mock_net_sheet_service.delete_scenario.return_value = NetSheetResponse(
-            id="sheet-1", property_id="prop-1", scenarios=[]
+            id="sheet-1", representation_id="rep-1", scenarios=[]
         )
 
-        response = subject.delete("/properties/prop-1/net-sheet/scenarios/scenario-1")
+        response = subject.delete("/representations/rep-1/net-sheet/scenarios/scenario-1")
 
         assert response.status_code == HTTPStatus.OK
         mock_net_sheet_service.delete_scenario.assert_awaited_once()
@@ -95,7 +95,7 @@ class TestNetSheetRoutes:
     def test_delete_scenario_returns_404_when_scenario_not_found(self, subject, mock_net_sheet_service):
         mock_net_sheet_service.delete_scenario.side_effect = NetSheetNotFoundError()
 
-        response = subject.delete("/properties/prop-1/net-sheet/scenarios/missing-scenario")
+        response = subject.delete("/representations/rep-1/net-sheet/scenarios/missing-scenario")
 
         assert response.status_code == HTTPStatus.NOT_FOUND
         assert response.json() == {"detail": "Scenario not found"}

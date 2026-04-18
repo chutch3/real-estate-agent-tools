@@ -2,17 +2,21 @@ from datetime import date
 
 from backend.exceptions import NetSheetNotFoundError
 from backend.models import (
+    ClosingCostItem,
+    ClosingCostItemResponse,
     NetSheetResponse,
     NetSheetScenario,
     NetSheetScenarioCreate,
     NetSheetScenarioResponse,
     NetSheetScenarioUpdate,
-    PropertyInfo,
+    Representation,
+    RepresentationRole,
     TaxProrationBreakdown,
 )
 from backend.repositories.net_sheet import NetSheetRepository
-from backend.repositories.properties import PropertyRepository
+from backend.repositories.parcel import ParcelRepository
 from backend.repositories.property_tax_cache import PropertyTaxCacheRepository
+from backend.repositories.representation import RepresentationRepository
 
 _DLGF_TAX_LOOKUP_URL = "https://gateway.ifionline.org/TaxBillLookUp/Default.aspx"
 
@@ -34,36 +38,41 @@ class NetSheetService:
     def __init__(
         self,
         net_sheet_repository: NetSheetRepository,
-        property_repository: PropertyRepository,
+        representation_repository: RepresentationRepository,
+        parcel_repository: ParcelRepository,
         property_tax_cache_repository: PropertyTaxCacheRepository,
     ) -> None:
         self._repository = net_sheet_repository
-        self._property_repository = property_repository
+        self._representation_repository = representation_repository
+        self._parcel_repository = parcel_repository
         self._tax_cache_repository = property_tax_cache_repository
 
-    async def _require_property_access(self, property_id: str, brokerage_id: str) -> PropertyInfo:
-        prop = await self._property_repository.get_property(property_id)
-        if prop is None or prop.brokerage_id != brokerage_id or not prop.is_listing_side:
-            raise NetSheetNotFoundError(f"Property {property_id} not found for brokerage {brokerage_id}")
-        return prop
+    def _require_listing_agent(self, representation_id: str, brokerage_id: str) -> Representation:
+        rep = self._representation_repository.get(representation_id)
+        if rep is None or rep.brokerage_id != brokerage_id or rep.role != RepresentationRole.LISTING_AGENT:
+            raise NetSheetNotFoundError(f"Representation {representation_id} not found")
+        return rep
 
-    async def get_net_sheet(self, property_id: str, brokerage_id: str) -> NetSheetResponse:
-        await self._require_property_access(property_id, brokerage_id)
-        sheet = self._repository.get_or_create(property_id, brokerage_id)
+    async def get_net_sheet(self, representation_id: str, brokerage_id: str) -> NetSheetResponse:
+        self._require_listing_agent(representation_id, brokerage_id)
+        sheet = self._repository.get_or_create(representation_id)
         scenarios = self._repository.get_scenarios(sheet.id)
-        return self._to_response(sheet.id, property_id, scenarios)
+        items_by_scenario = {s.id: self._repository.get_items_for_scenario(s.id) for s in scenarios}
+        return self._to_response(sheet.id, representation_id, scenarios, items_by_scenario)
 
     async def add_scenario(
         self,
-        property_id: str,
+        representation_id: str,
         brokerage_id: str,
         scenario_create: NetSheetScenarioCreate,
     ) -> NetSheetResponse:
-        prop = await self._require_property_access(property_id, brokerage_id)
+        rep = self._require_listing_agent(representation_id, brokerage_id)
         annual_tax_amount = scenario_create.annual_tax_amount
-        if not annual_tax_amount and prop.state_parcel_id:
-            annual_tax_amount = self._tax_cache_repository.lookup(prop.state_parcel_id)
-        sheet = self._repository.get_or_create(property_id, brokerage_id)
+        if not annual_tax_amount:
+            parcel = self._parcel_repository.get_by_property_id(rep.property_id)
+            if parcel and parcel.state_parcel_id:
+                annual_tax_amount = self._tax_cache_repository.lookup(parcel.state_parcel_id) or 0.0
+        sheet = self._repository.get_or_create(representation_id)
         scenario = NetSheetScenario(
             net_sheet_id=sheet.id,
             name=scenario_create.name,
@@ -74,51 +83,66 @@ class NetSheetService:
             seller_concessions=scenario_create.seller_concessions,
             annual_tax_amount=annual_tax_amount,
             closing_date=scenario_create.closing_date,
-            closing_cost_items=scenario_create.closing_cost_items or [],
         )
-        self._repository.add_scenario(scenario)
+        saved = self._repository.add_scenario(scenario)
+        items = [
+            ClosingCostItem(scenario_id=saved.id, label=i.label, amount=i.amount)
+            for i in scenario_create.closing_cost_items
+        ]
+        self._repository.add_closing_cost_items(items)
         scenarios = self._repository.get_scenarios(sheet.id)
-        return self._to_response(sheet.id, property_id, scenarios)
+        items_by_scenario = {s.id: self._repository.get_items_for_scenario(s.id) for s in scenarios}
+        return self._to_response(sheet.id, representation_id, scenarios, items_by_scenario)
 
     async def update_scenario(
         self,
-        property_id: str,
+        representation_id: str,
         brokerage_id: str,
         scenario_id: str,
         update: NetSheetScenarioUpdate,
     ) -> NetSheetResponse:
-        await self._require_property_access(property_id, brokerage_id)
-        sheet = self._repository.get_or_create(property_id, brokerage_id)
-        updates = update.model_dump(exclude_unset=True)
+        self._require_listing_agent(representation_id, brokerage_id)
+        sheet = self._repository.get_or_create(representation_id)
+        closing_cost_items = update.closing_cost_items
+        updates = update.model_dump(exclude_unset=True, exclude={"closing_cost_items"})
         self._repository.update_scenario(scenario_id, sheet.id, updates)
+        if closing_cost_items is not None:
+            new_items = [
+                ClosingCostItem(scenario_id=scenario_id, label=item.label, amount=item.amount)
+                for item in closing_cost_items
+            ]
+            self._repository.replace_closing_cost_items(scenario_id, new_items)
         scenarios = self._repository.get_scenarios(sheet.id)
-        return self._to_response(sheet.id, property_id, scenarios)
+        items_by_scenario = {s.id: self._repository.get_items_for_scenario(s.id) for s in scenarios}
+        return self._to_response(sheet.id, representation_id, scenarios, items_by_scenario)
 
     async def delete_scenario(
         self,
-        property_id: str,
+        representation_id: str,
         brokerage_id: str,
         scenario_id: str,
     ) -> NetSheetResponse:
-        await self._require_property_access(property_id, brokerage_id)
-        sheet = self._repository.get_or_create(property_id, brokerage_id)
+        self._require_listing_agent(representation_id, brokerage_id)
+        sheet = self._repository.get_or_create(representation_id)
         self._repository.delete_scenario(scenario_id, sheet.id)
         scenarios = self._repository.get_scenarios(sheet.id)
-        return self._to_response(sheet.id, property_id, scenarios)
+        items_by_scenario = {s.id: self._repository.get_items_for_scenario(s.id) for s in scenarios}
+        return self._to_response(sheet.id, representation_id, scenarios, items_by_scenario)
 
     def _to_response(
         self,
         sheet_id: str,
-        property_id: str,
+        representation_id: str,
         scenarios: list[NetSheetScenario],
+        items_by_scenario: dict[str, list[ClosingCostItem]],
     ) -> NetSheetResponse:
         return NetSheetResponse(
             id=sheet_id,
-            property_id=property_id,
-            scenarios=[self._compute_scenario(s) for s in scenarios],
+            representation_id=representation_id,
+            scenarios=[self._compute_scenario(s, items_by_scenario.get(s.id, [])) for s in scenarios],
         )
 
-    def _compute_scenario(self, scenario: NetSheetScenario) -> NetSheetScenarioResponse:
+    def _compute_scenario(self, scenario: NetSheetScenario, items: list[ClosingCostItem]) -> NetSheetScenarioResponse:
         total_commission = round(
             scenario.sale_price * (scenario.listing_commission_pct + scenario.buyers_agent_commission_pct) / 100,
             2,
@@ -126,7 +150,6 @@ class NetSheetService:
 
         proration_breakdown, prorated_tax = self._compute_proration(scenario.annual_tax_amount, scenario.closing_date)
 
-        items = scenario.closing_cost_items or []
         total_closing_costs = round(sum(item.amount for item in items) + prorated_tax, 2)
 
         total_deductions = round(
@@ -147,7 +170,7 @@ class NetSheetService:
             seller_concessions=scenario.seller_concessions,
             annual_tax_amount=scenario.annual_tax_amount,
             closing_date=scenario.closing_date,
-            closing_cost_items=items,
+            closing_cost_items=[ClosingCostItemResponse(id=i.id, label=i.label, amount=i.amount) for i in items],
             total_commission=total_commission,
             prorated_tax=prorated_tax,
             tax_proration_breakdown=proration_breakdown,

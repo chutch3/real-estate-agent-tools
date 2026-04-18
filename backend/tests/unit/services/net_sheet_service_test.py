@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -9,11 +9,13 @@ from backend.models import (
     NetSheetScenario,
     NetSheetScenarioCreate,
     NetSheetScenarioUpdate,
-    PropertyInfo,
+    Parcel,
+    Representation,
 )
 from backend.repositories.net_sheet import NetSheetRepository
-from backend.repositories.properties import PropertyRepository
+from backend.repositories.parcel import ParcelRepository
 from backend.repositories.property_tax_cache import PropertyTaxCacheRepository
+from backend.repositories.representation import RepresentationRepository
 from backend.services.net_sheet import NetSheetService
 
 
@@ -22,22 +24,22 @@ class TestNetSheetService:
     async def test_get_net_sheet_returns_empty_sheet_on_first_access(
         self, subject: NetSheetService, net_sheet_repository: MagicMock
     ):
-        sheet = NetSheet(id="sheet-1", property_id="prop-1", brokerage_id="brokerage-1")
+        sheet = NetSheet(id="sheet-1", representation_id="rep-1")
         net_sheet_repository.get_or_create.return_value = sheet
         net_sheet_repository.get_scenarios.return_value = []
 
-        result = await subject.get_net_sheet("prop-1", "brokerage-1")
+        result = await subject.get_net_sheet("rep-1", "brokerage-1")
 
         assert result.id == "sheet-1"
-        assert result.property_id == "prop-1"
+        assert result.representation_id == "rep-1"
         assert result.scenarios == []
-        net_sheet_repository.get_or_create.assert_called_once_with("prop-1", "brokerage-1")
+        net_sheet_repository.get_or_create.assert_called_once_with("rep-1")
 
     @pytest.mark.asyncio
     async def test_add_scenario_computes_total_commission(
         self, subject: NetSheetService, net_sheet_repository: MagicMock
     ):
-        sheet = NetSheet(id="sheet-1", property_id="prop-1", brokerage_id="brokerage-1")
+        sheet = NetSheet(id="sheet-1", representation_id="rep-1")
         scenario = NetSheetScenario(
             id="s-1",
             net_sheet_id="sheet-1",
@@ -49,9 +51,10 @@ class TestNetSheetService:
         net_sheet_repository.get_or_create.return_value = sheet
         net_sheet_repository.add_scenario.return_value = scenario
         net_sheet_repository.get_scenarios.return_value = [scenario]
+        net_sheet_repository.get_items_for_scenario.return_value = []
 
         result = await subject.add_scenario(
-            "prop-1",
+            "rep-1",
             "brokerage-1",
             NetSheetScenarioCreate(
                 name="List Price",
@@ -66,7 +69,7 @@ class TestNetSheetService:
 
     @pytest.mark.asyncio
     async def test_add_scenario_computes_prorated_tax(self, subject: NetSheetService, net_sheet_repository: MagicMock):
-        sheet = NetSheet(id="sheet-1", property_id="prop-1", brokerage_id="brokerage-1")
+        sheet = NetSheet(id="sheet-1", representation_id="rep-1")
         scenario = NetSheetScenario(
             id="s-1",
             net_sheet_id="sheet-1",
@@ -78,9 +81,10 @@ class TestNetSheetService:
         net_sheet_repository.get_or_create.return_value = sheet
         net_sheet_repository.add_scenario.return_value = scenario
         net_sheet_repository.get_scenarios.return_value = [scenario]
+        net_sheet_repository.get_items_for_scenario.return_value = []
 
         result = await subject.add_scenario(
-            "prop-1",
+            "rep-1",
             "brokerage-1",
             NetSheetScenarioCreate(
                 name="List Price",
@@ -101,7 +105,7 @@ class TestNetSheetService:
     async def test_add_scenario_computes_total_closing_costs(
         self, subject: NetSheetService, net_sheet_repository: MagicMock
     ):
-        sheet = NetSheet(id="sheet-1", property_id="prop-1", brokerage_id="brokerage-1")
+        sheet = NetSheet(id="sheet-1", representation_id="rep-1")
         scenario = NetSheetScenario(
             id="s-1",
             net_sheet_id="sheet-1",
@@ -109,21 +113,23 @@ class TestNetSheetService:
             sale_price=350000.0,
             annual_tax_amount=2400.0,
             closing_date="2026-06-15",
-            closing_cost_items=[ClosingCostItem(label="Title Insurance", amount=1500.0)],
         )
         net_sheet_repository.get_or_create.return_value = sheet
         net_sheet_repository.add_scenario.return_value = scenario
         net_sheet_repository.get_scenarios.return_value = [scenario]
+        net_sheet_repository.get_items_for_scenario.return_value = [
+            ClosingCostItem(id="item-1", scenario_id="s-1", label="Title Insurance", amount=1500.0)
+        ]
 
         result = await subject.add_scenario(
-            "prop-1",
+            "rep-1",
             "brokerage-1",
             NetSheetScenarioCreate(
                 name="List Price",
                 sale_price=350000.0,
                 annual_tax_amount=2400.0,
                 closing_date="2026-06-15",
-                closing_cost_items=[ClosingCostItem(label="Title Insurance", amount=1500.0)],
+                closing_cost_items=[],
             ),
         )
 
@@ -132,7 +138,7 @@ class TestNetSheetService:
 
     @pytest.mark.asyncio
     async def test_add_scenario_computes_net_proceeds(self, subject: NetSheetService, net_sheet_repository: MagicMock):
-        sheet = NetSheet(id="sheet-1", property_id="prop-1", brokerage_id="brokerage-1")
+        sheet = NetSheet(id="sheet-1", representation_id="rep-1")
         scenario = NetSheetScenario(
             id="s-1",
             net_sheet_id="sheet-1",
@@ -144,14 +150,16 @@ class TestNetSheetService:
             seller_concessions=5000.0,
             annual_tax_amount=2400.0,
             closing_date="2026-06-15",
-            closing_cost_items=[ClosingCostItem(label="Title Insurance", amount=1500.0)],
         )
         net_sheet_repository.get_or_create.return_value = sheet
         net_sheet_repository.add_scenario.return_value = scenario
         net_sheet_repository.get_scenarios.return_value = [scenario]
+        net_sheet_repository.get_items_for_scenario.return_value = [
+            ClosingCostItem(id="item-1", scenario_id="s-1", label="Title Insurance", amount=1500.0)
+        ]
 
         result = await subject.add_scenario(
-            "prop-1",
+            "rep-1",
             "brokerage-1",
             NetSheetScenarioCreate(
                 name="List Price",
@@ -162,7 +170,6 @@ class TestNetSheetService:
                 seller_concessions=5000.0,
                 annual_tax_amount=2400.0,
                 closing_date="2026-06-15",
-                closing_cost_items=[ClosingCostItem(label="Title Insurance", amount=1500.0)],
             ),
         )
 
@@ -179,14 +186,15 @@ class TestNetSheetService:
     async def test_add_scenario_includes_tax_lookup_url(
         self, subject: NetSheetService, net_sheet_repository: MagicMock
     ):
-        sheet = NetSheet(id="sheet-1", property_id="prop-1", brokerage_id="brokerage-1")
+        sheet = NetSheet(id="sheet-1", representation_id="rep-1")
         scenario = NetSheetScenario(id="s-1", net_sheet_id="sheet-1", name="X", sale_price=300000.0)
         net_sheet_repository.get_or_create.return_value = sheet
         net_sheet_repository.add_scenario.return_value = scenario
         net_sheet_repository.get_scenarios.return_value = [scenario]
+        net_sheet_repository.get_items_for_scenario.return_value = []
 
         result = await subject.add_scenario(
-            "prop-1",
+            "rep-1",
             "brokerage-1",
             NetSheetScenarioCreate(name="X", sale_price=300000.0),
         )
@@ -197,7 +205,7 @@ class TestNetSheetService:
     async def test_update_scenario_delegates_to_repository(
         self, subject: NetSheetService, net_sheet_repository: MagicMock
     ):
-        sheet = NetSheet(id="sheet-1", property_id="prop-1", brokerage_id="brokerage-1")
+        sheet = NetSheet(id="sheet-1", representation_id="rep-1")
         updated_scenario = NetSheetScenario(
             id="s-1",
             net_sheet_id="sheet-1",
@@ -210,9 +218,10 @@ class TestNetSheetService:
         net_sheet_repository.get_or_create.return_value = sheet
         net_sheet_repository.update_scenario.return_value = updated_scenario
         net_sheet_repository.get_scenarios.return_value = [updated_scenario]
+        net_sheet_repository.get_items_for_scenario.return_value = []
 
         result = await subject.update_scenario(
-            "prop-1",
+            "rep-1",
             "brokerage-1",
             "s-1",
             NetSheetScenarioUpdate(sale_price=345000.0),
@@ -227,12 +236,13 @@ class TestNetSheetService:
     async def test_delete_scenario_delegates_to_repository(
         self, subject: NetSheetService, net_sheet_repository: MagicMock
     ):
-        sheet = NetSheet(id="sheet-1", property_id="prop-1", brokerage_id="brokerage-1")
+        sheet = NetSheet(id="sheet-1", representation_id="rep-1")
         keep = NetSheetScenario(id="s-2", net_sheet_id="sheet-1", name="Keep", sale_price=310000.0)
         net_sheet_repository.get_or_create.return_value = sheet
         net_sheet_repository.get_scenarios.return_value = [keep]
+        net_sheet_repository.get_items_for_scenario.return_value = []
 
-        result = await subject.delete_scenario("prop-1", "brokerage-1", "s-1")
+        result = await subject.delete_scenario("rep-1", "brokerage-1", "s-1")
 
         net_sheet_repository.delete_scenario.assert_called_once_with("s-1", "sheet-1")
         assert len(result.scenarios) == 1
@@ -242,7 +252,7 @@ class TestNetSheetService:
     async def test_proration_breakdown_includes_arrears_method_and_note(
         self, subject: NetSheetService, net_sheet_repository: MagicMock
     ):
-        sheet = NetSheet(id="sheet-1", property_id="prop-1", brokerage_id="brokerage-1")
+        sheet = NetSheet(id="sheet-1", representation_id="rep-1")
         scenario = NetSheetScenario(
             id="s-1",
             net_sheet_id="sheet-1",
@@ -254,9 +264,10 @@ class TestNetSheetService:
         net_sheet_repository.get_or_create.return_value = sheet
         net_sheet_repository.add_scenario.return_value = scenario
         net_sheet_repository.get_scenarios.return_value = [scenario]
+        net_sheet_repository.get_items_for_scenario.return_value = []
 
         result = await subject.add_scenario(
-            "prop-1",
+            "rep-1",
             "brokerage-1",
             NetSheetScenarioCreate(
                 name="List Price",
@@ -276,7 +287,7 @@ class TestNetSheetService:
     async def test_scenario_response_includes_tax_guidance_when_annual_tax_is_zero(
         self, subject: NetSheetService, net_sheet_repository: MagicMock
     ):
-        sheet = NetSheet(id="sheet-1", property_id="prop-1", brokerage_id="brokerage-1")
+        sheet = NetSheet(id="sheet-1", representation_id="rep-1")
         scenario = NetSheetScenario(
             id="s-1",
             net_sheet_id="sheet-1",
@@ -287,8 +298,9 @@ class TestNetSheetService:
         )
         net_sheet_repository.get_or_create.return_value = sheet
         net_sheet_repository.get_scenarios.return_value = [scenario]
+        net_sheet_repository.get_items_for_scenario.return_value = []
 
-        result = await subject.get_net_sheet("prop-1", "brokerage-1")
+        result = await subject.get_net_sheet("rep-1", "brokerage-1")
 
         guidance = result.scenarios[0].tax_guidance
         assert guidance is not None
@@ -299,7 +311,7 @@ class TestNetSheetService:
     async def test_no_tax_guidance_when_annual_tax_is_provided(
         self, subject: NetSheetService, net_sheet_repository: MagicMock
     ):
-        sheet = NetSheet(id="sheet-1", property_id="prop-1", brokerage_id="brokerage-1")
+        sheet = NetSheet(id="sheet-1", representation_id="rep-1")
         scenario = NetSheetScenario(
             id="s-1",
             net_sheet_id="sheet-1",
@@ -310,8 +322,9 @@ class TestNetSheetService:
         )
         net_sheet_repository.get_or_create.return_value = sheet
         net_sheet_repository.get_scenarios.return_value = [scenario]
+        net_sheet_repository.get_items_for_scenario.return_value = []
 
-        result = await subject.get_net_sheet("prop-1", "brokerage-1")
+        result = await subject.get_net_sheet("rep-1", "brokerage-1")
 
         assert result.scenarios[0].tax_guidance is None
 
@@ -319,7 +332,7 @@ class TestNetSheetService:
     async def test_no_proration_when_closing_date_absent(
         self, subject: NetSheetService, net_sheet_repository: MagicMock
     ):
-        sheet = NetSheet(id="sheet-1", property_id="prop-1", brokerage_id="brokerage-1")
+        sheet = NetSheet(id="sheet-1", representation_id="rep-1")
         scenario = NetSheetScenario(
             id="s-1",
             net_sheet_id="sheet-1",
@@ -331,9 +344,10 @@ class TestNetSheetService:
         net_sheet_repository.get_or_create.return_value = sheet
         net_sheet_repository.add_scenario.return_value = scenario
         net_sheet_repository.get_scenarios.return_value = [scenario]
+        net_sheet_repository.get_items_for_scenario.return_value = []
 
         result = await subject.add_scenario(
-            "prop-1",
+            "rep-1",
             "brokerage-1",
             NetSheetScenarioCreate(name="No Date", sale_price=300000.0, annual_tax_amount=2400.0),
         )
@@ -343,85 +357,51 @@ class TestNetSheetService:
         assert scenario_response.tax_proration_breakdown is None
 
     @pytest.mark.asyncio
-    async def test_get_net_sheet_raises_when_property_not_found(
-        self, subject: NetSheetService, property_repository: AsyncMock
+    async def test_get_net_sheet_raises_when_representation_not_found(
+        self, subject: NetSheetService, representation_repository: MagicMock
     ):
-        property_repository.get_property.return_value = None
+        representation_repository.get.return_value = None
 
         with pytest.raises(NetSheetNotFoundError):
-            await subject.get_net_sheet("missing-prop", "brokerage-1")
+            await subject.get_net_sheet("missing-rep", "brokerage-1")
 
     @pytest.mark.asyncio
-    async def test_get_net_sheet_raises_when_property_belongs_to_other_brokerage(
-        self, subject: NetSheetService, property_repository: AsyncMock
+    async def test_get_net_sheet_raises_when_brokerage_does_not_match(
+        self, subject: NetSheetService, representation_repository: MagicMock
     ):
-        property_repository.get_property.return_value = PropertyInfo(id="prop-1", brokerage_id="brokerage-other")
-
-        with pytest.raises(NetSheetNotFoundError):
-            await subject.get_net_sheet("prop-1", "brokerage-1")
-
-    @pytest.mark.asyncio
-    async def test_get_net_sheet_raises_when_property_is_not_listing_side(
-        self, subject: NetSheetService, property_repository: AsyncMock
-    ):
-        property_repository.get_property.return_value = PropertyInfo(
-            id="prop-1", brokerage_id="brokerage-1", is_listing_side=False, is_buyer_side=True
+        representation_repository.get.return_value = Representation(
+            id="rep-1", property_id="prop-1", brokerage_id="other-brokerage", role="listing_agent"
         )
 
         with pytest.raises(NetSheetNotFoundError):
-            await subject.get_net_sheet("prop-1", "brokerage-1")
+            await subject.get_net_sheet("rep-1", "brokerage-1")
 
     @pytest.mark.asyncio
-    async def test_add_scenario_raises_when_property_is_not_listing_side(
-        self, subject: NetSheetService, property_repository: AsyncMock
+    async def test_get_net_sheet_raises_when_not_listing_agent(
+        self, subject: NetSheetService, representation_repository: MagicMock
     ):
-        property_repository.get_property.return_value = PropertyInfo(
-            id="prop-1", brokerage_id="brokerage-1", is_listing_side=False, is_buyer_side=True
+        representation_repository.get.return_value = Representation(
+            id="rep-1", property_id="prop-1", brokerage_id="brokerage-1", role="buyers_agent"
         )
 
         with pytest.raises(NetSheetNotFoundError):
-            await subject.add_scenario("prop-1", "brokerage-1", NetSheetScenarioCreate(name="X", sale_price=300000.0))
-
-    @pytest.mark.asyncio
-    async def test_update_scenario_raises_when_property_is_not_listing_side(
-        self, subject: NetSheetService, property_repository: AsyncMock
-    ):
-        property_repository.get_property.return_value = PropertyInfo(
-            id="prop-1", brokerage_id="brokerage-1", is_listing_side=False, is_buyer_side=True
-        )
-
-        with pytest.raises(NetSheetNotFoundError):
-            await subject.update_scenario("prop-1", "brokerage-1", "s-1", NetSheetScenarioUpdate(sale_price=345000.0))
-
-    @pytest.mark.asyncio
-    async def test_delete_scenario_raises_when_property_is_not_listing_side(
-        self, subject: NetSheetService, property_repository: AsyncMock
-    ):
-        property_repository.get_property.return_value = PropertyInfo(
-            id="prop-1", brokerage_id="brokerage-1", is_listing_side=False, is_buyer_side=True
-        )
-
-        with pytest.raises(NetSheetNotFoundError):
-            await subject.delete_scenario("prop-1", "brokerage-1", "s-1")
+            await subject.get_net_sheet("rep-1", "brokerage-1")
 
     @pytest.mark.asyncio
     async def test_add_scenario_auto_fills_annual_tax_from_cache(
         self,
         subject: NetSheetService,
         net_sheet_repository: MagicMock,
-        property_repository: AsyncMock,
+        parcel_repository: MagicMock,
         property_tax_cache_repository: MagicMock,
     ):
-        property_repository.get_property.return_value = PropertyInfo(
-            id="prop-1",
-            brokerage_id="brokerage-1",
-            is_listing_side=True,
+        parcel_repository.get_by_property_id.return_value = Parcel(
+            nguid="test-nguid",
+            property_id="prop-1",
             state_parcel_id="102403200259000013",
-            county_fips="18019",
         )
         property_tax_cache_repository.lookup.return_value = 6480.00
-        sheet = NetSheet(id="sheet-1", property_id="prop-1", brokerage_id="brokerage-1")
-        net_sheet_repository.get_or_create.return_value = sheet
+        sheet = NetSheet(id="sheet-1", representation_id="rep-1")
         stored_scenario = NetSheetScenario(
             id="s-1",
             net_sheet_id="sheet-1",
@@ -429,11 +409,13 @@ class TestNetSheetService:
             sale_price=300000.0,
             annual_tax_amount=6480.00,
         )
+        net_sheet_repository.get_or_create.return_value = sheet
         net_sheet_repository.add_scenario.return_value = stored_scenario
         net_sheet_repository.get_scenarios.return_value = [stored_scenario]
+        net_sheet_repository.get_items_for_scenario.return_value = []
 
         result = await subject.add_scenario(
-            "prop-1",
+            "rep-1",
             "brokerage-1",
             NetSheetScenarioCreate(name="Offer", sale_price=300000.0),
         )
@@ -447,26 +429,24 @@ class TestNetSheetService:
         self,
         subject: NetSheetService,
         net_sheet_repository: MagicMock,
-        property_repository: AsyncMock,
+        parcel_repository: MagicMock,
         property_tax_cache_repository: MagicMock,
     ):
-        property_repository.get_property.return_value = PropertyInfo(
-            id="prop-1",
-            brokerage_id="brokerage-1",
-            is_listing_side=True,
-            state_parcel_id="102403200259000013",
+        parcel_repository.get_by_property_id.return_value = Parcel(
+            nguid="test-nguid", property_id="prop-1", state_parcel_id="102403200259000013"
         )
         property_tax_cache_repository.lookup.return_value = 9999.00
-        sheet = NetSheet(id="sheet-1", property_id="prop-1", brokerage_id="brokerage-1")
-        net_sheet_repository.get_or_create.return_value = sheet
+        sheet = NetSheet(id="sheet-1", representation_id="rep-1")
         stored = NetSheetScenario(
             id="s-1", net_sheet_id="sheet-1", name="X", sale_price=300000.0, annual_tax_amount=1200.00
         )
+        net_sheet_repository.get_or_create.return_value = sheet
         net_sheet_repository.add_scenario.return_value = stored
         net_sheet_repository.get_scenarios.return_value = [stored]
+        net_sheet_repository.get_items_for_scenario.return_value = []
 
         await subject.add_scenario(
-            "prop-1",
+            "rep-1",
             "brokerage-1",
             NetSheetScenarioCreate(name="X", sale_price=300000.0, annual_tax_amount=1200.00),
         )
@@ -475,22 +455,25 @@ class TestNetSheetService:
         assert passed.annual_tax_amount == 1200.00
 
     @pytest.mark.asyncio
-    async def test_add_scenario_skips_cache_when_no_state_parcel_id(
+    async def test_add_scenario_skips_cache_when_no_parcel(
         self,
         subject: NetSheetService,
         net_sheet_repository: MagicMock,
+        parcel_repository: MagicMock,
         property_tax_cache_repository: MagicMock,
     ):
-        sheet = NetSheet(id="sheet-1", property_id="prop-1", brokerage_id="brokerage-1")
-        net_sheet_repository.get_or_create.return_value = sheet
+        parcel_repository.get_by_property_id.return_value = None
+        sheet = NetSheet(id="sheet-1", representation_id="rep-1")
         stored = NetSheetScenario(
             id="s-1", net_sheet_id="sheet-1", name="X", sale_price=300000.0, annual_tax_amount=0.0
         )
+        net_sheet_repository.get_or_create.return_value = sheet
         net_sheet_repository.add_scenario.return_value = stored
         net_sheet_repository.get_scenarios.return_value = [stored]
+        net_sheet_repository.get_items_for_scenario.return_value = []
 
         await subject.add_scenario(
-            "prop-1",
+            "rep-1",
             "brokerage-1",
             NetSheetScenarioCreate(name="X", sale_price=300000.0),
         )
@@ -499,12 +482,22 @@ class TestNetSheetService:
 
     @pytest.fixture
     def net_sheet_repository(self) -> MagicMock:
-        return MagicMock(spec=NetSheetRepository)
+        mock = MagicMock(spec=NetSheetRepository)
+        mock.get_items_for_scenario.return_value = []
+        return mock
 
     @pytest.fixture
-    def property_repository(self) -> AsyncMock:
-        mock = AsyncMock(spec=PropertyRepository)
-        mock.get_property.return_value = PropertyInfo(id="prop-1", brokerage_id="brokerage-1", is_listing_side=True)
+    def representation_repository(self) -> MagicMock:
+        mock = MagicMock(spec=RepresentationRepository)
+        mock.get.return_value = Representation(
+            id="rep-1", property_id="prop-1", brokerage_id="brokerage-1", role="listing_agent"
+        )
+        return mock
+
+    @pytest.fixture
+    def parcel_repository(self) -> MagicMock:
+        mock = MagicMock(spec=ParcelRepository)
+        mock.get_by_property_id.return_value = None
         return mock
 
     @pytest.fixture
@@ -517,11 +510,13 @@ class TestNetSheetService:
     def subject(
         self,
         net_sheet_repository: MagicMock,
-        property_repository: AsyncMock,
+        representation_repository: MagicMock,
+        parcel_repository: MagicMock,
         property_tax_cache_repository: MagicMock,
     ) -> NetSheetService:
         return NetSheetService(
             net_sheet_repository=net_sheet_repository,
-            property_repository=property_repository,
+            representation_repository=representation_repository,
+            parcel_repository=parcel_repository,
             property_tax_cache_repository=property_tax_cache_repository,
         )
