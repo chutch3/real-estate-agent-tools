@@ -1,94 +1,143 @@
 # Real Estate Agent Tools
 
-## Intent
+A platform for independent real estate agents and small brokerages that streamlines day-to-day workflows and adds data intelligence that larger platforms don't provide. Built for the Indiana/Kentucky market.
 
-This project is a web application designed to streamline the process of creating and posting real estate listings to social media platforms. It aims to help real estate agents quickly generate professional, engaging posts about properties, complete with images and relevant details, and share them across multiple social media channels with ease.
+## What It Does
 
-## How It Works
+- **Property management** — add and manage listings and buyer-side representations with full parcel data, county boundaries, and map overlays
+- **AI property chat** — ask questions about a property using uploaded documents and property details as context
+- **Net sheet** — seller net proceeds calculator with real property tax proration (Indiana DLGF integration)
+- **Document management** — upload, view, and delete property documents
+- **Crime heatmap** — raster tile overlay for violent and property crime (Louisville metro)
+- **Social post generation** — AI-generated listing copy from property details and documents; multi-platform posting support in progress
+- **Multi-tenant auth** — brokerage and agent accounts with JWT authentication
 
-The application follows a step-by-step process:
+See [docs/ROADMAP.md](docs/ROADMAP.md) for what's planned next.
 
-1. **Agent Info**: Users input their personal and company information.
-2. **Address Input**: Users enter the property address, which is geocoded and displayed on a map for verification.
-3. **Document Upload**: Users can upload relevant documents (e.g., property details, floor plans) to enhance the post content.
-4. **Customize Prompt**: Users can modify the default prompt template used for generating the post.
-5. **Generate Post**: The application uses the provided information to generate a tailored social media post.
-6. **Post to Socials**: Users select images and choose which social media platforms to post to.
+---
 
-The backend uses AI (OpenAI's GPT models) to generate the post content based on the provided information and documents. It also integrates with various APIs for geocoding addresses and posting to social media platforms.
+## Tech Stack
 
-### OpenAI and Milvus Integration
+**Backend**
+- Python 3.11, FastAPI, SQLModel (SQLite)
+- `poetry` for package management
+- OpenAI API (chat and embeddings)
+- Milvus (document vector search)
+- AWS S3 (document storage)
+- ArcGIS IGIS (parcel data)
+- Indiana DLGF (property tax data)
 
-This application leverages the power of OpenAI's language models in combination with Milvus, a vector database, to enhance the post generation process:
+**Frontend**
+- React 18, Tailwind CSS
+- Mapbox GL / react-map-gl
+- React Router
 
-1. **Document Embedding**: When documents are uploaded, they are processed and converted into vector embeddings using OpenAI's embedding models.
+**Pipeline**
+- Separate Python/Prefect service for data ingestion (crime heatmap, property tax)
 
-2. **Vector Storage**: These embeddings are stored in the Milvus vector database, allowing for efficient similarity searches.
+---
 
-3. **Contextual Retrieval**: During post generation, the system performs a similarity search in Milvus to find the most relevant document sections based on the property details and user input.
+## Running Locally
 
-4. **Enhanced Post Generation**: The retrieved relevant information is then used to augment the prompt sent to OpenAI's GPT model, resulting in more accurate and property-specific post content.
+### Prerequisites
 
-The goal of this integration is to create more informative and tailored social media posts by efficiently leveraging all available property information, even from lengthy documents, without overwhelming the AI model with irrelevant data.
+- Python 3.11+
+- Node 18+
+- `poetry` (`pip install poetry`)
+- Docker and Docker Compose (for Milvus)
 
-## How to Run Locally
+### 1. Start supporting services
 
-[... rest of the setup instructions remain the same ...]
-
-### Backend Setup
-
-3. Create a `.env` file in the `backend` directory with the following content:
-   ```
-   OPENAI_API_KEY=your_openai_api_key
-   RENTCAST_API_KEY=your_rentcast_api_key
-   GOOGLE_MAPS_API_KEY=your_google_maps_api_key
-   MILVUS_URI=http://localhost:19530
-   PORT=3000
-   ```
-
-4. Start the backend server:
-   ```
-   poetry run uvicorn backend.main:app --reload
-   ```
-
-The backend should now be running on `http://localhost:3000`.
-
-### Third-party Services
-
-Some third-party services are required for the application to function properly. These are managed using Docker Compose.
-
-1. Ensure Docker and Docker Compose are installed on your system.
-
-2. From the root directory of the project, run:
-```
+```bash
 docker-compose up -d
 ```
 
-This will start any necessary services (e.g., databases, caching systems) defined in the `docker-compose.yml` file.
+This starts Milvus (vector database) and its dependencies (etcd, MinIO).
 
-## Usage
+### 2. Backend
 
-With the frontend, backend, and third-party services running, open a web browser and navigate to `http://localhost:3001`. Follow the step-by-step process in the application to generate and post your real estate listing.
+```bash
+cd backend
+cp .env.example .env   # fill in your API keys
+poetry install
+poetry run uvicorn backend.main:app --reload
+```
 
-## Development
+The backend runs on `http://localhost:3000`.
 
-- To run backend tests: `cd backend && poetry run pytest`
-- To run frontend tests: `cd frontend && npm test`
+Required environment variables (see `.env.example` for full list):
 
-## Note
+```
+OPENAI_API_KEY=
+RENTCAST_API_KEY=
+GOOGLE_MAPS_API_KEY=
+MILVUS_URI=http://localhost:19530
+S3_BUCKET=
+S3_ACCESS_KEY=
+S3_SECRET_KEY=
+JWT_SECRET_KEY=
+```
 
-This application requires valid API keys for OpenAI, Google Maps, and other services. Ensure you have the necessary permissions and have correctly set up these integrations before attempting to use all features of the application. Additionally, make sure the Milvus vector database is properly configured and running for optimal performance of the document processing and post generation features.
+### 3. Frontend
 
+```bash
+cd frontend
+npm install
+npm start
+```
 
-## Roadmap
+The frontend runs on `http://localhost:3001` and expects the backend at `http://localhost:3000`.
 
-- [ ] Support for property resource
-- [ ] Setup chat interface on the property resource
-- [ ] Support for posting to different social media platforms (Facebook, Instagram, X, Reddit, etc)
-- [ ] Authentication
-- [ ] Agent details and user profile
-- [ ] Caching property lookup
-- [ ] CI/CD setup
-- [ ] Deployment
-- [ ] Support for different LLM sources
-- [ ] Support for different proprety data sources (MLS, Zillow, etc)
+### 4. Pipeline (optional)
+
+The pipeline ingests crime and property tax data. Only needed if you are working on data pipeline features.
+
+```bash
+cd pipeline
+poetry install
+poetry run python -m pipeline.flows.<flow_name>
+```
+
+---
+
+## Running Tests
+
+```bash
+# Backend
+cd backend && poetry run pytest
+
+# Frontend
+cd frontend && npm test
+
+# Pipeline
+cd pipeline && poetry run pytest
+```
+
+---
+
+## Project Structure
+
+```
+backend/        FastAPI backend, SQLModel models, services, repositories
+frontend/       React frontend
+pipeline/       Data ingestion pipeline (crime heatmap, property tax)
+docs/           Product documentation and roadmap
+```
+
+---
+
+## Database
+
+The database is a SQLite file at `backend/real_estate.db`. It is created automatically on first run.
+
+Schema migrations are currently handled by a temporary script while the schema foundation is being established. This will be replaced with Alembic once the schema stabilises.
+
+```bash
+cd backend
+
+# Apply schema changes (temporary — will be replaced by Alembic)
+poetry run python scripts/migrate_db.py
+
+# Migrate data from legacy schema (one-time, if upgrading from an older version)
+poetry run python scripts/migrate_property_info.py
+```
