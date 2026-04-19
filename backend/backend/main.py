@@ -6,10 +6,9 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend import identity_routes, routes
+from backend import routes
 from backend.container import Container
 from backend.middleware import SlidingTokenRefreshMiddleware
-from backend.routes import consumer, magic_links
 from backend.startup import _on_startup
 
 
@@ -69,9 +68,6 @@ def create_app(container: Container | None = None):
 
     app = FastAPI(lifespan=lifespan)
     app.include_router(routes.router, prefix="/api")
-    app.include_router(identity_routes.router, prefix="/api")
-    app.include_router(magic_links.router, prefix="/api")
-    app.include_router(consumer.router, prefix="/api")
 
     app.add_middleware(SlidingTokenRefreshMiddleware)
     app.add_middleware(

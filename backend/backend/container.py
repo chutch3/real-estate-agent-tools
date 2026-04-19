@@ -1,4 +1,5 @@
 import boto3
+import redis as redis_module
 from dependency_injector import containers, providers
 from pymilvus import MilvusClient
 from rentcast_client.api.default_rentcast import DefaultRentcast
@@ -56,6 +57,10 @@ def init_milvus_client(uri: str):
     client.close()
 
 
+def _make_redis_client(url: str | None):
+    return redis_module.Redis.from_url(url) if url else None
+
+
 class Container(containers.DeclarativeContainer):
     """
     The container is a dependency injection container that provides the dependencies for the application.
@@ -76,12 +81,11 @@ class Container(containers.DeclarativeContainer):
             ".routes.internal",
             ".routes.magic_links",
             ".routes.consumer",
-            ".identity_routes",
+            ".routes.identity",
             ".schema",
             ".startup",
             ".auth",
             ".middleware",
-            ".services.rate_limiter",
         ],
         auto_wire=True,
     )
@@ -278,7 +282,7 @@ class Container(containers.DeclarativeContainer):
     )
 
     redis_client = providers.Singleton(
-        lambda url: __import__("redis").Redis.from_url(url) if url else None,
+        _make_redis_client,
         url=config.redis.url,
     )
 

@@ -27,7 +27,7 @@ router = APIRouter()
 
 @router.post("/brokerages", status_code=HTTPStatus.CREATED)
 @inject
-def create_brokerage(
+async def create_brokerage(
     payload: BrokerageCreate,
     brokerage_repository: BrokerageRepository = Depends(Provide[Container.brokerage_repository]),
 ) -> BrokerageResponse:
@@ -38,7 +38,7 @@ def create_brokerage(
 
 @router.post("/users", status_code=HTTPStatus.CREATED)
 @inject
-def create_user(
+async def create_user(
     payload: UserCreate,
     user_repository: UserRepository = Depends(Provide[Container.user_repository]),
     security_service: SecurityService = Depends(Provide[Container.security_service]),
@@ -51,7 +51,7 @@ def create_user(
 
 @router.post("/auth/token")
 @inject
-def login(
+async def login(
     response: Response,
     form_data: OAuth2PasswordRequestForm = Depends(),
     user_repository: UserRepository = Depends(Provide[Container.user_repository]),
@@ -72,14 +72,14 @@ def login(
 
 
 @router.post("/auth/logout")
-def logout(response: Response) -> dict:
+async def logout(response: Response) -> dict:
     response.delete_cookie(key=_COOKIE_NAME, httponly=True, samesite="lax")
     return {"message": "logged out"}
 
 
 @router.get("/users/me")
 @inject
-def get_me(
+async def get_me(
     access_token: str | None = Cookie(default=None),
     user_repository: UserRepository = Depends(Provide[Container.user_repository]),
     brokerage_repository: BrokerageRepository = Depends(Provide[Container.brokerage_repository]),
