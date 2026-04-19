@@ -70,6 +70,11 @@ function HomeScreen() {
     navigate("/net-sheet", { state: { property } });
   };
 
+  const handleDocumentVisibilityChange = async () => {
+    const updated = await apiClient.listProperties();
+    setProperties(updated);
+  };
+
   return (
     <div
       className="fixed inset-0 flex"
@@ -193,6 +198,7 @@ function HomeScreen() {
           onNetSheet={handleNetSheet}
           onUploadDocument={handleUploadDocument}
           onDeleteDocument={handleDeleteDocument}
+          onDocumentVisibilityChange={handleDocumentVisibilityChange}
           isUploading={isUploading}
           uploadError={uploadError}
           deleteError={deleteError}

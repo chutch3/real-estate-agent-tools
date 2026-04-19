@@ -308,5 +308,7 @@ class PropertyService:
             role=representation.role,
             county_polygon=boundary.geometry if boundary else None,
             parcel_polygon=parcel.geometry if parcel else None,
-            documents=[DocumentInfo(id=d.id, filename=d.filename) for d in documents],
+            documents=[
+                DocumentInfo(id=d.id, filename=d.filename, consumer_visible=d.consumer_visible) for d in documents
+            ],
         )

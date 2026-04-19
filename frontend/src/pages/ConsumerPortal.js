@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import apiClient from "../apiClient";
 import SellerPortalView from "./SellerPortalView";
 import BuyerPortalView from "./BuyerPortalView";
-
-const API_BASE = process.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
 
 function ConsumerPortal() {
   const { token } = useParams();
@@ -11,15 +10,8 @@ function ConsumerPortal() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    fetch(`${API_BASE}/magic/${token}/session`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error("invalid");
-        return res.json();
-      })
+    apiClient
+      .createConsumerSession(token)
       .then(setSession)
       .catch(() => setError(true));
   }, [token]);

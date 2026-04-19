@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlmodel import select
 
@@ -26,7 +26,7 @@ class MagicLinkRepository:
             return session.get(MagicLinkToken, token_id)
 
     def list_active_by_representation(self, representation_id: str) -> list[MagicLinkToken]:
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         with self._session_factory() as session:
             return list(
                 session.exec(

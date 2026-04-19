@@ -46,7 +46,7 @@ async def get_consumer_property(
         square_footage=prop.square_footage,
         year_built=prop.year_built,
         role=rep.role,
-        agent_name=agent.email if agent else None,
+        agent_name=agent.name if agent else None,
         agent_email=agent.email if agent else None,
     )
 

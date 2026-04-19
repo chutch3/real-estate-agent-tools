@@ -15,9 +15,13 @@ class ApiClient {
     this.client.interceptors.response.use(
       (response) => response,
       (error) => {
+        const isConsumerPath =
+          error.config?.url?.startsWith("/magic/") ||
+          error.config?.url?.startsWith("/consumer/");
         if (
           error.response?.status === 401 &&
-          window.location.pathname !== "/login"
+          window.location.pathname !== "/login" &&
+          !isConsumerPath
         ) {
           window.location.href = "/login";
         }
@@ -213,6 +217,33 @@ class ApiClient {
     const response = await this.client.delete(
       `/representations/${representationId}/net-sheet/scenarios/${scenarioId}`,
     );
+    return response.data;
+  }
+
+  async createConsumerSession(token) {
+    const response = await this.client.post(`/magic/${token}/session`);
+    return response.data;
+  }
+
+  async getConsumerProperty() {
+    const response = await this.client.get("/consumer/property");
+    return response.data;
+  }
+
+  async getConsumerNetSheet() {
+    try {
+      const response = await this.client.get("/consumer/net-sheet");
+      return response.data;
+    } catch (error) {
+      if (error.response?.status >= 400 && error.response?.status < 500) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  async getConsumerDocuments() {
+    const response = await this.client.get("/consumer/documents");
     return response.data;
   }
 

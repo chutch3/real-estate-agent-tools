@@ -71,7 +71,7 @@ function PropertyDetailPanel({
         !doc.consumer_visible,
       );
       if (onDocumentVisibilityChange) {
-        onDocumentVisibilityChange(property, doc.id, !doc.consumer_visible);
+        onDocumentVisibilityChange();
       }
     } finally {
       setVisibilityLoading((prev) => ({ ...prev, [doc.id]: false }));

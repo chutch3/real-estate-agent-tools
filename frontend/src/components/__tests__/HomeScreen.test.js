@@ -15,6 +15,7 @@ jest.mock("../../apiClient", () => ({
   listProperties: jest.fn(),
   uploadDocument: jest.fn(),
   addDocumentToProperty: jest.fn(),
+  updateDocumentVisibility: jest.fn(),
 }));
 
 jest.mock("../../hooks/useLayers");
@@ -173,5 +174,47 @@ describe("HomeScreen", () => {
     await waitFor(() => screen.getByLabelText("Add new property"));
     fireEvent.click(screen.getByLabelText("Add new property"));
     expect(navigateMock).toHaveBeenCalledWith("/add-property");
+  });
+
+  it("calls updateDocumentVisibility and refreshes list when eye toggle is clicked", async () => {
+    apiClient.listProperties.mockResolvedValue([
+      {
+        id: "prop-1",
+        latitude: 37.4225,
+        longitude: -122.0847,
+        formatted_address: "1600 Amphitheatre Pkwy",
+        documents: [
+          { id: "doc-1", filename: "contract.pdf", consumer_visible: false },
+        ],
+      },
+    ]);
+    apiClient.updateDocumentVisibility.mockResolvedValue({
+      id: "doc-1",
+      filename: "contract.pdf",
+      consumer_visible: true,
+    });
+
+    render(
+      <MemoryRouter>
+        <HomeScreen />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => screen.getByTestId("marker-37.4225--122.0847"));
+    fireEvent.click(screen.getByTestId("marker-37.4225--122.0847"));
+    await waitFor(() => screen.getByTestId("property-detail-panel"));
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Show contract.pdf to client" }),
+    );
+
+    await waitFor(() => {
+      expect(apiClient.updateDocumentVisibility).toHaveBeenCalledWith(
+        "prop-1",
+        "doc-1",
+        true,
+      );
+      expect(apiClient.listProperties).toHaveBeenCalledTimes(2);
+    });
   });
 });

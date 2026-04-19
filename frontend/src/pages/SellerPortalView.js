@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { FileText, Phone, Mail } from "lucide-react";
-
-const API_BASE = process.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
+import { FileText, Mail } from "lucide-react";
+import apiClient from "../apiClient";
+import ScenarioCard from "../components/ScenarioCard";
 
 function SellerPortalView({ session }) {
   const [property, setProperty] = useState(null);
@@ -9,15 +9,11 @@ function SellerPortalView({ session }) {
   const [documents, setDocuments] = useState([]);
 
   useEffect(() => {
-    fetch(`${API_BASE}/consumer/property`, { credentials: "include" })
-      .then((r) => r.json())
-      .then(setProperty);
-    fetch(`${API_BASE}/consumer/net-sheet`, { credentials: "include" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then(setNetSheet);
-    fetch(`${API_BASE}/consumer/documents`, { credentials: "include" })
-      .then((r) => r.json())
-      .then((d) => setDocuments(d.documents ?? []));
+    apiClient.getConsumerProperty().then(setProperty);
+    apiClient.getConsumerNetSheet().then(setNetSheet);
+    apiClient
+      .getConsumerDocuments()
+      .then((d) => setDocuments(d?.documents ?? []));
   }, []);
 
   if (!property) {
@@ -98,32 +94,21 @@ function SellerPortalView({ session }) {
 
         {/* Net sheet */}
         {netSheet && netSheet.scenarios && netSheet.scenarios.length > 0 && (
-          <div className="bg-white rounded-xl border border-linen-200 p-6 space-y-4">
+          <div className="space-y-4">
             <p className="font-sans text-xs uppercase tracking-widest text-ink-400">
               Net Sheet
             </p>
-            {netSheet.scenarios.map((s) => (
-              <div
-                key={s.id}
-                className="border-t border-linen-100 pt-4 space-y-2"
-              >
-                <p className="font-sans text-sm font-medium text-ink-900">
-                  {s.name}
-                </p>
-                <div className="flex justify-between font-sans text-sm">
-                  <span className="text-ink-400">Sale Price</span>
-                  <span className="text-ink-900">
-                    ${s.sale_price.toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex justify-between font-sans text-sm">
-                  <span className="text-ink-400">Net Proceeds</span>
-                  <span className="font-medium text-ink-900">
-                    ${s.net_proceeds.toLocaleString()}
-                  </span>
-                </div>
-              </div>
-            ))}
+            <div className="flex gap-5 overflow-x-auto pb-2">
+              {netSheet.scenarios.map((s) => (
+                <ScenarioCard
+                  key={s.id}
+                  scenario={s}
+                  onUpdate={() => {}}
+                  onDelete={() => {}}
+                  readOnly
+                />
+              ))}
+            </div>
           </div>
         )}
 
@@ -137,7 +122,7 @@ function SellerPortalView({ session }) {
               {documents.map((doc) => (
                 <li key={doc.id}>
                   <a
-                    href={`${API_BASE}/documents/${doc.id}`}
+                    href={`${apiClient.baseURL}/documents/${doc.id}`}
                     target="_blank"
                     rel="noreferrer"
                     className="flex items-center gap-2 font-sans text-sm text-bronze-500 hover:underline"

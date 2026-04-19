@@ -66,6 +66,10 @@ async def update_document_visibility(
     if property_id not in property_ids:
         raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail="Property not found")
 
+    existing = document_repository.get_by_id(document_id)
+    if existing is None or existing.property_id != property_id:
+        raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail="Document not found")
+
     doc = document_repository.update_visibility(document_id, update.consumer_visible)
     if doc is None:
         raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail="Document not found")

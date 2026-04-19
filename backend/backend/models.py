@@ -36,6 +36,7 @@ class User(SQLModel, table=True):
     )
     email: str = Field(sa_column=Column(String, index=True, unique=True))
     hashed_password: str | None = None
+    name: str | None = None
     role: str
     brokerage_id: str = Field(foreign_key="brokerage.id")
 
@@ -278,6 +279,7 @@ class MeResponse(BaseModel):
 class DocumentInfo(BaseModel):
     id: str
     filename: str
+    consumer_visible: bool = False
 
 
 class CreatePropertyRequest(BaseModel):

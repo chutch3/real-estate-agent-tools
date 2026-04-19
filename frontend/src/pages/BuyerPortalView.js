@@ -1,19 +1,16 @@
 import React, { useEffect, useState } from "react";
 import { FileText, Mail, Tag } from "lucide-react";
-
-const API_BASE = process.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
+import apiClient from "../apiClient";
 
 function BuyerPortalView({ session }) {
   const [property, setProperty] = useState(null);
   const [documents, setDocuments] = useState([]);
 
   useEffect(() => {
-    fetch(`${API_BASE}/consumer/property`, { credentials: "include" })
-      .then((r) => r.json())
-      .then(setProperty);
-    fetch(`${API_BASE}/consumer/documents`, { credentials: "include" })
-      .then((r) => r.json())
-      .then((d) => setDocuments(d.documents ?? []));
+    apiClient.getConsumerProperty().then(setProperty);
+    apiClient
+      .getConsumerDocuments()
+      .then((d) => setDocuments(d?.documents ?? []));
   }, []);
 
   if (!property) {
@@ -110,7 +107,7 @@ function BuyerPortalView({ session }) {
               {documents.map((doc) => (
                 <li key={doc.id}>
                   <a
-                    href={`${API_BASE}/documents/${doc.id}`}
+                    href={`${apiClient.baseURL}/documents/${doc.id}`}
                     target="_blank"
                     rel="noreferrer"
                     className="flex items-center gap-2 font-sans text-sm text-bronze-500 hover:underline"

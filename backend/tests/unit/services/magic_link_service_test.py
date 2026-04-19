@@ -118,6 +118,22 @@ class TestMagicLinkService:
         with pytest.raises(InvalidMagicLinkError):
             subject.validate_token("uuid-token")
 
+    def test_validate_token_handles_naive_expires_at_from_sqlite(self, subject, magic_link_repository):
+        naive_expires = (datetime.now(UTC) + timedelta(hours=1)).replace(tzinfo=None)
+        assert naive_expires.tzinfo is None
+        record = MagicLinkToken(
+            id="tok-1",
+            representation_id="rep-1",
+            token="uuid-token",
+            expires_at=naive_expires,
+            revoked=False,
+        )
+        magic_link_repository.get_by_token.return_value = record
+
+        result = subject.validate_token("uuid-token")
+
+        assert result.id == "tok-1"
+
     def test_revoke_token_calls_repository(self, subject, magic_link_repository, representation_repository):
         record = MagicLinkToken(id="tok-1", representation_id="rep-1", token="uuid-token", expires_at=datetime.now(UTC))
         rep = Representation(id="rep-1", property_id="prop-1", brokerage_id="brk-1", role="listing_agent")

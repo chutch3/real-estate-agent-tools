@@ -97,7 +97,9 @@ async def create_consumer_session(
     property_repository: PropertyRepository = Depends(Provide[Container.property_repository]),
     rate_limiter: RateLimiter = Depends(Provide[Container.rate_limiter]),
 ):
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or (
+        request.client.host if request.client else "unknown"
+    )
     if not rate_limiter.is_allowed(f"magic_session:{client_ip}"):
         raise HTTPException(status_code=HTTPStatus.TOO_MANY_REQUESTS, detail="Too many requests")
 
