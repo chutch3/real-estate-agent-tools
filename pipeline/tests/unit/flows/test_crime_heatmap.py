@@ -1,8 +1,14 @@
+from datetime import date
+from unittest.mock import MagicMock
+
 import geopandas as gpd
 import pytest
 from shapely.geometry import Point, Polygon, box
 
-from pipeline.flows.crime_heatmap import _compute_kde_grid
+from pipeline.flows.crime_heatmap import _compute_kde_grid, execute_heatmap
+from pipeline.geocoding.base import Geocoder
+from pipeline.regions.loader import Region
+from pipeline.storage.base import TileStorage
 
 _POLYGON = box(-86.035, 37.997, -85.404, 38.375)
 
@@ -103,3 +109,15 @@ def test_compute_kde_grid_grid_shape_matches_width_and_height() -> None:
     assert result.values.shape == (result.height, result.width)
     assert result.width >= 10
     assert result.height >= 10
+
+
+def test_execute_heatmap_skips_storage_when_region_has_no_sources() -> None:
+    region = Region(slug="18019", polygon=_POLYGON, sources=[])
+    storage = MagicMock(spec=TileStorage)
+    geocoder = MagicMock(spec=Geocoder)
+
+    execute_heatmap(region, date(2025, 4, 1), date(2026, 4, 1), storage, geocoder)
+
+    storage.store_meta.assert_not_called()
+    storage.store_png_tile.assert_not_called()
+    storage.store_data_tile.assert_not_called()

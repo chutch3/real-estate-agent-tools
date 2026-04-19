@@ -333,6 +333,10 @@ def execute_heatmap(
     storage: TileStorage,
     geocoder: Geocoder | None = None,
 ) -> None:
+    if not region.sources:
+        _logger.info("No active sources for region %s, skipping", region.slug)
+        return
+
     if geocoder is None:
         geocoder = CensusGeocoder()
 
