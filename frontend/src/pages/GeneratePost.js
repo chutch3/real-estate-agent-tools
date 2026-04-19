@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, Sparkles, Loader2, MapPin } from "lucide-react";
 import apiClient from "../apiClient";
@@ -23,15 +23,22 @@ function GeneratePost() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    apiClient.getMe().then((user) => {
+      setAgentInfo((prev) => ({
+        ...prev,
+        agent_name: user.name ?? "",
+        agent_contact: user.email ?? "",
+        agent_company: user.brokerage?.name ?? "",
+      }));
+    });
+  }, []);
+
   const handleGenerate = async () => {
     try {
       setIsLoading(true);
       setError("");
-      const data = await apiClient.generatePost(
-        property?.formatted_address,
-        agentInfo,
-        null,
-      );
+      const data = await apiClient.generatePost(property?.id, agentInfo, null);
       setPost(data.post);
     } catch (err) {
       setError("Failed to generate post. Please try again.");

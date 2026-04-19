@@ -6,6 +6,7 @@ import apiClient from '../../../src/apiClient';
 
 jest.mock('../../../src/apiClient', () => ({
   generatePost: jest.fn(),
+  getMe: jest.fn(),
 }));
 
 const mockProperty = {
@@ -26,6 +27,10 @@ function renderWithProperty(property) {
 }
 
 describe('GeneratePost', () => {
+  beforeEach(() => {
+    apiClient.getMe.mockResolvedValue({ name: '', email: '' });
+  });
+
   afterEach(() => jest.clearAllMocks());
 
   it('displays the property address', () => {
@@ -34,10 +39,11 @@ describe('GeneratePost', () => {
     expect(screen.getByText('1600 Amphitheatre Pkwy, Mountain View, CA 94043')).toBeInTheDocument();
   });
 
-  it('calls apiClient.generatePost with the property address and agent info', async () => {
+  it('calls apiClient.generatePost with the property id and agent info', async () => {
     apiClient.generatePost.mockResolvedValue({ post: 'Great house!' });
     renderWithProperty(mockProperty);
 
+    await waitFor(() => screen.getByLabelText(/agent name/i));
     fireEvent.change(screen.getByLabelText(/agent name/i), { target: { value: 'Jane Doe' } });
     fireEvent.change(screen.getByLabelText(/company/i), { target: { value: 'Doe Realty' } });
     fireEvent.change(screen.getByLabelText(/contact/i), { target: { value: 'jane@doe.com' } });
@@ -45,7 +51,7 @@ describe('GeneratePost', () => {
 
     await waitFor(() => {
       expect(apiClient.generatePost).toHaveBeenCalledWith(
-        '1600 Amphitheatre Pkwy, Mountain View, CA 94043',
+        'prop-1',
         { agent_name: 'Jane Doe', agent_company: 'Doe Realty', agent_contact: 'jane@doe.com' },
         null
       );
@@ -56,6 +62,7 @@ describe('GeneratePost', () => {
     apiClient.generatePost.mockResolvedValue({ post: 'Great house!' });
     renderWithProperty(mockProperty);
 
+    await waitFor(() => screen.getByLabelText(/agent name/i));
     fireEvent.change(screen.getByLabelText(/agent name/i), { target: { value: 'Jane Doe' } });
     fireEvent.change(screen.getByLabelText(/company/i), { target: { value: 'Doe Realty' } });
     fireEvent.change(screen.getByLabelText(/contact/i), { target: { value: 'jane@doe.com' } });

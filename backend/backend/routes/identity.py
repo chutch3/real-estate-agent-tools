@@ -98,6 +98,7 @@ async def get_me(
     return MeResponse(
         id=user.id,
         email=user.email,
+        name=user.name,
         role=user.role,
         brokerage_id=user.brokerage_id,
         brokerage=BrokerageResponse(id=brokerage.id, name=brokerage.name, contact_info=brokerage.contact_info),

@@ -103,6 +103,21 @@ class TestIdentityRoutes:
         assert body["brokerage"]["id"] == "brk-1"
         mock_security_service.decode_token.assert_called_once_with("valid-token")
 
+    def test_get_me_includes_user_name(
+        self, subject, mock_user_repository, mock_brokerage_repository, mock_security_service
+    ):
+        mock_security_service.decode_token.return_value = {"sub": "usr-1"}
+        mock_user_repository.get_by_id.return_value = User(
+            id="usr-1", email="agent@example.com", role="agent", brokerage_id="brk-1", name="Jane Smith"
+        )
+        mock_brokerage_repository.get_by_id.return_value = Brokerage(id="brk-1", name="Acme Realty")
+        subject.cookies.set("access_token", "valid-token")
+
+        response = subject.get("/users/me")
+
+        assert response.status_code == HTTPStatus.OK
+        assert response.json()["name"] == "Jane Smith"
+
     def test_get_me_returns_401_when_no_cookie(self, subject):
         response = subject.get("/users/me")
 
