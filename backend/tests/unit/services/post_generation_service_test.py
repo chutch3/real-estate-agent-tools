@@ -51,7 +51,7 @@ class TestPostGenerationService:
         mock_openai_client.generate_completion.assert_awaited_once_with(
             system_prompt="system prompt",
             user_prompt="default template\n\nAdditional information from MLS sheet:\nMLS sheet chunk 1\nMLS sheet chunk 2",
-            max_tokens=200,
+            max_tokens=1000,
         )
 
     @pytest.mark.asyncio
@@ -120,7 +120,7 @@ class TestPostGenerationService:
         mock_openai_client.generate_completion.assert_awaited_once_with(
             system_prompt="system prompt",
             user_prompt="custom template\n\nAdditional information from MLS sheet:\nMLS sheet chunk 1\nMLS sheet chunk 2",
-            max_tokens=200,
+            max_tokens=1000,
         )
 
     @pytest.fixture
