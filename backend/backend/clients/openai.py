@@ -1,7 +1,10 @@
 import logging
+import re
 from collections.abc import AsyncGenerator
 
 import openai
+
+_THINK_TAG_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
 
 
 class OpenAIClient:
@@ -29,7 +32,8 @@ class OpenAIClient:
             ],
             max_tokens=max_tokens,
         )
-        return response.choices[0].message.content.strip()
+        content = response.choices[0].message.content or ""
+        return _THINK_TAG_RE.sub("", content).strip()
 
     async def stream_completion(self, messages: list[dict], max_tokens: int = 1000) -> AsyncGenerator[str, None]:
         stream = await self._client.chat.completions.create(

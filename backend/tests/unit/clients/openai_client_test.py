@@ -97,3 +97,29 @@ class TestOpenAIClient:
         result = await client.generate_completion("system prompt", "user prompt", 100)
 
         assert result == "hello"
+
+    @pytest.mark.asyncio
+    async def test_generate_completion_strips_think_tags(self, httpserver: HTTPServer):
+        httpserver.expect_request("/chat/completions").respond_with_json(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": "<think>internal reasoning here</think>\nGreat listing!",
+                            "role": "assistant",
+                        }
+                    }
+                ],
+                "model": "gpt-4",
+                "object": "chat.completion",
+            }
+        )
+
+        client = OpenAIClient(
+            model="gpt-4",
+            base_url=httpserver.url_for("").rstrip("/"),
+            api_key="fake-key",
+        )
+        result = await client.generate_completion("system prompt", "user prompt", 1000)
+
+        assert result == "Great listing!"
