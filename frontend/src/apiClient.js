@@ -254,6 +254,19 @@ class ApiClient {
     return response.data;
   }
 
+  async listMagicLinks(representationId) {
+    const response = await this.client.get(
+      `/representations/${representationId}/magic-links`,
+    );
+    return response.data;
+  }
+
+  async revokeMagicLink(representationId, tokenId) {
+    await this.client.delete(
+      `/representations/${representationId}/magic-links/${tokenId}`,
+    );
+  }
+
   async updateDocumentVisibility(propertyId, documentId, consumerVisible) {
     const response = await this.client.patch(
       `/properties/${propertyId}/documents/${documentId}/visibility`,

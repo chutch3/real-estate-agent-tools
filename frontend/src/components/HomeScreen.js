@@ -70,6 +70,10 @@ function HomeScreen() {
     navigate("/net-sheet", { state: { property } });
   };
 
+  const handleShare = (property) => {
+    navigate("/magic-links", { state: { property } });
+  };
+
   const handleDocumentVisibilityChange = async () => {
     const updated = await apiClient.listProperties();
     setProperties(updated);
@@ -196,6 +200,7 @@ function HomeScreen() {
           onChat={handleChat}
           onGeneratePost={handleGeneratePost}
           onNetSheet={handleNetSheet}
+          onShare={handleShare}
           onUploadDocument={handleUploadDocument}
           onDeleteDocument={handleDeleteDocument}
           onDocumentVisibilityChange={handleDocumentVisibilityChange}

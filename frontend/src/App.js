@@ -11,6 +11,7 @@ import NetSheet from "./pages/NetSheet";
 import CacheInspector from "./pages/CacheInspector";
 import LoginPage from "./pages/LoginPage";
 import ConsumerPortal from "./pages/ConsumerPortal";
+import MagicLinkManager from "./pages/MagicLinkManager";
 
 function App() {
   return (
@@ -35,6 +36,7 @@ function App() {
                       path="/cache-inspector"
                       element={<CacheInspector />}
                     />
+                    <Route path="/magic-links" element={<MagicLinkManager />} />
                   </Routes>
                 </div>
               </ProtectedRoute>
