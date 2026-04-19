@@ -27,6 +27,18 @@ class TestMagicLinkService:
             token_ttl_hours=72,
         )
 
+    def test_create_magic_link_revokes_existing_links_before_creating(
+        self, subject, magic_link_repository, representation_repository
+    ):
+        rep = Representation(id="rep-1", property_id="prop-1", brokerage_id="brk-1", role="listing_agent")
+        representation_repository.get.return_value = rep
+        created = MagicLinkToken(id="tok-2", representation_id="rep-1", token="new-token", expires_at=datetime.now(UTC))
+        magic_link_repository.create.return_value = created
+
+        subject.create_magic_link("rep-1", "brk-1")
+
+        magic_link_repository.revoke_all_for_representation.assert_called_once_with("rep-1")
+
     def test_create_magic_link_returns_token(self, subject, magic_link_repository, representation_repository):
         rep = Representation(id="rep-1", property_id="prop-1", brokerage_id="brk-1", role="listing_agent")
         representation_repository.get.return_value = rep

@@ -22,6 +22,7 @@ class MagicLinkService:
         rep = self._representation_repository.get(representation_id)
         if rep is None or rep.brokerage_id != brokerage_id:
             raise InvalidMagicLinkError(f"Representation {representation_id} not found for brokerage")
+        self._repository.revoke_all_for_representation(representation_id)
         now = datetime.now(UTC)
         token = MagicLinkToken(
             representation_id=representation_id,

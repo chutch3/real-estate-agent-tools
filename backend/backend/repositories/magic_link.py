@@ -45,6 +45,18 @@ class MagicLinkRepository:
                 token.revoked = True
                 session.commit()
 
+    def revoke_all_for_representation(self, representation_id: str) -> None:
+        with self._session_factory() as session:
+            tokens = session.exec(
+                select(MagicLinkToken).where(
+                    MagicLinkToken.representation_id == representation_id,
+                    MagicLinkToken.revoked == False,  # noqa: E712
+                )
+            ).all()
+            for token in tokens:
+                token.revoked = True
+            session.commit()
+
     def touch(self, token_id: str, accessed_at: datetime) -> None:
         with self._session_factory() as session:
             token = session.get(MagicLinkToken, token_id)
