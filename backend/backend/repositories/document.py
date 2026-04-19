@@ -20,6 +20,20 @@ class DocumentRepository:
             session.add_all(docs)
             session.commit()
 
+    def get_by_id(self, doc_id: str) -> Document | None:
+        with self._session_factory() as session:
+            return session.get(Document, doc_id)
+
+    def update_visibility(self, doc_id: str, consumer_visible: bool) -> Document | None:
+        with self._session_factory() as session:
+            doc = session.get(Document, doc_id)
+            if doc is None:
+                return None
+            doc.consumer_visible = consumer_visible
+            session.commit()
+            session.refresh(doc)
+            return doc
+
     def delete(self, doc_id: str) -> None:
         with self._session_factory() as session:
             doc = session.get(Document, doc_id)

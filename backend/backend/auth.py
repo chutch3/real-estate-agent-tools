@@ -5,8 +5,10 @@ from fastapi import Cookie, Depends, HTTPException
 from jose import JWTError
 
 from backend.container import Container
-from backend.models import User
+from backend.exceptions import InvalidMagicLinkError
+from backend.models import MagicLinkToken, User
 from backend.repositories.user import UserRepository
+from backend.services.magic_link import MagicLinkService
 from backend.services.security import SecurityService
 
 
@@ -26,3 +28,16 @@ def get_current_user(
     if user is None:
         raise HTTPException(status_code=HTTPStatus.UNAUTHORIZED, detail="User not found")
     return user
+
+
+@inject
+def get_consumer_session(
+    consumer_token: str | None = Cookie(default=None),
+    magic_link_service: MagicLinkService = Depends(Provide[Container.magic_link_service]),
+) -> MagicLinkToken:
+    if consumer_token is None:
+        raise HTTPException(status_code=HTTPStatus.UNAUTHORIZED, detail="Not authenticated")
+    try:
+        return magic_link_service.validate_token(consumer_token)
+    except InvalidMagicLinkError:
+        raise HTTPException(status_code=HTTPStatus.UNAUTHORIZED, detail="Invalid or expired link")

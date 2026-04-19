@@ -9,7 +9,11 @@ import {
   Loader2,
   Trash2,
   Calculator,
+  Share2,
+  Eye,
+  EyeOff,
 } from "lucide-react";
+import apiClient from "../apiClient";
 
 function PropertyDetailPanel({
   property,
@@ -19,16 +23,60 @@ function PropertyDetailPanel({
   onNetSheet,
   onUploadDocument,
   onDeleteDocument,
+  onDocumentVisibilityChange,
   isUploading,
   uploadError,
   deleteError,
 }) {
   const fileInputRef = useRef(null);
   const [uploadingFileName, setUploadingFileName] = useState(null);
+  const [shareLink, setShareLink] = useState(null);
+  const [shareCopied, setShareCopied] = useState(false);
+  const [shareError, setShareError] = useState(null);
+  const [visibilityLoading, setVisibilityLoading] = useState({});
 
   useEffect(() => {
     if (!isUploading) setUploadingFileName(null);
   }, [isUploading]);
+
+  useEffect(() => {
+    setShareLink(null);
+    setShareCopied(false);
+    setShareError(null);
+  }, [property?.id]);
+
+  const handleShare = async () => {
+    setShareError(null);
+    try {
+      const data = await apiClient.createMagicLink(property.representation_id);
+      setShareLink(`${window.location.origin}/client/${data.token}`);
+    } catch {
+      setShareError("Failed to generate share link.");
+    }
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(shareLink).then(() => {
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2000);
+    });
+  };
+
+  const handleToggleVisibility = async (doc) => {
+    setVisibilityLoading((prev) => ({ ...prev, [doc.id]: true }));
+    try {
+      await apiClient.updateDocumentVisibility(
+        property.id,
+        doc.id,
+        !doc.consumer_visible,
+      );
+      if (onDocumentVisibilityChange) {
+        onDocumentVisibilityChange(property, doc.id, !doc.consumer_visible);
+      }
+    } finally {
+      setVisibilityLoading((prev) => ({ ...prev, [doc.id]: false }));
+    }
+  };
 
   const handleFileChange = (event) => {
     const files = Array.from(event.target.files);
@@ -128,6 +176,34 @@ function PropertyDetailPanel({
                     Net Sheet
                   </button>
                 )}
+                <button
+                  onClick={handleShare}
+                  className="w-full py-2.5 px-4 border border-linen-300 hover:border-bronze-400 text-ink-700 hover:text-bronze-600 font-sans text-sm rounded-md transition-colors flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-bronze-300"
+                >
+                  <Share2 size={13} strokeWidth={2} />
+                  Share
+                </button>
+                {shareLink && (
+                  <div className="flex items-center gap-2 bg-linen-100 rounded-md px-3 py-2">
+                    <span className="font-sans text-xs text-ink-600 truncate flex-1">
+                      {shareLink}
+                    </span>
+                    <button
+                      onClick={handleCopyLink}
+                      className="font-sans text-xs text-bronze-500 hover:text-bronze-700 whitespace-nowrap"
+                    >
+                      {shareCopied ? "Copied!" : "Copy"}
+                    </button>
+                  </div>
+                )}
+                {shareError && (
+                  <p
+                    role="alert"
+                    className="font-sans text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2"
+                  >
+                    {shareError}
+                  </p>
+                )}
               </div>
 
               {uploadError && (
@@ -181,6 +257,30 @@ function PropertyDetailPanel({
                         >
                           {doc.filename}
                         </a>
+                        <button
+                          aria-label={
+                            doc.consumer_visible
+                              ? `Hide ${doc.filename} from client`
+                              : `Show ${doc.filename} to client`
+                          }
+                          onClick={() => handleToggleVisibility(doc)}
+                          disabled={visibilityLoading[doc.id]}
+                          className="p-1 transition-colors focus:outline-none"
+                        >
+                          {doc.consumer_visible ? (
+                            <Eye
+                              size={12}
+                              strokeWidth={1.5}
+                              className="text-bronze-500"
+                            />
+                          ) : (
+                            <EyeOff
+                              size={12}
+                              strokeWidth={1.5}
+                              className="text-ink-300 hover:text-ink-600"
+                            />
+                          )}
+                        </button>
                         <button
                           aria-label={`Delete ${doc.filename}`}
                           onClick={() => onDeleteDocument(property, doc.id)}

@@ -20,3 +20,7 @@ class DualAgencyNotAllowedError(Exception):
 
 class NetSheetNotFoundError(Exception):
     pass
+
+
+class InvalidMagicLinkError(Exception):
+    pass

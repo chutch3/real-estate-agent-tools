@@ -20,6 +20,7 @@ from backend.repositories.document import DocumentRepository
 from backend.repositories.document_embeddings import DocumentEmbeddingRepository
 from backend.repositories.document_storage import DocumentStorageRepository
 from backend.repositories.layer import LayerRepository
+from backend.repositories.magic_link import MagicLinkRepository
 from backend.repositories.net_sheet import NetSheetRepository
 from backend.repositories.parcel import ParcelRepository
 from backend.repositories.properties import PropertyRepository
@@ -29,9 +30,11 @@ from backend.repositories.user import UserRepository
 from backend.services.chat import ChatService
 from backend.services.document import DocumentService
 from backend.services.layer import LayerService
+from backend.services.magic_link import MagicLinkService
 from backend.services.net_sheet import NetSheetService
 from backend.services.post_generation import PostGenerationService
 from backend.services.property import PropertyService
+from backend.services.rate_limiter import RateLimiter
 from backend.services.security import SecurityService
 from backend.template_loader import TemplateLoader
 
@@ -71,11 +74,14 @@ class Container(containers.DeclarativeContainer):
             ".routes.templates",
             ".routes.layers",
             ".routes.internal",
+            ".routes.magic_links",
+            ".routes.consumer",
             ".identity_routes",
             ".schema",
             ".startup",
             ".auth",
             ".middleware",
+            ".services.rate_limiter",
         ],
         auto_wire=True,
     )
@@ -257,4 +263,28 @@ class Container(containers.DeclarativeContainer):
         representation_repository=representation_repository,
         parcel_repository=parcel_repository,
         property_tax_cache_repository=property_tax_cache_repository,
+    )
+
+    magic_link_repository = providers.Singleton(
+        MagicLinkRepository,
+        session_factory=db.provided.session,
+    )
+
+    magic_link_service = providers.Singleton(
+        MagicLinkService,
+        magic_link_repository=magic_link_repository,
+        representation_repository=representation_repository,
+        token_ttl_hours=config.magic_link.token_ttl_hours,
+    )
+
+    redis_client = providers.Singleton(
+        lambda url: __import__("redis").Redis.from_url(url) if url else None,
+        url=config.redis.url,
+    )
+
+    rate_limiter = providers.Singleton(
+        RateLimiter,
+        redis_client=redis_client,
+        max_requests=config.magic_link.rate_limit_max_requests,
+        window_seconds=config.magic_link.rate_limit_window_seconds,
     )

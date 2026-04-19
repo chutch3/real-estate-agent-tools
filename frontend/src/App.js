@@ -10,6 +10,7 @@ import GeneratePost from "./pages/GeneratePost";
 import NetSheet from "./pages/NetSheet";
 import CacheInspector from "./pages/CacheInspector";
 import LoginPage from "./pages/LoginPage";
+import ConsumerPortal from "./pages/ConsumerPortal";
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/client/:token" element={<ConsumerPortal />} />
           <Route
             path="/*"
             element={

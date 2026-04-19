@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend import identity_routes, routes
 from backend.container import Container
 from backend.middleware import SlidingTokenRefreshMiddleware
+from backend.routes import consumer, magic_links
 from backend.startup import _on_startup
 
 
@@ -52,6 +53,14 @@ def create_app(container: Container | None = None):
     )
     container.config.arcgis_parcels.supported_states.from_env("ARCGIS_PARCELS_SUPPORTED_STATES", default="IN")
     container.config.jwt.secret_key.from_env("JWT_SECRET_KEY", default="changeme-dev-secret")
+    container.config.magic_link.token_ttl_hours.from_env("MAGIC_LINK_TOKEN_TTL_HOURS", as_=int, default=72)
+    container.config.magic_link.rate_limit_max_requests.from_env(
+        "MAGIC_LINK_RATE_LIMIT_MAX_REQUESTS", as_=int, default=10
+    )
+    container.config.magic_link.rate_limit_window_seconds.from_env(
+        "MAGIC_LINK_RATE_LIMIT_WINDOW_SECONDS", as_=int, default=60
+    )
+    container.config.redis.url.from_env("REDIS_URL", default=None)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -61,6 +70,8 @@ def create_app(container: Container | None = None):
     app = FastAPI(lifespan=lifespan)
     app.include_router(routes.router, prefix="/api")
     app.include_router(identity_routes.router, prefix="/api")
+    app.include_router(magic_links.router, prefix="/api")
+    app.include_router(consumer.router, prefix="/api")
 
     app.add_middleware(SlidingTokenRefreshMiddleware)
     app.add_middleware(

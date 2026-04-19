@@ -216,6 +216,21 @@ class ApiClient {
     return response.data;
   }
 
+  async createMagicLink(representationId) {
+    const response = await this.client.post(
+      `/representations/${representationId}/magic-links`,
+    );
+    return response.data;
+  }
+
+  async updateDocumentVisibility(propertyId, documentId, consumerVisible) {
+    const response = await this.client.patch(
+      `/properties/${propertyId}/documents/${documentId}/visibility`,
+      { consumer_visible: consumerVisible },
+    );
+    return response.data;
+  }
+
   async geocodeAddress(address) {
     try {
       const response = await this.client.post("/geocode", { address });
