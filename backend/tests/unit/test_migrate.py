@@ -75,3 +75,59 @@ class TestMigrate:
         for prop_id, brokerage_id, agent_id in rows:
             assert brokerage_id is not None, f"property {prop_id} missing brokerage_id after migration"
             assert agent_id is not None, f"property {prop_id} missing agent_id after migration"
+
+    def test_migrate_adds_consumer_visible_to_document(self, tmp_path):
+        """migrate() must add consumer_visible column to document table when it is missing."""
+        db_path = str(tmp_path / "old_real_estate.db")
+        db_url = f"sqlite:///{db_path}"
+
+        engine = create_engine(db_url)
+        with engine.connect() as conn:
+            conn.execute(
+                text(
+                    "CREATE TABLE document ("
+                    "  id VARCHAR PRIMARY KEY,"
+                    "  property_id VARCHAR,"
+                    "  filename VARCHAR NOT NULL"
+                    ")"
+                )
+            )
+            conn.commit()
+
+        with engine.connect() as conn:
+            with pytest.raises(OperationalError):
+                conn.execute(text("SELECT consumer_visible FROM document LIMIT 1"))
+
+        migrate(db_url=db_url)
+
+        with engine.connect() as conn:
+            conn.execute(text("SELECT consumer_visible FROM document LIMIT 1"))
+
+    def test_migrate_adds_name_column_to_user(self, tmp_path):
+        """migrate() must add name column to user table when it is missing."""
+        db_path = str(tmp_path / "old_real_estate.db")
+        db_url = f"sqlite:///{db_path}"
+
+        engine = create_engine(db_url)
+        with engine.connect() as conn:
+            conn.execute(
+                text(
+                    "CREATE TABLE user ("
+                    "  id VARCHAR PRIMARY KEY,"
+                    "  email VARCHAR NOT NULL,"
+                    "  hashed_password VARCHAR NOT NULL,"
+                    "  role VARCHAR NOT NULL,"
+                    "  brokerage_id VARCHAR"
+                    ")"
+                )
+            )
+            conn.commit()
+
+        with engine.connect() as conn:
+            with pytest.raises(OperationalError):
+                conn.execute(text("SELECT name FROM user LIMIT 1"))
+
+        migrate(db_url=db_url)
+
+        with engine.connect() as conn:
+            conn.execute(text("SELECT name FROM user LIMIT 1"))

@@ -78,6 +78,24 @@ def migrate(db_url: str = "sqlite:///real_estate.db"):
             session.refresh(brokerage)
             print(f"Created brokerage: {brokerage.id}")
 
+        # Add consumer_visible to document if missing
+        try:
+            session.exec(text("SELECT consumer_visible FROM document LIMIT 1"))
+        except Exception:
+            session.rollback()
+            session.exec(text("ALTER TABLE document ADD COLUMN consumer_visible BOOLEAN NOT NULL DEFAULT 0"))
+            session.commit()
+            print("Added consumer_visible to document table")
+
+        # Add name to user if missing
+        try:
+            session.exec(text("SELECT name FROM user LIMIT 1"))
+        except Exception:
+            session.rollback()
+            session.exec(text("ALTER TABLE user ADD COLUMN name VARCHAR"))
+            session.commit()
+            print("Added name to user table")
+
         # Create default user
         user = session.exec(select(User).where(User.email == "test@test.com")).first()
         if not user:
