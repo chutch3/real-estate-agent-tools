@@ -404,6 +404,48 @@ class TestPropertyService:
         with pytest.raises(PropertyNotFoundError):
             await subject.remove_document("prop-1", "doc-1", "brok-1")
 
+    @pytest.mark.asyncio
+    async def test_get_property_returns_response(
+        self,
+        subject: PropertyService,
+        mock_property_repository: MagicMock,
+        mock_representation_repository: MagicMock,
+    ):
+        prop = Property(id="prop-1", address_line1="123 Main St")
+        rep = Representation(id="rep-1", property_id="prop-1", brokerage_id="brok-1", role="listing_agent")
+        mock_property_repository.get.return_value = prop
+        mock_representation_repository.list_with_property.return_value = [(rep, prop)]
+
+        result = await subject.get_property("prop-1", "brok-1")
+
+        assert isinstance(result, PropertyResponse)
+        assert result.id == "prop-1"
+        assert result.representation_id == "rep-1"
+
+    @pytest.mark.asyncio
+    async def test_get_property_raises_when_not_found(
+        self,
+        subject: PropertyService,
+        mock_property_repository: MagicMock,
+    ):
+        mock_property_repository.get.return_value = None
+
+        with pytest.raises(PropertyNotFoundError):
+            await subject.get_property("missing", "brok-1")
+
+    @pytest.mark.asyncio
+    async def test_get_property_raises_when_not_in_brokerage(
+        self,
+        subject: PropertyService,
+        mock_property_repository: MagicMock,
+        mock_representation_repository: MagicMock,
+    ):
+        mock_property_repository.get.return_value = Property(id="prop-1")
+        mock_representation_repository.list_with_property.return_value = []
+
+        with pytest.raises(PropertyNotFoundError):
+            await subject.get_property("prop-1", "brok-1")
+
     @pytest.fixture
     def mock_client(self):
         return AsyncMock(spec=DefaultRentcast)

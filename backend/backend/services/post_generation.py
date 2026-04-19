@@ -22,6 +22,7 @@ class PostGenerationService:
         property_info: dict,
         agent_info: dict,
         custom_template: str = None,
+        doc_ids: list[str] | None = None,
     ):
         """
         Generate the post using openai and leveraging the templates.
@@ -43,7 +44,9 @@ class PostGenerationService:
         )
 
         user_prompt_embedding = await self.openai_client.create_embeddings(user_prompt)
-        relevant_chunks = await self.document_embedding_repository.query_embeddings([user_prompt_embedding], limit=5)
+        relevant_chunks = await self.document_embedding_repository.query_embeddings(
+            [user_prompt_embedding], limit=5, filter_ids=doc_ids
+        )
 
         # TODO: move this the user prompt loader
         additional_info = "\n".join([chunk["text"] for chunk in relevant_chunks])
@@ -54,5 +57,5 @@ class PostGenerationService:
         return await self.openai_client.generate_completion(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            max_tokens=200,
+            max_tokens=1000,
         )

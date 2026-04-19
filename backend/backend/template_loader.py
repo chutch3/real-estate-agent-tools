@@ -1,6 +1,6 @@
 import jinja2
 
-from backend.models import AgentInfo, Property
+from backend.models import AgentInfo
 
 TEMPLATE_DIR = "backend/templates"
 
@@ -11,7 +11,7 @@ class TemplateLoader:
 
     def render_user_prompt(
         self,
-        property_info: Property,
+        property_info: dict,
         agent_info: AgentInfo,
         custom_template: str | None = None,
     ) -> str | None:
@@ -31,7 +31,7 @@ class TemplateLoader:
             template = jinja2.Environment().from_string(custom_template)
         else:
             template = self._default_jinja_env.get_template("post_prompt.txt")
-        return template.render(**property_info.model_dump(), **agent_info.model_dump())
+        return template.render(**property_info, **agent_info.model_dump())
 
     def render_system_prompt(self) -> str:
         """

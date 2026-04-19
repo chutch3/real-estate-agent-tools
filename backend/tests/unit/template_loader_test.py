@@ -2,7 +2,7 @@ import jinja2
 import pytest
 
 from backend.container import Container
-from backend.models import AgentInfo, Property
+from backend.models import AgentInfo
 from backend.template_loader import TEMPLATE_DIR, TemplateLoader
 
 
@@ -12,7 +12,7 @@ class TestTemplateLoader:
         assert actual == jinja_env.get_template("system_prompt.txt").render()
 
     def test_render_user_prompt(self, subject: TemplateLoader, jinja_env: jinja2.Environment):
-        property_info = Property(address_line1="123 Main St")
+        property_info = {"address_line1": "123 Main St"}
         agent_info = AgentInfo(
             agent_name="John Doe",
             agent_company="John Doe Real Estate",
@@ -25,12 +25,12 @@ class TestTemplateLoader:
             custom_template=None,
         )
         assert actual == jinja_env.get_template("post_prompt.txt").render(
-            **property_info.model_dump(),
+            **property_info,
             **agent_info.model_dump(),
         )
 
     def test_render_user_prompt_with_custom_template(self, subject: TemplateLoader):
-        property_info = Property(address_line1="123 Main St")
+        property_info = {"address_line1": "123 Main St"}
         agent_info = AgentInfo(
             agent_name="John Doe",
             agent_company="John Doe Real Estate",
@@ -44,9 +44,24 @@ class TestTemplateLoader:
             custom_template=custom_template,
         )
         assert actual == jinja2.Environment().from_string(custom_template).render(
-            **property_info.model_dump(),
+            **property_info,
             **agent_info.model_dump(),
         )
+
+    def test_render_user_prompt_accepts_dict_for_property_info(self, subject: TemplateLoader):
+        property_dict = {"address_line1": "123 Main St"}
+        agent_info = AgentInfo(
+            agent_name="John Doe",
+            agent_company="John Doe Real Estate",
+            agent_contact="john.doe@example.com",
+        )
+
+        actual = subject.render_user_prompt(
+            property_info=property_dict,
+            agent_info=agent_info,
+        )
+
+        assert isinstance(actual, str)
 
     def test_read_user_prompt(self, subject: TemplateLoader):
         actual = subject.read_user_prompt()

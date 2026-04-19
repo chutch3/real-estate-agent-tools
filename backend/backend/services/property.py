@@ -181,6 +181,19 @@ class PropertyService:
             result.append(self._to_response(prop, rep, boundary, parcel, documents))
         return result
 
+    async def get_property(self, property_id: str, brokerage_id: str) -> PropertyResponse:
+        prop = self._property_repository.get(property_id)
+        if prop is None:
+            raise PropertyNotFoundError(f"Property {property_id} not found")
+        pairs = self._representation_repository.list_with_property(brokerage_id)
+        rep = next((r for r, p in pairs if p.id == property_id), None)
+        if rep is None:
+            raise PropertyNotFoundError(f"Property {property_id} not found for brokerage")
+        boundary = self._county_boundary_repository.get_by_fips(prop.county_fips) if prop.county_fips else None
+        parcel = self._parcel_repository.get_by_property_id(property_id)
+        documents = self._document_repository.get_by_property_id(property_id)
+        return self._to_response(prop, rep, boundary, parcel, documents)
+
     async def list_county_fips(self) -> list[str]:
         return self._property_repository.list_county_fips()
 

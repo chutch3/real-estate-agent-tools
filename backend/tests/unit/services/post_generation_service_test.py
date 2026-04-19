@@ -47,11 +47,35 @@ class TestPostGenerationService:
         assert actual == "generated post using the default template"
 
         mock_openai_client.create_embeddings.assert_awaited_once_with("default template")
-        mock_document_repository.query_embeddings.assert_awaited_once_with([[0.1, 0.2, 0.3]], limit=5)
+        mock_document_repository.query_embeddings.assert_awaited_once_with([[0.1, 0.2, 0.3]], limit=5, filter_ids=None)
         mock_openai_client.generate_completion.assert_awaited_once_with(
             system_prompt="system prompt",
             user_prompt="default template\n\nAdditional information from MLS sheet:\nMLS sheet chunk 1\nMLS sheet chunk 2",
             max_tokens=200,
+        )
+
+    @pytest.mark.asyncio
+    async def test_generate_post_scopes_rag_to_doc_ids(
+        self,
+        subject: PostGenerationService,
+        mock_openai_client: AsyncMock,
+        mock_template_loader: Mock,
+        mock_document_repository: AsyncMock,
+    ):
+        mock_template_loader.render_user_prompt.return_value = "default template"
+        mock_template_loader.render_system_prompt.return_value = "system prompt"
+        mock_openai_client.create_embeddings.return_value = [0.1, 0.2, 0.3]
+        mock_document_repository.query_embeddings.return_value = []
+        mock_openai_client.generate_completion.return_value = "post"
+
+        await subject.generate_post(
+            property_info={"address": "123 Main St"},
+            agent_info={"name": "John Doe"},
+            doc_ids=["doc-1", "doc-2"],
+        )
+
+        mock_document_repository.query_embeddings.assert_awaited_once_with(
+            [[0.1, 0.2, 0.3]], limit=5, filter_ids=["doc-1", "doc-2"]
         )
 
     @pytest.mark.asyncio
@@ -92,7 +116,7 @@ class TestPostGenerationService:
         assert actual == "generated post using the custom template"
 
         mock_openai_client.create_embeddings.assert_awaited_once_with("custom template")
-        mock_document_repository.query_embeddings.assert_awaited_once_with([[0.1, 0.2, 0.3]], limit=5)
+        mock_document_repository.query_embeddings.assert_awaited_once_with([[0.1, 0.2, 0.3]], limit=5, filter_ids=None)
         mock_openai_client.generate_completion.assert_awaited_once_with(
             system_prompt="system prompt",
             user_prompt="custom template\n\nAdditional information from MLS sheet:\nMLS sheet chunk 1\nMLS sheet chunk 2",

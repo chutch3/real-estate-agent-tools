@@ -271,6 +271,7 @@ class TokenResponse(BaseModel):
 class MeResponse(BaseModel):
     id: str
     email: str
+    name: str | None
     role: str
     brokerage_id: str
     brokerage: BrokerageResponse
@@ -381,7 +382,7 @@ class AgentInfo(BaseModel):
 
 
 class PostGenerationRequest(BaseModel):
-    address: str
+    property_id: str
     agent_info: AgentInfo
     custom_template: str | None = None
 

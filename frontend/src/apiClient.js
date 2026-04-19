@@ -74,10 +74,10 @@ class ApiClient {
     }
   }
 
-  async generatePost(address, agentInfo, customTemplate = null) {
+  async generatePost(propertyId, agentInfo, customTemplate = null) {
     try {
       const response = await this.client.post("/posts", {
-        address,
+        property_id: propertyId,
         agent_info: agentInfo,
         custom_template: customTemplate,
       });

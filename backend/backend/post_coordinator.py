@@ -13,23 +13,13 @@ class PostCoordinator:
 
     async def generate_post(
         self,
-        address: str,
+        property_id: str,
+        brokerage_id: str,
         agent_info: AgentInfo,
         custom_template: str | None = None,
-    ):
-        """
-        Generate a post for a property.
-
-        Args:
-            address (str): The address of the property.
-            agent_info (AgentInfo): The agent info.
-            custom_template (str): The custom template.
-
-        Returns:
-            str: The generated post.
-        """
-        property = await self._property_service.search_property(address)
-        return await self._post_generation_service.generate_post(property, agent_info, custom_template)
-
-    async def post_to_instagram(self, post):
-        raise NotImplementedError("Not implemented yet")
+    ) -> str:
+        prop = await self._property_service.get_property(property_id, brokerage_id)
+        doc_ids = [d.id for d in prop.documents]
+        return await self._post_generation_service.generate_post(
+            prop.model_dump(), agent_info, custom_template, doc_ids=doc_ids
+        )

@@ -13,58 +13,41 @@ from backend.routes.posts import router
 
 
 class TestPostRoutes:
-    @pytest.mark.parametrize(
-        "actual_request, expected_response",
-        [
-            (
-                PostGenerationRequest(
-                    address="123 Main St, Anytown, USA",
-                    agent_info=AgentInfo(
-                        agent_name="John Doe",
-                        agent_company="John Doe Real Estate",
-                        agent_contact="john.doe@example.com",
-                    ),
-                ),
-                {"post": "This is a test post"},
-            ),
-            (
-                PostGenerationRequest(
-                    address="456 Main St, Anytown, USA",
-                    agent_info=AgentInfo(
-                        agent_name="Jane Doe",
-                        agent_company="Jane Doe Real Estate",
-                        agent_contact="jane.doe@example.com",
-                    ),
-                    custom_template="This is a custom template",
-                ),
-                {"post": "this is another test post"},
-            ),
-        ],
-    )
-    def test_generate_post(self, subject, mock_coordinator, actual_request, expected_response):
-        mock_coordinator.generate_post.return_value = expected_response["post"]
-        response = subject.post("/posts", json=actual_request.model_dump())
+    def test_generate_post_returns_created(self, subject, mock_coordinator):
+        mock_coordinator.generate_post.return_value = "This is a test post"
+        response = subject.post(
+            "/posts",
+            json=PostGenerationRequest(
+                property_id="prop-1",
+                agent_info=AgentInfo(agent_name="John Doe", agent_company="Acme", agent_contact="john@example.com"),
+            ).model_dump(),
+        )
         assert response.status_code == HTTPStatus.CREATED
-        assert response.json() == expected_response
+        assert response.json() == {"post": "This is a test post"}
 
+    def test_generate_post_passes_property_id_and_brokerage_id(self, subject, mock_coordinator):
+        mock_coordinator.generate_post.return_value = "post"
+        agent_info = AgentInfo(agent_name="John Doe", agent_company="Acme", agent_contact="john@example.com")
+        subject.post(
+            "/posts",
+            json=PostGenerationRequest(property_id="prop-1", agent_info=agent_info).model_dump(),
+        )
         mock_coordinator.generate_post.assert_called_once_with(
-            address=actual_request.address,
-            agent_info=actual_request.agent_info,
-            custom_template=actual_request.custom_template,
+            property_id="prop-1",
+            brokerage_id="brokerage-123",
+            agent_info=agent_info,
+            custom_template=None,
         )
 
-    def test_generate_post_with_invalid_address(self, subject, mock_coordinator):
-        request = PostGenerationRequest(
-            address="Invalid Address",
-            agent_info=AgentInfo(
-                agent_name="John Doe",
-                agent_company="John Doe Real Estate",
-                agent_contact="john.doe@example.com",
-            ),
-        )
-
+    def test_generate_post_returns_404_for_unknown_property(self, subject, mock_coordinator):
         mock_coordinator.generate_post.side_effect = PropertyNotFoundError()
-        response = subject.post("/posts", json=request.model_dump())
+        response = subject.post(
+            "/posts",
+            json=PostGenerationRequest(
+                property_id="missing",
+                agent_info=AgentInfo(agent_name="John Doe", agent_company="Acme", agent_contact="j@example.com"),
+            ).model_dump(),
+        )
         assert response.status_code == HTTPStatus.NOT_FOUND
         assert response.json() == {"detail": "Property not found"}
 
