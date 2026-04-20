@@ -153,6 +153,27 @@ def migrate(db_url: str = "sqlite:///real_estate.db"):
         except Exception:
             session.rollback()
 
+        # Add portal_token to representation if missing, backfill existing rows
+        try:
+            session.exec(text("SELECT portal_token FROM representation LIMIT 1"))
+        except Exception:
+            session.rollback()
+            session.exec(text("ALTER TABLE representation ADD COLUMN portal_token VARCHAR"))
+            session.commit()
+            rows = session.exec(text("SELECT id FROM representation WHERE portal_token IS NULL")).all()
+            for (rep_id,) in rows:
+                session.exec(text(f"UPDATE representation SET portal_token = '{uuid.uuid4()}' WHERE id = '{rep_id}'"))
+            session.commit()
+            print(f"Added portal_token to representation ({len(rows)} rows backfilled)")
+
+        # Drop magic_link_token table if it exists (replaced by access_code)
+        try:
+            session.exec(text("DROP TABLE IF EXISTS magic_link_token"))
+            session.commit()
+            print("Dropped magic_link_token table")
+        except Exception:
+            session.rollback()
+
 
 if __name__ == "__main__":
     migrate()
