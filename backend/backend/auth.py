@@ -5,10 +5,9 @@ from fastapi import Cookie, Depends, HTTPException
 from jose import JWTError
 
 from backend.container import Container
-from backend.exceptions import InvalidMagicLinkError
-from backend.models import MagicLinkToken, User
+from backend.models import Representation, User
+from backend.repositories.representation import RepresentationRepository
 from backend.repositories.user import UserRepository
-from backend.services.magic_link import MagicLinkService
 from backend.services.security import SecurityService
 
 
@@ -33,11 +32,11 @@ def get_current_user(
 @inject
 def get_consumer_session(
     consumer_token: str | None = Cookie(default=None),
-    magic_link_service: MagicLinkService = Depends(Provide[Container.magic_link_service]),
-) -> MagicLinkToken:
+    representation_repository: RepresentationRepository = Depends(Provide[Container.representation_repository]),
+) -> Representation:
     if consumer_token is None:
         raise HTTPException(status_code=HTTPStatus.UNAUTHORIZED, detail="Not authenticated")
-    try:
-        return magic_link_service.validate_token(consumer_token)
-    except InvalidMagicLinkError:
+    rep = representation_repository.get_by_portal_token(consumer_token)
+    if rep is None:
         raise HTTPException(status_code=HTTPStatus.UNAUTHORIZED, detail="Invalid or expired link")
+    return rep

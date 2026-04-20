@@ -10,13 +10,12 @@ from backend.models import (
     ConsumerDocumentInfo,
     ConsumerDocumentsResponse,
     ConsumerPropertyResponse,
-    MagicLinkToken,
     NetSheetResponse,
+    Representation,
     RepresentationRole,
 )
 from backend.repositories.document import DocumentRepository
 from backend.repositories.properties import PropertyRepository
-from backend.repositories.representation import RepresentationRepository
 from backend.repositories.user import UserRepository
 from backend.services.net_sheet import NetSheetService
 
@@ -26,12 +25,10 @@ router = APIRouter(prefix="/consumer")
 @router.get("/property", status_code=HTTPStatus.OK, response_model=ConsumerPropertyResponse)
 @inject
 async def get_consumer_property(
-    session: MagicLinkToken = Depends(get_consumer_session),
-    representation_repository: RepresentationRepository = Depends(Provide[Container.representation_repository]),
+    rep: Representation = Depends(get_consumer_session),
     property_repository: PropertyRepository = Depends(Provide[Container.property_repository]),
     user_repository: UserRepository = Depends(Provide[Container.user_repository]),
 ):
-    rep = representation_repository.get(session.representation_id)
     prop = property_repository.get(rep.property_id)
     agent = user_repository.get_by_id(rep.user_id) if rep.user_id else None
 
@@ -54,11 +51,9 @@ async def get_consumer_property(
 @router.get("/net-sheet", status_code=HTTPStatus.OK, response_model=NetSheetResponse)
 @inject
 async def get_consumer_net_sheet(
-    session: MagicLinkToken = Depends(get_consumer_session),
-    representation_repository: RepresentationRepository = Depends(Provide[Container.representation_repository]),
+    rep: Representation = Depends(get_consumer_session),
     net_sheet_service: NetSheetService = Depends(Provide[Container.net_sheet_service]),
 ):
-    rep = representation_repository.get(session.representation_id)
     if rep.role != RepresentationRole.LISTING_AGENT:
         raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail="Net sheet is only available for sellers")
     try:
@@ -70,11 +65,9 @@ async def get_consumer_net_sheet(
 @router.get("/documents", status_code=HTTPStatus.OK, response_model=ConsumerDocumentsResponse)
 @inject
 async def get_consumer_documents(
-    session: MagicLinkToken = Depends(get_consumer_session),
-    representation_repository: RepresentationRepository = Depends(Provide[Container.representation_repository]),
+    rep: Representation = Depends(get_consumer_session),
     document_repository: DocumentRepository = Depends(Provide[Container.document_repository]),
 ):
-    rep = representation_repository.get(session.representation_id)
     all_docs = document_repository.get_by_property_id(rep.property_id)
     visible = [ConsumerDocumentInfo(id=d.id, filename=d.filename) for d in all_docs if d.consumer_visible]
     return ConsumerDocumentsResponse(documents=visible)
