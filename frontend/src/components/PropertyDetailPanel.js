@@ -42,13 +42,15 @@ function PropertyDetailPanel({
     setPortalInfo(null);
     setGeneratedCode(null);
     if (!property?.representation_id) return;
-    const fetch = async () => {
+    const loadPortalInfo = async () => {
       try {
         const info = await apiClient.getPortalInfo(property.representation_id);
         setPortalInfo(info);
-      } catch {}
+      } catch {
+        // non-critical — portal section stays hidden if unavailable
+      }
     };
-    fetch();
+    loadPortalInfo();
   }, [property?.representation_id]);
 
   const handleGenerateCode = async () => {
