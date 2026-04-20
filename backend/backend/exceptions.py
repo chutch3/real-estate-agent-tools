@@ -24,3 +24,7 @@ class NetSheetNotFoundError(Exception):
 
 class InvalidMagicLinkError(Exception):
     pass
+
+
+class InvalidAccessError(Exception):
+    pass

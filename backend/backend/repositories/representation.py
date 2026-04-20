@@ -20,6 +20,10 @@ class RepresentationRepository:
         with self._session_factory() as session:
             return session.get(Representation, rep_id)
 
+    def get_by_portal_token(self, portal_token: str) -> Representation | None:
+        with self._session_factory() as session:
+            return session.exec(select(Representation).where(Representation.portal_token == portal_token)).first()
+
     def list_with_property(self, brokerage_id: str) -> list[tuple[Representation, Property]]:
         with self._session_factory() as session:
             rows = session.exec(

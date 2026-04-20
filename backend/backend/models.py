@@ -128,6 +128,7 @@ class Representation(SQLModel, table=True):
     role: str  # RepresentationRole value (stored as VARCHAR)
     status: str = "active"
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    portal_token: str = Field(default_factory=lambda: str(uuid.uuid4()), index=True)
 
 
 class Document(SQLModel, table=True):
@@ -145,19 +146,16 @@ class Document(SQLModel, table=True):
     consumer_visible: bool = False
 
 
-class MagicLinkToken(SQLModel, table=True):
-    __tablename__ = "magic_link_token"
+class AccessCode(SQLModel, table=True):
+    __tablename__ = "access_code"
 
     id: str | None = Field(
         default=None,
         sa_column=Column(String, primary_key=True, default=lambda: str(uuid.uuid4())),
     )
-    representation_id: str = Field(foreign_key="representation.id", index=True)
-    token: str = Field(index=True, unique=True)
-    expires_at: datetime
+    representation_id: str = Field(foreign_key="representation.id", index=True, unique=True)
+    code_hash: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    last_accessed_at: datetime | None = None
-    revoked: bool = False
 
 
 # ── Tax cache ─────────────────────────────────────────────────────────────────
@@ -501,15 +499,18 @@ class DocumentUploadResponse(BaseModel):
     id: str
 
 
-class MagicLinkResponse(BaseModel):
-    id: str
-    token: str
-    expires_at: datetime
-    last_accessed_at: datetime | None
+class AccessCodeResponse(BaseModel):
+    code: str
+    portal_url: str
 
 
-class MagicLinkListResponse(BaseModel):
-    tokens: list[MagicLinkResponse]
+class PortalInfoResponse(BaseModel):
+    portal_url: str
+    has_active_code: bool
+
+
+class ConsumerSessionRequest(BaseModel):
+    code: str
 
 
 class ConsumerSessionResponse(BaseModel):
