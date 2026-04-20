@@ -8,8 +8,8 @@ from backend.routes import (
     identity,
     internal,
     layers,
-    magic_links,
     net_sheet,
+    portal,
     posts,
     properties,
     templates,
@@ -26,5 +26,5 @@ router.include_router(geocode.router)
 router.include_router(templates.router)
 router.include_router(layers.router)
 router.include_router(internal.router)
-router.include_router(magic_links.router)
+router.include_router(portal.router)
 router.include_router(consumer.router)

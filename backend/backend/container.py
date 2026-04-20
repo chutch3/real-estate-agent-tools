@@ -14,6 +14,7 @@ from backend.clients.tiger import TigerWebClient
 from backend.database import Database
 from backend.embeddings import collection_name as make_collection_name
 from backend.post_coordinator import PostCoordinator
+from backend.repositories.access_code import AccessCodeRepository
 from backend.repositories.brokerage import BrokerageRepository
 from backend.repositories.chat_messages import ChatMessageRepository
 from backend.repositories.county_boundary import CountyBoundaryRepository
@@ -21,17 +22,16 @@ from backend.repositories.document import DocumentRepository
 from backend.repositories.document_embeddings import DocumentEmbeddingRepository
 from backend.repositories.document_storage import DocumentStorageRepository
 from backend.repositories.layer import LayerRepository
-from backend.repositories.magic_link import MagicLinkRepository
 from backend.repositories.net_sheet import NetSheetRepository
 from backend.repositories.parcel import ParcelRepository
 from backend.repositories.properties import PropertyRepository
 from backend.repositories.property_tax_cache import PropertyTaxCacheRepository
 from backend.repositories.representation import RepresentationRepository
 from backend.repositories.user import UserRepository
+from backend.services.access_code import AccessCodeService
 from backend.services.chat import ChatService
 from backend.services.document import DocumentService
 from backend.services.layer import LayerService
-from backend.services.magic_link import MagicLinkService
 from backend.services.net_sheet import NetSheetService
 from backend.services.post_generation import PostGenerationService
 from backend.services.property import PropertyService
@@ -79,7 +79,7 @@ class Container(containers.DeclarativeContainer):
             ".routes.templates",
             ".routes.layers",
             ".routes.internal",
-            ".routes.magic_links",
+            ".routes.portal",
             ".routes.consumer",
             ".routes.identity",
             ".schema",
@@ -269,16 +269,15 @@ class Container(containers.DeclarativeContainer):
         property_tax_cache_repository=property_tax_cache_repository,
     )
 
-    magic_link_repository = providers.Singleton(
-        MagicLinkRepository,
+    access_code_repository = providers.Singleton(
+        AccessCodeRepository,
         session_factory=db.provided.session,
     )
 
-    magic_link_service = providers.Singleton(
-        MagicLinkService,
-        magic_link_repository=magic_link_repository,
+    access_code_service = providers.Singleton(
+        AccessCodeService,
+        access_code_repository=access_code_repository,
         representation_repository=representation_repository,
-        token_ttl_hours=config.magic_link.token_ttl_hours,
     )
 
     redis_client = providers.Singleton(
@@ -289,6 +288,6 @@ class Container(containers.DeclarativeContainer):
     rate_limiter = providers.Singleton(
         RateLimiter,
         redis_client=redis_client,
-        max_requests=config.magic_link.rate_limit_max_requests,
-        window_seconds=config.magic_link.rate_limit_window_seconds,
+        max_requests=config.portal.rate_limit_max_requests,
+        window_seconds=config.portal.rate_limit_window_seconds,
     )
