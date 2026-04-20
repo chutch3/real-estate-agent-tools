@@ -5,7 +5,8 @@ import apiClient from "../../apiClient";
 
 jest.mock("../../apiClient", () => ({
   updateDocumentVisibility: jest.fn(),
-  createMagicLink: jest.fn(),
+  getPortalInfo: jest.fn(),
+  generateAccessCode: jest.fn(),
 }));
 
 const mockProperty = {
@@ -18,6 +19,13 @@ const mockProperty = {
 };
 
 describe("PropertyDetailPanel", () => {
+  beforeEach(() => {
+    apiClient.getPortalInfo.mockResolvedValue({
+      portal_url: "http://localhost:3001/portal/tok-abc",
+      has_active_code: false,
+    });
+  });
+
   afterEach(() => {
     jest.clearAllMocks();
   });
@@ -94,6 +102,59 @@ describe("PropertyDetailPanel", () => {
 
     await waitFor(() => {
       expect(apiClient.updateDocumentVisibility).toHaveBeenCalled();
+    });
+  });
+
+  it("fetches portal info on mount and shows the portal URL", async () => {
+    render(<PropertyDetailPanel property={mockProperty} onClose={jest.fn()} />);
+
+    await waitFor(() => {
+      expect(apiClient.getPortalInfo).toHaveBeenCalledWith("rep-1");
+      expect(
+        screen.getByDisplayValue("http://localhost:3001/portal/tok-abc"),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("shows generate code button when no active code", async () => {
+    render(<PropertyDetailPanel property={mockProperty} onClose={jest.fn()} />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /generate code/i }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("shows rotate code button when active code exists", async () => {
+    apiClient.getPortalInfo.mockResolvedValue({
+      portal_url: "http://localhost:3001/portal/tok-abc",
+      has_active_code: true,
+    });
+
+    render(<PropertyDetailPanel property={mockProperty} onClose={jest.fn()} />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /rotate code/i }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("calls generateAccessCode and displays the returned code", async () => {
+    apiClient.generateAccessCode.mockResolvedValue({
+      code: "ABCD1234",
+      portal_url: "http://localhost:3001/portal/tok-abc",
+    });
+
+    render(<PropertyDetailPanel property={mockProperty} onClose={jest.fn()} />);
+
+    await waitFor(() => screen.getByRole("button", { name: /generate code/i }));
+    fireEvent.click(screen.getByRole("button", { name: /generate code/i }));
+
+    await waitFor(() => {
+      expect(apiClient.generateAccessCode).toHaveBeenCalledWith("rep-1");
+      expect(screen.getByText("ABCD1234")).toBeInTheDocument();
     });
   });
 });

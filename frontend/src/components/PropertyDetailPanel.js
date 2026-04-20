@@ -30,9 +30,8 @@ function PropertyDetailPanel({
 }) {
   const fileInputRef = useRef(null);
   const [uploadingFileName, setUploadingFileName] = useState(null);
-  const [shareLink, setShareLink] = useState(null);
-  const [shareCopied, setShareCopied] = useState(false);
-  const [shareError, setShareError] = useState(null);
+  const [portalInfo, setPortalInfo] = useState(null);
+  const [generatedCode, setGeneratedCode] = useState(null);
   const [visibilityLoading, setVisibilityLoading] = useState({});
 
   useEffect(() => {
@@ -40,26 +39,28 @@ function PropertyDetailPanel({
   }, [isUploading]);
 
   useEffect(() => {
-    setShareLink(null);
-    setShareCopied(false);
-    setShareError(null);
-  }, [property?.id]);
+    setPortalInfo(null);
+    setGeneratedCode(null);
+    if (!property?.representation_id) return;
+    const fetch = async () => {
+      try {
+        const info = await apiClient.getPortalInfo(property.representation_id);
+        setPortalInfo(info);
+      } catch {}
+    };
+    fetch();
+  }, [property?.representation_id]);
 
-  const handleShare = async () => {
-    setShareError(null);
+  const handleGenerateCode = async () => {
     try {
-      const data = await apiClient.createMagicLink(property.representation_id);
-      setShareLink(`${window.location.origin}/client/${data.token}`);
+      const data = await apiClient.generateAccessCode(
+        property.representation_id,
+      );
+      setGeneratedCode(data.code);
+      setPortalInfo((prev) => ({ ...prev, has_active_code: true }));
     } catch {
-      setShareError("Failed to generate share link.");
+      // generation failed — silently ignore, user can retry
     }
-  };
-
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(shareLink).then(() => {
-      setShareCopied(true);
-      setTimeout(() => setShareCopied(false), 2000);
-    });
   };
 
   const handleToggleVisibility = async (doc) => {
@@ -176,33 +177,28 @@ function PropertyDetailPanel({
                     Net Sheet
                   </button>
                 )}
-                <button
-                  onClick={handleShare}
-                  className="w-full py-2.5 px-4 border border-linen-300 hover:border-bronze-400 text-ink-700 hover:text-bronze-600 font-sans text-sm rounded-md transition-colors flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-bronze-300"
-                >
-                  <Share2 size={13} strokeWidth={2} />
-                  Share
-                </button>
-                {shareLink && (
-                  <div className="flex items-center gap-2 bg-linen-100 rounded-md px-3 py-2">
-                    <span className="font-sans text-xs text-ink-600 truncate flex-1">
-                      {shareLink}
-                    </span>
+                {portalInfo && (
+                  <div className="space-y-2">
+                    <input
+                      readOnly
+                      value={portalInfo.portal_url}
+                      className="w-full font-mono text-xs border border-linen-300 rounded px-3 py-2 bg-linen-100 text-ink-700"
+                    />
                     <button
-                      onClick={handleCopyLink}
-                      className="font-sans text-xs text-bronze-500 hover:text-bronze-700 whitespace-nowrap"
+                      onClick={handleGenerateCode}
+                      className="w-full py-2.5 px-4 border border-linen-300 hover:border-bronze-400 text-ink-700 hover:text-bronze-600 font-sans text-sm rounded-md transition-colors flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-bronze-300"
                     >
-                      {shareCopied ? "Copied!" : "Copy"}
+                      <Share2 size={13} strokeWidth={2} />
+                      {portalInfo.has_active_code
+                        ? "Rotate Code"
+                        : "Generate Code"}
                     </button>
+                    {generatedCode && (
+                      <div className="bg-linen-100 rounded-md px-3 py-2 font-mono text-sm text-ink-900 text-center tracking-widest">
+                        {generatedCode}
+                      </div>
+                    )}
                   </div>
-                )}
-                {shareError && (
-                  <p
-                    role="alert"
-                    className="font-sans text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2"
-                  >
-                    {shareError}
-                  </p>
                 )}
               </div>
 
