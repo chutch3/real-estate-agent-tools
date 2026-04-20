@@ -278,6 +278,7 @@ class Container(containers.DeclarativeContainer):
         AccessCodeService,
         access_code_repository=access_code_repository,
         representation_repository=representation_repository,
+        portal_base_url=config.portal.base_url,
     )
 
     redis_client = providers.Singleton(

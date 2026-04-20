@@ -29,9 +29,11 @@ class AccessCodeService:
         self,
         access_code_repository: AccessCodeRepository,
         representation_repository: RepresentationRepository,
+        portal_base_url: str,
     ) -> None:
         self._access_code_repository = access_code_repository
         self._representation_repository = representation_repository
+        self._portal_base_url = portal_base_url
 
     def _get_rep(self, representation_id: str, brokerage_id: str) -> Representation:
         rep = self._representation_repository.get(representation_id)
@@ -39,13 +41,16 @@ class AccessCodeService:
             raise InvalidAccessError(f"Representation {representation_id} not found for brokerage")
         return rep
 
-    def generate(self, representation_id: str, brokerage_id: str) -> str:
-        self._get_rep(representation_id, brokerage_id)
+    def portal_url(self, portal_token: str) -> str:
+        return f"{self._portal_base_url}/portal/{portal_token}"
+
+    def generate(self, representation_id: str, brokerage_id: str) -> tuple[str, str]:
+        rep = self._get_rep(representation_id, brokerage_id)
         plaintext = _generate_plaintext()
         self._access_code_repository.upsert(
             AccessCode(representation_id=representation_id, code_hash=_hash_code(plaintext))
         )
-        return plaintext
+        return plaintext, self.portal_url(rep.portal_token)
 
     def validate(self, portal_token: str, plaintext_code: str) -> Representation:
         rep = self._representation_repository.get_by_portal_token(portal_token)
@@ -58,6 +63,7 @@ class AccessCodeService:
             raise InvalidAccessError("Invalid access code")
         return rep
 
-    def has_active_code(self, representation_id: str, brokerage_id: str) -> bool:
-        self._get_rep(representation_id, brokerage_id)
-        return self._access_code_repository.get_by_representation(representation_id) is not None
+    def has_active_code(self, representation_id: str, brokerage_id: str) -> tuple[bool, str]:
+        rep = self._get_rep(representation_id, brokerage_id)
+        has_code = self._access_code_repository.get_by_representation(representation_id) is not None
+        return has_code, self.portal_url(rep.portal_token)

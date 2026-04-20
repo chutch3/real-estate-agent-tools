@@ -14,7 +14,6 @@ from backend.models import (
     User,
 )
 from backend.repositories.properties import PropertyRepository
-from backend.repositories.representation import RepresentationRepository
 from backend.services.access_code import AccessCodeService
 from backend.services.rate_limiter import RateLimiter
 
@@ -31,18 +30,12 @@ async def generate_access_code(
     representation_id: str,
     current_user: User = Depends(get_current_user),
     access_code_service: AccessCodeService = Depends(Provide[Container.access_code_service]),
-    representation_repository: RepresentationRepository = Depends(Provide[Container.representation_repository]),
-    portal_base_url: str = Depends(Provide[Container.config.portal.base_url]),
 ):
     try:
-        code = access_code_service.generate(representation_id, current_user.brokerage_id)
+        code, portal_url = access_code_service.generate(representation_id, current_user.brokerage_id)
     except InvalidAccessError:
         raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail="Representation not found")
-    rep = representation_repository.get(representation_id)
-    return AccessCodeResponse(
-        code=code,
-        portal_url=f"{portal_base_url}/portal/{rep.portal_token}",
-    )
+    return AccessCodeResponse(code=code, portal_url=portal_url)
 
 
 @router.get(
@@ -55,18 +48,12 @@ async def get_portal_info(
     representation_id: str,
     current_user: User = Depends(get_current_user),
     access_code_service: AccessCodeService = Depends(Provide[Container.access_code_service]),
-    representation_repository: RepresentationRepository = Depends(Provide[Container.representation_repository]),
-    portal_base_url: str = Depends(Provide[Container.config.portal.base_url]),
 ):
     try:
-        has_code = access_code_service.has_active_code(representation_id, current_user.brokerage_id)
+        has_code, portal_url = access_code_service.has_active_code(representation_id, current_user.brokerage_id)
     except InvalidAccessError:
         raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail="Representation not found")
-    rep = representation_repository.get(representation_id)
-    return PortalInfoResponse(
-        portal_url=f"{portal_base_url}/portal/{rep.portal_token}",
-        has_active_code=has_code,
-    )
+    return PortalInfoResponse(portal_url=portal_url, has_active_code=has_code)
 
 
 @router.post(

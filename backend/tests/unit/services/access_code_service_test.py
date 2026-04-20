@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock
 
+import bcrypt
 import pytest
 
 from backend.exceptions import InvalidAccessError
@@ -7,6 +8,8 @@ from backend.models import AccessCode, Representation
 from backend.repositories.access_code import AccessCodeRepository
 from backend.repositories.representation import RepresentationRepository
 from backend.services.access_code import AccessCodeService
+
+_PORTAL_BASE_URL = "http://test.example"
 
 
 class TestAccessCodeService:
@@ -23,29 +26,45 @@ class TestAccessCodeService:
         return AccessCodeService(
             access_code_repository=access_code_repository,
             representation_repository=representation_repository,
+            portal_base_url=_PORTAL_BASE_URL,
         )
 
     def test_generate_returns_plaintext_code_of_length_8(
         self, subject, access_code_repository, representation_repository
     ):
-        rep = Representation(id="rep-1", property_id="prop-1", brokerage_id="brk-1", role="listing_agent")
+        rep = Representation(
+            id="rep-1", property_id="prop-1", brokerage_id="brk-1", role="listing_agent", portal_token="tok-abc"
+        )
         representation_repository.get.return_value = rep
         access_code_repository.upsert.side_effect = lambda ac: ac
 
-        result = subject.generate(representation_id="rep-1", brokerage_id="brk-1")
+        code, _ = subject.generate(representation_id="rep-1", brokerage_id="brk-1")
 
-        assert len(result) == 8
-        assert result.isalnum()
+        assert len(code) == 8
+        assert code.isalnum()
+
+    def test_generate_returns_portal_url(self, subject, access_code_repository, representation_repository):
+        rep = Representation(
+            id="rep-1", property_id="prop-1", brokerage_id="brk-1", role="listing_agent", portal_token="tok-abc"
+        )
+        representation_repository.get.return_value = rep
+        access_code_repository.upsert.side_effect = lambda ac: ac
+
+        _, portal_url = subject.generate(representation_id="rep-1", brokerage_id="brk-1")
+
+        assert portal_url == f"{_PORTAL_BASE_URL}/portal/tok-abc"
 
     def test_generate_stores_hashed_code(self, subject, access_code_repository, representation_repository):
-        rep = Representation(id="rep-1", property_id="prop-1", brokerage_id="brk-1", role="listing_agent")
+        rep = Representation(
+            id="rep-1", property_id="prop-1", brokerage_id="brk-1", role="listing_agent", portal_token="tok-abc"
+        )
         representation_repository.get.return_value = rep
         access_code_repository.upsert.side_effect = lambda ac: ac
 
-        plaintext = subject.generate(representation_id="rep-1", brokerage_id="brk-1")
+        code, _ = subject.generate(representation_id="rep-1", brokerage_id="brk-1")
 
         stored: AccessCode = access_code_repository.upsert.call_args[0][0]
-        assert stored.code_hash != plaintext
+        assert stored.code_hash != code
         assert stored.representation_id == "rep-1"
 
     def test_generate_raises_when_representation_not_found(self, subject, representation_repository):
@@ -64,8 +83,6 @@ class TestAccessCodeService:
     def test_validate_returns_representation_when_code_matches(
         self, subject, access_code_repository, representation_repository
     ):
-        import bcrypt
-
         code_hash = bcrypt.hashpw(b"ABCD1234", bcrypt.gensalt()).decode()
         rep = Representation(
             id="rep-1", property_id="prop-1", brokerage_id="brk-1", role="listing_agent", portal_token="tok-abc"
@@ -96,8 +113,6 @@ class TestAccessCodeService:
             subject.validate(portal_token="tok-abc", plaintext_code="ABCD1234")
 
     def test_validate_raises_when_code_wrong(self, subject, access_code_repository, representation_repository):
-        import bcrypt
-
         code_hash = bcrypt.hashpw(b"CORRECT1", bcrypt.gensalt()).decode()
         rep = Representation(
             id="rep-1", property_id="prop-1", brokerage_id="brk-1", role="listing_agent", portal_token="tok-abc"
@@ -113,19 +128,38 @@ class TestAccessCodeService:
     def test_has_active_code_returns_true_when_code_exists(
         self, subject, access_code_repository, representation_repository
     ):
-        rep = Representation(id="rep-1", property_id="prop-1", brokerage_id="brk-1", role="listing_agent")
+        rep = Representation(
+            id="rep-1", property_id="prop-1", brokerage_id="brk-1", role="listing_agent", portal_token="tok-abc"
+        )
         representation_repository.get.return_value = rep
         access_code_repository.get_by_representation.return_value = AccessCode(
             representation_id="rep-1", code_hash="somehash"
         )
 
-        assert subject.has_active_code(representation_id="rep-1", brokerage_id="brk-1") is True
+        has_code, _ = subject.has_active_code(representation_id="rep-1", brokerage_id="brk-1")
+
+        assert has_code is True
 
     def test_has_active_code_returns_false_when_no_code(
         self, subject, access_code_repository, representation_repository
     ):
-        rep = Representation(id="rep-1", property_id="prop-1", brokerage_id="brk-1", role="listing_agent")
+        rep = Representation(
+            id="rep-1", property_id="prop-1", brokerage_id="brk-1", role="listing_agent", portal_token="tok-abc"
+        )
         representation_repository.get.return_value = rep
         access_code_repository.get_by_representation.return_value = None
 
-        assert subject.has_active_code(representation_id="rep-1", brokerage_id="brk-1") is False
+        has_code, _ = subject.has_active_code(representation_id="rep-1", brokerage_id="brk-1")
+
+        assert has_code is False
+
+    def test_has_active_code_returns_portal_url(self, subject, access_code_repository, representation_repository):
+        rep = Representation(
+            id="rep-1", property_id="prop-1", brokerage_id="brk-1", role="listing_agent", portal_token="tok-abc"
+        )
+        representation_repository.get.return_value = rep
+        access_code_repository.get_by_representation.return_value = None
+
+        _, portal_url = subject.has_active_code(representation_id="rep-1", brokerage_id="brk-1")
+
+        assert portal_url == f"{_PORTAL_BASE_URL}/portal/tok-abc"
