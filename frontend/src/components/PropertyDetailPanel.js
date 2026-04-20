@@ -21,7 +21,6 @@ function PropertyDetailPanel({
   onChat,
   onGeneratePost,
   onNetSheet,
-  onShare,
   onUploadDocument,
   onDeleteDocument,
   onDocumentVisibilityChange,
@@ -31,11 +30,37 @@ function PropertyDetailPanel({
 }) {
   const fileInputRef = useRef(null);
   const [uploadingFileName, setUploadingFileName] = useState(null);
+  const [shareLink, setShareLink] = useState(null);
+  const [shareCopied, setShareCopied] = useState(false);
+  const [shareError, setShareError] = useState(null);
   const [visibilityLoading, setVisibilityLoading] = useState({});
 
   useEffect(() => {
     if (!isUploading) setUploadingFileName(null);
   }, [isUploading]);
+
+  useEffect(() => {
+    setShareLink(null);
+    setShareCopied(false);
+    setShareError(null);
+  }, [property?.id]);
+
+  const handleShare = async () => {
+    setShareError(null);
+    try {
+      const data = await apiClient.createMagicLink(property.representation_id);
+      setShareLink(`${window.location.origin}/client/${data.token}`);
+    } catch {
+      setShareError("Failed to generate share link.");
+    }
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(shareLink).then(() => {
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2000);
+    });
+  };
 
   const handleToggleVisibility = async (doc) => {
     setVisibilityLoading((prev) => ({ ...prev, [doc.id]: true }));
@@ -152,12 +177,33 @@ function PropertyDetailPanel({
                   </button>
                 )}
                 <button
-                  onClick={() => onShare(property)}
+                  onClick={handleShare}
                   className="w-full py-2.5 px-4 border border-linen-300 hover:border-bronze-400 text-ink-700 hover:text-bronze-600 font-sans text-sm rounded-md transition-colors flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-bronze-300"
                 >
                   <Share2 size={13} strokeWidth={2} />
                   Share
                 </button>
+                {shareLink && (
+                  <div className="flex items-center gap-2 bg-linen-100 rounded-md px-3 py-2">
+                    <span className="font-sans text-xs text-ink-600 truncate flex-1">
+                      {shareLink}
+                    </span>
+                    <button
+                      onClick={handleCopyLink}
+                      className="font-sans text-xs text-bronze-500 hover:text-bronze-700 whitespace-nowrap"
+                    >
+                      {shareCopied ? "Copied!" : "Copy"}
+                    </button>
+                  </div>
+                )}
+                {shareError && (
+                  <p
+                    role="alert"
+                    className="font-sans text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2"
+                  >
+                    {shareError}
+                  </p>
+                )}
               </div>
 
               {uploadError && (
