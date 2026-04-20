@@ -18,7 +18,7 @@ function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/client/:token" element={<ConsumerPortal />} />
+          <Route path="/portal/:portalToken" element={<ConsumerPortal />} />
           <Route
             path="/*"
             element={

@@ -220,8 +220,10 @@ class ApiClient {
     return response.data;
   }
 
-  async createConsumerSession(token) {
-    const response = await this.client.post(`/magic/${token}/session`);
+  async createConsumerSession(portalToken, code) {
+    const response = await this.client.post(`/portal/${portalToken}/session`, {
+      code,
+    });
     return response.data;
   }
 
@@ -247,9 +249,16 @@ class ApiClient {
     return response.data;
   }
 
-  async createMagicLink(representationId) {
+  async generateAccessCode(representationId) {
     const response = await this.client.post(
-      `/representations/${representationId}/magic-links`,
+      `/representations/${representationId}/access-code`,
+    );
+    return response.data;
+  }
+
+  async getPortalInfo(representationId) {
+    const response = await this.client.get(
+      `/representations/${representationId}/portal`,
     );
     return response.data;
   }

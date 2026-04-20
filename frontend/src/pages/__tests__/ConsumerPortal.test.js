@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import ConsumerPortal from "../ConsumerPortal";
 import apiClient from "../../apiClient";
@@ -26,9 +26,9 @@ jest.mock(
 
 function renderWithToken(token = "test-token") {
   return render(
-    <MemoryRouter initialEntries={[`/client/${token}`]}>
+    <MemoryRouter initialEntries={[`/portal/${token}`]}>
       <Routes>
-        <Route path="/client/:token" element={<ConsumerPortal />} />
+        <Route path="/portal/:portalToken" element={<ConsumerPortal />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -39,7 +39,18 @@ describe("ConsumerPortal", () => {
     jest.clearAllMocks();
   });
 
-  it("calls apiClient.createConsumerSession with the token from the URL", async () => {
+  it("shows a code entry form on initial load", () => {
+    renderWithToken("abc-token");
+
+    expect(
+      screen.getByRole("textbox", { name: /access code/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /continue/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("calls createConsumerSession with portal token and entered code on submit", async () => {
     apiClient.createConsumerSession.mockResolvedValue({
       representation_id: "rep-1",
       role: "listing_agent",
@@ -48,12 +59,20 @@ describe("ConsumerPortal", () => {
 
     renderWithToken("abc-token");
 
+    fireEvent.change(screen.getByRole("textbox", { name: /access code/i }), {
+      target: { value: "ABCD1234" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
+
     await waitFor(() => {
-      expect(apiClient.createConsumerSession).toHaveBeenCalledWith("abc-token");
+      expect(apiClient.createConsumerSession).toHaveBeenCalledWith(
+        "abc-token",
+        "ABCD1234",
+      );
     });
   });
 
-  it("renders SellerPortalView for listing_agent role", async () => {
+  it("renders SellerPortalView after valid code for listing_agent role", async () => {
     apiClient.createConsumerSession.mockResolvedValue({
       representation_id: "rep-1",
       role: "listing_agent",
@@ -61,13 +80,18 @@ describe("ConsumerPortal", () => {
     });
 
     renderWithToken("abc-token");
+
+    fireEvent.change(screen.getByRole("textbox", { name: /access code/i }), {
+      target: { value: "ABCD1234" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
 
     await waitFor(() => {
       expect(screen.getByTestId("seller-portal-view")).toBeInTheDocument();
     });
   });
 
-  it("renders BuyerPortalView for buyers_agent role", async () => {
+  it("renders BuyerPortalView after valid code for buyers_agent role", async () => {
     apiClient.createConsumerSession.mockResolvedValue({
       representation_id: "rep-1",
       role: "buyers_agent",
@@ -76,28 +100,43 @@ describe("ConsumerPortal", () => {
 
     renderWithToken("abc-token");
 
+    fireEvent.change(screen.getByRole("textbox", { name: /access code/i }), {
+      target: { value: "ABCD1234" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
+
     await waitFor(() => {
       expect(screen.getByTestId("buyer-portal-view")).toBeInTheDocument();
     });
   });
 
-  it("shows error state when session creation fails", async () => {
-    apiClient.createConsumerSession.mockRejectedValue(new Error("invalid"));
+  it("shows error message when code is invalid", async () => {
+    apiClient.createConsumerSession.mockRejectedValue(
+      new Error("unauthorized"),
+    );
 
-    renderWithToken("bad-token");
+    renderWithToken("abc-token");
+
+    fireEvent.change(screen.getByRole("textbox", { name: /access code/i }), {
+      target: { value: "WRONGCOD" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
 
     await waitFor(() => {
-      expect(screen.getByText("Link Unavailable")).toBeInTheDocument();
+      expect(screen.getByText(/invalid access code/i)).toBeInTheDocument();
     });
   });
 
-  it("shows loading spinner before session resolves", () => {
+  it("shows spinner while session request is in flight", async () => {
     apiClient.createConsumerSession.mockReturnValue(new Promise(() => {}));
 
-    renderWithToken("slow-token");
+    renderWithToken("abc-token");
 
-    expect(screen.queryByTestId("seller-portal-view")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("buyer-portal-view")).not.toBeInTheDocument();
-    expect(screen.queryByText("Link Unavailable")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox", { name: /access code/i }), {
+      target: { value: "ABCD1234" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
+
+    expect(screen.getByRole("button", { name: /continue/i })).toBeDisabled();
   });
 });
